@@ -17,6 +17,12 @@ END;
 /
 */
 
+
+-- tạo tài khoản oracle
+-- CREATE USER clothing_shop IDENTIFIED BY "123456";
+-- GRANT CONNECT, RESOURCE, CREATE VIEW, CREATE TRIGGER, CREATE SEQUENCE TO clothing_shop;
+-- ALTER USER clothing_shop QUOTA UNLIMITED ON USERS;
+
 -- =====================================================================
 -- 1. ROLES - Vai trò của người dùng (khách hàng)
 -- =====================================================================
