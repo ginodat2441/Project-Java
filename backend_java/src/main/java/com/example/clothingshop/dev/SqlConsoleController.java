@@ -12,12 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
-/**
- * CHỈ DÙNG KHI HỌC/DEMO: chạy SELECT tùy ý và xem kết quả JSON trong Postman.
- *   POST /api/dev/sql   {"sql": "SELECT * FROM BRAND WHERE ROWNUM <= 5"}
- * Chỉ cho phép SELECT. Tắt bằng profile "prod" (--spring.profiles.active=prod).
- * KHÔNG đưa lên production vì có nguy cơ lộ dữ liệu.
- */
 @RestController
 @RequestMapping("/api/dev")
 @Profile("!prod")
