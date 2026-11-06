@@ -14,12 +14,11 @@ BEGIN
     END;
   END LOOP;
 END;
-/
 */
 
 
 -- tạo tài khoản oracle
--- CREATE USER clothing_shop IDENTIFIED BY "123456";
+-- CREATE USER webshop IDENTIFIED BY "123456";
 -- GRANT CONNECT, RESOURCE, CREATE VIEW, CREATE TRIGGER, CREATE SEQUENCE TO clothing_shop;
 -- ALTER USER clothing_shop QUOTA UNLIMITED ON USERS;
 
@@ -401,30 +400,271 @@ BEGIN
 END;
 /
 
+
+
+DELETE FROM PAYMENT_HISTORY;
+DELETE FROM BILL_HISTORY;
+DELETE FROM BILL_DETAIL;
+DELETE FROM BILL;
+DELETE FROM CART_DETAIL;
+DELETE FROM CART;
+DELETE FROM PRODUCT_DETAIL;
+DELETE FROM PRODUCT;
+DELETE FROM MATERIAL;
+DELETE FROM COLOR;
+DELETE FROM BRAND;
+DELETE FROM ADDRESS;
+DELETE FROM CUSTOMER;
+DELETE FROM USERS;
+DELETE FROM ROLES;
+DELETE FROM MANAGER;
+DELETE FROM MANAGER_ROLE;
+ 
+INSERT INTO ROLES (ROLE_CODE, ROLE_NAME, DESCRIPTION)
+VALUES ('CUSTOMER', N'Khách hàng', N'Người dùng mua hàng trên website');
+INSERT INTO ROLES (ROLE_CODE, ROLE_NAME, DESCRIPTION)
+VALUES ('VIP', N'Khách hàng VIP', N'Khách hàng thân thiết, có ưu đãi riêng');
+ 
+INSERT INTO MANAGER_ROLE (ROLE_CODE, ROLE_NAME, DESCRIPTION)
+VALUES ('ADMIN', N'Quản trị viên', N'Toàn quyền trên hệ thống');
+INSERT INTO MANAGER_ROLE (ROLE_CODE, ROLE_NAME, DESCRIPTION)
+VALUES ('STAFF', N'Nhân viên', N'Xử lý đơn hàng, quản lý sản phẩm');
+ 
 -- =====================================================================
--- 20. DỮ LIỆU MẪU CƠ BẢN (roles)
+-- 1. BRAND
 -- =====================================================================
--- INSERT INTO ROLES (ROLE_CODE, ROLE_NAME, DESCRIPTION)
--- VALUES ('CUSTOMER', N'Khách hàng', N'Người dùng mua hàng trên website');
--- INSERT INTO ROLES (ROLE_CODE, ROLE_NAME, DESCRIPTION)
--- VALUES ('VIP', N'Khách hàng VIP', N'Khách hàng thân thiết, có ưu đãi riêng');
-
--- INSERT INTO MANAGER_ROLE (ROLE_CODE, ROLE_NAME, DESCRIPTION)
--- VALUES ('ADMIN', N'Quản trị viên', N'Toàn quyền trên hệ thống');
--- INSERT INTO MANAGER_ROLE (ROLE_CODE, ROLE_NAME, DESCRIPTION)
--- VALUES ('STAFF', N'Nhân viên', N'Xử lý đơn hàng, quản lý sản phẩm');
-
--- COMMIT;
-
-/* =====================================================================
-   GHI CHÚ
-   1. Xóa mềm: UPDATE <bảng> SET DELETE_FLAG = 1 WHERE ID = :id;
-      Khi truy vấn luôn thêm điều kiện: WHERE DELETE_FLAG = 0
-   2. Các UNIQUE (USERNAME, EMAIL, SKU, BILL_CODE...) vẫn tính cả bản ghi
-      đã xóa mềm. Nếu muốn cho phép dùng lại giá trị sau khi xóa mềm,
-      hãy đổi sang unique index có điều kiện, ví dụ:
-        CREATE UNIQUE INDEX UQ_USERS_EMAIL_ACTIVE
-          ON USERS (CASE WHEN DELETE_FLAG = 0 THEN EMAIL END);
-   3. Lưu mật khẩu dưới dạng hash (BCrypt/Argon2), không lưu plain text.
-   4. Oracle 11g trở xuống không hỗ trợ IDENTITY: cần đổi sang SEQUENCE + TRIGGER.
-   ===================================================================== */
+INSERT INTO BRAND (BRAND_NAME, COUNTRY, DESCRIPTION) VALUES (N'Nike',    N'Mỹ',          N'Thương hiệu thể thao hàng đầu thế giới');
+INSERT INTO BRAND (BRAND_NAME, COUNTRY, DESCRIPTION) VALUES (N'Adidas',  N'Đức',         N'Thương hiệu thể thao với ba sọc đặc trưng');
+INSERT INTO BRAND (BRAND_NAME, COUNTRY, DESCRIPTION) VALUES (N'Uniqlo',  N'Nhật Bản',    N'Thời trang basic, chất lượng ổn định');
+INSERT INTO BRAND (BRAND_NAME, COUNTRY, DESCRIPTION) VALUES (N'Zara',    N'Tây Ban Nha', N'Thời trang nhanh theo xu hướng');
+INSERT INTO BRAND (BRAND_NAME, COUNTRY, DESCRIPTION) VALUES (N'Routine', N'Việt Nam',    N'Thời trang nam công sở và dạo phố');
+ 
+-- =====================================================================
+-- 2. COLOR
+-- =====================================================================
+INSERT INTO COLOR (COLOR_NAME, HEX_CODE) VALUES (N'Đen',       '#000000');
+INSERT INTO COLOR (COLOR_NAME, HEX_CODE) VALUES (N'Trắng',     '#FFFFFF');
+INSERT INTO COLOR (COLOR_NAME, HEX_CODE) VALUES (N'Đỏ',        '#FF0000');
+INSERT INTO COLOR (COLOR_NAME, HEX_CODE) VALUES (N'Xanh navy', '#001F3F');
+INSERT INTO COLOR (COLOR_NAME, HEX_CODE) VALUES (N'Xám',       '#808080');
+INSERT INTO COLOR (COLOR_NAME, HEX_CODE) VALUES (N'Be',        '#F5F5DC');
+ 
+-- =====================================================================
+-- 3. MATERIAL
+-- =====================================================================
+INSERT INTO MATERIAL (MATERIAL_NAME, DESCRIPTION) VALUES (N'Cotton',    N'Vải cotton thoáng mát, thấm hút mồ hôi');
+INSERT INTO MATERIAL (MATERIAL_NAME, DESCRIPTION) VALUES (N'Polyester', N'Vải nhanh khô, bền, ít nhăn');
+INSERT INTO MATERIAL (MATERIAL_NAME, DESCRIPTION) VALUES (N'Denim',     N'Vải jean dày dặn, bền');
+INSERT INTO MATERIAL (MATERIAL_NAME, DESCRIPTION) VALUES (N'Len',       N'Vải len giữ ấm tốt');
+INSERT INTO MATERIAL (MATERIAL_NAME, DESCRIPTION) VALUES (N'Kaki',      N'Vải kaki đứng form, phù hợp đồ công sở');
+ 
+-- =====================================================================
+-- 4. USERS (khách hàng) + CUSTOMER
+-- =====================================================================
+INSERT INTO USERS (ROLE_ID, USERNAME, EMAIL, PASSWORD_HASH)
+SELECT r.ID, v.username, v.email, '$2a$10$FAKEHASHFAKEHASHFAKEHASHFAKEHASHFAKEHASHFAKEHASHFAKEH'
+FROM (
+    SELECT 'nguyenvana' username, 'vana@example.com'  email, 'CUSTOMER' role_code FROM dual UNION ALL
+    SELECT 'tranthib',            'thib@example.com',         'CUSTOMER'           FROM dual UNION ALL
+    SELECT 'lethic',              'thic@example.com',         'VIP'                FROM dual UNION ALL
+    SELECT 'phamvand',            'vand@example.com',         'CUSTOMER'           FROM dual UNION ALL
+    SELECT 'hoangthie',           'thie@example.com',         'CUSTOMER'           FROM dual
+) v
+JOIN ROLES r ON r.ROLE_CODE = v.role_code;
+ 
+INSERT INTO CUSTOMER (USER_ID, FULL_NAME, PHONE, GENDER, BIRTH_DATE)
+SELECT u.ID, v.full_name, v.phone, v.gender, v.birth_date
+FROM (
+    SELECT 'nguyenvana' username, N'Nguyễn Văn A' full_name, '0901234567' phone, 1 gender, DATE '1995-03-12' birth_date FROM dual UNION ALL
+    SELECT 'tranthib',            N'Trần Thị B',            '0912345678',       0,         DATE '1998-07-25'            FROM dual UNION ALL
+    SELECT 'lethic',              N'Lê Thị C',              '0923456789',       0,         DATE '1992-11-02'            FROM dual UNION ALL
+    SELECT 'phamvand',            N'Phạm Văn D',            '0934567890',       1,         DATE '2000-01-30'            FROM dual UNION ALL
+    SELECT 'hoangthie',           N'Hoàng Thị E',           '0945678901',       0,         DATE '1997-09-18'            FROM dual
+) v
+JOIN USERS u ON u.USERNAME = v.username;
+ 
+-- =====================================================================
+-- 5. ADDRESS (không còn cột DISTRICT)
+-- =====================================================================
+INSERT INTO ADDRESS (CUSTOMER_ID, RECEIVER_NAME, RECEIVER_PHONE, PROVINCE, WARD, DETAIL_ADDRESS, IS_DEFAULT)
+SELECT c.ID, v.receiver_name, v.receiver_phone, v.province, v.ward, v.detail_address, v.is_default
+FROM (
+    SELECT 'nguyenvana' username, N'Nguyễn Văn A' receiver_name, '0901234567' receiver_phone, N'Hà Nội' province, N'Dịch Vọng'   ward, N'Số 12 Trần Thái Tông' detail_address, 1 is_default FROM dual UNION ALL
+    SELECT 'nguyenvana',            N'Nguyễn Văn A',            '0901234567',       N'Hà Nội',        N'Láng Thượng', N'Số 5 Chùa Láng',                   0            FROM dual UNION ALL
+    SELECT 'tranthib',              N'Trần Thị B',              '0912345678',       N'Hồ Chí Minh',   N'Bến Nghé',    N'25 Lê Lợi',                        1            FROM dual UNION ALL
+    SELECT 'lethic',                N'Lê Thị C',                '0923456789',       N'Đà Nẵng',       N'Thạch Thang', N'88 Nguyễn Văn Linh',               1            FROM dual UNION ALL
+    SELECT 'phamvand',              N'Phạm Văn D',              '0934567890',       N'Hải Phòng',     N'An Dương',    N'15 Tô Hiệu',                       1            FROM dual UNION ALL
+    SELECT 'hoangthie',             N'Hoàng Thị E',             '0945678901',       N'Cần Thơ',       N'Xuân Khánh',  N'42 Nguyễn Văn Cừ',                 1            FROM dual
+) v
+JOIN USERS u    ON u.USERNAME = v.username
+JOIN CUSTOMER c ON c.USER_ID  = u.ID;
+ 
+-- =====================================================================
+-- 6. MANAGER (tài khoản admin)
+-- =====================================================================
+INSERT INTO MANAGER (MANAGER_ROLE_ID, USERNAME, PASSWORD_HASH, FULL_NAME, EMAIL, PHONE)
+SELECT mr.ID, v.username, '$2a$10$FAKEHASHFAKEHASHFAKEHASHFAKEHASHFAKEHASHFAKEHASHFAKEH',
+       v.full_name, v.email, v.phone
+FROM (
+    SELECT 'admin' username, N'Quản trị viên'  full_name, 'admin@shop.vn' email, '0900000001' phone, 'ADMIN' role_code FROM dual UNION ALL
+    SELECT 'staff01',        N'Nhân viên Một', 'staff01@shop.vn',          '0900000002',       'STAFF'            FROM dual
+) v
+JOIN MANAGER_ROLE mr ON mr.ROLE_CODE = v.role_code;
+ 
+-- =====================================================================
+-- 7. PRODUCT
+-- =====================================================================
+INSERT INTO PRODUCT (PRODUCT_CODE, PRODUCT_NAME, BRAND_ID, MATERIAL_ID, TARGET_GENDER, DESCRIPTION)
+SELECT v.code, v.name, b.ID, m.ID, v.gender, v.descr
+FROM (
+    SELECT 'P001' code, N'Áo thun Nike Dri-FIT'        name, 'Nike'   brand, N'Polyester' material, 1 gender, N'Áo thun thể thao nhanh khô'        descr FROM dual UNION ALL
+    SELECT 'P002',      N'Áo thun Uniqlo Cotton Basic',       'Uniqlo',     N'Cotton',              2,         N'Áo thun cotton basic mặc hằng ngày'      FROM dual UNION ALL
+    SELECT 'P003',      N'Quần jean Zara Slim Fit',           'Zara',       N'Denim',               1,         N'Quần jean ôm vừa, co giãn nhẹ'           FROM dual UNION ALL
+    SELECT 'P004',      N'Quần jogger Adidas Essentials',     'Adidas',     N'Cotton',              2,         N'Quần jogger thoải mái, bo gấu'           FROM dual UNION ALL
+    SELECT 'P005',      N'Áo len Uniqlo cổ tròn',             'Uniqlo',     N'Len',                 0,         N'Áo len mỏng giữ ấm nhẹ'                  FROM dual UNION ALL
+    SELECT 'P006',      N'Quần kaki Routine Chino',           'Routine',    N'Kaki',                1,         N'Quần kaki công sở đứng form'             FROM dual
+) v
+JOIN BRAND b    ON b.BRAND_NAME    = v.brand
+JOIN MATERIAL m ON m.MATERIAL_NAME = v.material;
+ 
+-- =====================================================================
+-- 8. PRODUCT_DETAIL (biến thể: màu + size + giá + tồn kho)
+-- =====================================================================
+INSERT INTO PRODUCT_DETAIL (PRODUCT_ID, COLOR_ID, SIZE_NAME, SKU, PRICE, QUANTITY)
+SELECT p.ID, c.ID, v.size_name, v.sku, v.price, v.qty
+FROM (
+    SELECT 'P001' pcode, N'Đen'       cname, 'M'  size_name, 'P001-DEN-M'   sku, 450000 price, 50  qty FROM dual UNION ALL
+    SELECT 'P001',       N'Đen',              'L',           'P001-DEN-L',        450000,       40      FROM dual UNION ALL
+    SELECT 'P001',       N'Trắng',            'M',           'P001-TRANG-M',      450000,       30      FROM dual UNION ALL
+    SELECT 'P002',       N'Trắng',            'S',           'P002-TRANG-S',      199000,       100     FROM dual UNION ALL
+    SELECT 'P002',       N'Trắng',            'M',           'P002-TRANG-M',      199000,       120     FROM dual UNION ALL
+    SELECT 'P002',       N'Đen',              'M',           'P002-DEN-M',        199000,       80      FROM dual UNION ALL
+    SELECT 'P003',       N'Xanh navy',        '30',          'P003-NAVY-30',      790000,       25      FROM dual UNION ALL
+    SELECT 'P003',       N'Xanh navy',        '32',          'P003-NAVY-32',      790000,       20      FROM dual UNION ALL
+    SELECT 'P004',       N'Xám',              'M',           'P004-XAM-M',        650000,       35      FROM dual UNION ALL
+    SELECT 'P004',       N'Đen',              'L',           'P004-DEN-L',        650000,       30      FROM dual UNION ALL
+    SELECT 'P005',       N'Be',               'M',           'P005-BE-M',         590000,       15      FROM dual UNION ALL
+    SELECT 'P005',       N'Đỏ',               'M',           'P005-DO-M',         590000,       10      FROM dual UNION ALL
+    SELECT 'P006',       N'Be',               '30',          'P006-BE-30',        520000,       22      FROM dual UNION ALL
+    SELECT 'P006',       N'Be',               '32',          'P006-BE-32',        520000,       18      FROM dual
+) v
+JOIN PRODUCT p ON p.PRODUCT_CODE = v.pcode
+JOIN COLOR c   ON c.COLOR_NAME   = v.cname;
+ 
+-- =====================================================================
+-- 9. CART + CART_DETAIL
+-- =====================================================================
+INSERT INTO CART (CUSTOMER_ID)
+SELECT c.ID
+FROM CUSTOMER c
+JOIN USERS u ON u.ID = c.USER_ID
+WHERE u.USERNAME IN ('phamvand', 'hoangthie');
+ 
+INSERT INTO CART_DETAIL (CART_ID, PRODUCT_DETAIL_ID, QUANTITY)
+SELECT ct.ID, pd.ID, v.qty
+FROM (
+    SELECT 'phamvand' username, 'P001-DEN-L'   sku, 1 qty FROM dual UNION ALL
+    SELECT 'phamvand',          'P004-DEN-L',        2     FROM dual UNION ALL
+    SELECT 'hoangthie',         'P005-BE-M',         1     FROM dual UNION ALL
+    SELECT 'hoangthie',         'P002-TRANG-S',      3     FROM dual
+) v
+JOIN USERS u            ON u.USERNAME = v.username
+JOIN CUSTOMER c         ON c.USER_ID  = u.ID
+JOIN CART ct            ON ct.CUSTOMER_ID = c.ID
+JOIN PRODUCT_DETAIL pd  ON pd.SKU = v.sku;
+ 
+-- =====================================================================
+-- 10. BILL (3 đơn: hoàn thành, đang giao, chờ xác nhận)
+--     Địa chỉ giao hàng = số nhà + phường/xã + tỉnh/thành
+-- =====================================================================
+INSERT INTO BILL (BILL_CODE, CUSTOMER_ID, ADDRESS_ID, RECEIVER_NAME, RECEIVER_PHONE, SHIPPING_ADDRESS,
+                  SUB_TOTAL, SHIPPING_FEE, DISCOUNT_AMOUNT, TOTAL_AMOUNT,
+                  PAYMENT_METHOD, PAYMENT_STATUS, STATUS, NOTE, HANDLED_BY, CREATED_AT)
+SELECT v.bill_code, c.ID, a.ID, a.RECEIVER_NAME, a.RECEIVER_PHONE,
+       a.DETAIL_ADDRESS || N', ' || a.WARD || N', ' || a.PROVINCE,
+       v.sub_total, v.ship_fee, v.discount, v.sub_total + v.ship_fee - v.discount,
+       v.pay_method, v.pay_status, v.status, v.note,
+       (SELECT m.ID FROM MANAGER m WHERE m.USERNAME = 'admin'),
+       SYSTIMESTAMP - NUMTODSINTERVAL(v.days_ago, 'DAY')
+FROM (
+    SELECT 'HD2611-0001' bill_code, 'nguyenvana' username, 1099000 sub_total, 30000 ship_fee, 0     discount, 'COD'   pay_method, 1 pay_status, 3 status, N'Giao giờ hành chính' note, 7 days_ago FROM dual UNION ALL
+    SELECT 'HD2611-0002',           'tranthib',            790000,            30000,           50000,         'VNPAY',            1,              2,         N'Gọi trước khi giao',          3            FROM dual UNION ALL
+    SELECT 'HD2611-0003',           'lethic',              1240000,           0,               0,             'COD',              0,              0,         NULL,                           1            FROM dual
+) v
+JOIN USERS u    ON u.USERNAME = v.username
+JOIN CUSTOMER c ON c.USER_ID  = u.ID
+JOIN ADDRESS a  ON a.CUSTOMER_ID = c.ID AND a.IS_DEFAULT = 1;
+ 
+-- =====================================================================
+-- 11. BILL_DETAIL (đơn giá lấy từ PRODUCT_DETAIL tại thời điểm tạo)
+-- =====================================================================
+INSERT INTO BILL_DETAIL (BILL_ID, PRODUCT_DETAIL_ID, QUANTITY, UNIT_PRICE, TOTAL_PRICE)
+SELECT b.ID, pd.ID, v.qty, pd.PRICE, v.qty * pd.PRICE
+FROM (
+    SELECT 'HD2611-0001' bill_code, 'P001-DEN-M'   sku, 2 qty FROM dual UNION ALL
+    SELECT 'HD2611-0001',           'P002-TRANG-M',      1     FROM dual UNION ALL
+    SELECT 'HD2611-0002',           'P003-NAVY-30',      1     FROM dual UNION ALL
+    SELECT 'HD2611-0003',           'P005-BE-M',         1     FROM dual UNION ALL
+    SELECT 'HD2611-0003',           'P004-XAM-M',        1     FROM dual
+) v
+JOIN BILL b            ON b.BILL_CODE = v.bill_code
+JOIN PRODUCT_DETAIL pd ON pd.SKU      = v.sku;
+ 
+-- =====================================================================
+-- 12. BILL_HISTORY (0: chờ xác nhận, 1: đã xác nhận, 2: đang giao, 3: hoàn thành)
+-- =====================================================================
+INSERT INTO BILL_HISTORY (BILL_ID, OLD_STATUS, NEW_STATUS, NOTE, MANAGER_ID, CREATED_AT)
+SELECT b.ID, v.old_status, v.new_status, v.note,
+       CASE WHEN v.new_status > 0 THEN (SELECT m.ID FROM MANAGER m WHERE m.USERNAME = 'admin') END,
+       SYSTIMESTAMP - NUMTODSINTERVAL(v.days_ago, 'DAY')
+FROM (
+    SELECT 'HD2611-0001' bill_code, CAST(NULL AS NUMBER) old_status, 0 new_status, N'Khách đặt hàng'                  note, 7 days_ago FROM dual UNION ALL
+    SELECT 'HD2611-0001',           0,                               1,            N'Đã xác nhận đơn',                      6            FROM dual UNION ALL
+    SELECT 'HD2611-0001',           1,                               2,            N'Bàn giao cho đơn vị vận chuyển',       5            FROM dual UNION ALL
+    SELECT 'HD2611-0001',           2,                               3,            N'Giao thành công',                      3            FROM dual UNION ALL
+    SELECT 'HD2611-0002',           CAST(NULL AS NUMBER),            0,            N'Khách đặt hàng',                       3            FROM dual UNION ALL
+    SELECT 'HD2611-0002',           0,                               1,            N'Đã xác nhận đơn',                      2            FROM dual UNION ALL
+    SELECT 'HD2611-0002',           1,                               2,            N'Bàn giao cho đơn vị vận chuyển',       1            FROM dual UNION ALL
+    SELECT 'HD2611-0003',           CAST(NULL AS NUMBER),            0,            N'Khách đặt hàng',                       1            FROM dual
+) v
+JOIN BILL b ON b.BILL_CODE = v.bill_code;
+ 
+-- =====================================================================
+-- 13. PAYMENT_HISTORY (0 chờ, 1 thành công, 2 thất bại, 3 hoàn tiền)
+-- =====================================================================
+INSERT INTO PAYMENT_HISTORY (BILL_ID, AMOUNT, PAYMENT_METHOD, TRANSACTION_CODE, STATUS, PAID_AT, NOTE, CREATED_AT)
+SELECT b.ID, v.amount, v.pay_method, v.txn_code, v.status,
+       CASE WHEN v.status = 1 THEN SYSTIMESTAMP - NUMTODSINTERVAL(v.days_ago, 'DAY') END,
+       v.note,
+       SYSTIMESTAMP - NUMTODSINTERVAL(v.days_ago, 'DAY')
+FROM (
+    SELECT 'HD2611-0001' bill_code, 1129000 amount, 'COD'   pay_method, CAST(NULL AS VARCHAR2(100)) txn_code, 1 status, N'Thu tiền khi giao hàng'     note, 3 days_ago FROM dual UNION ALL
+    SELECT 'HD2611-0002',           770000,         'VNPAY',             'VNP14000001',                      2,          N'Thanh toán thất bại, lỗi thẻ',     3            FROM dual UNION ALL
+    SELECT 'HD2611-0002',           770000,         'VNPAY',             'VNP14000002',                      1,          N'Thanh toán lại thành công',        3            FROM dual UNION ALL
+    SELECT 'HD2611-0003',           1240000,        'COD',               CAST(NULL AS VARCHAR2(100)),        0,          N'Chờ thu tiền khi giao hàng',       1            FROM dual
+) v
+JOIN BILL b ON b.BILL_CODE = v.bill_code;
+ 
+COMMIT;
+ 
+-- =====================================================================
+-- 14. KIỂM TRA NHANH: đếm số dòng từng bảng
+--     Kết quả mong đợi: BRAND 5, COLOR 6, MATERIAL 5, USERS 5, CUSTOMER 5,
+--     ADDRESS 6, MANAGER 2, PRODUCT 6, PRODUCT_DETAIL 14, CART 2,
+--     CART_DETAIL 4, BILL 3, BILL_DETAIL 5, BILL_HISTORY 8, PAYMENT_HISTORY 4
+-- =====================================================================
+SELECT 'BRAND' tbl, COUNT(*) cnt FROM BRAND UNION ALL
+SELECT 'COLOR',           COUNT(*) FROM COLOR UNION ALL
+SELECT 'MATERIAL',        COUNT(*) FROM MATERIAL UNION ALL
+SELECT 'USERS',           COUNT(*) FROM USERS UNION ALL
+SELECT 'CUSTOMER',        COUNT(*) FROM CUSTOMER UNION ALL
+SELECT 'ADDRESS',         COUNT(*) FROM ADDRESS UNION ALL
+SELECT 'MANAGER',         COUNT(*) FROM MANAGER UNION ALL
+SELECT 'PRODUCT',         COUNT(*) FROM PRODUCT UNION ALL
+SELECT 'PRODUCT_DETAIL',  COUNT(*) FROM PRODUCT_DETAIL UNION ALL
+SELECT 'CART',            COUNT(*) FROM CART UNION ALL
+SELECT 'CART_DETAIL',     COUNT(*) FROM CART_DETAIL UNION ALL
+SELECT 'BILL',            COUNT(*) FROM BILL UNION ALL
+SELECT 'BILL_DETAIL',     COUNT(*) FROM BILL_DETAIL UNION ALL
+SELECT 'BILL_HISTORY',    COUNT(*) FROM BILL_HISTORY UNION ALL
+SELECT 'PAYMENT_HISTORY', COUNT(*) FROM PAYMENT_HISTORY;
