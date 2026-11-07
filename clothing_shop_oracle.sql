@@ -647,12 +647,7 @@ JOIN BILL b ON b.BILL_CODE = v.bill_code;
  
 COMMIT;
  
--- =====================================================================
--- 14. KIỂM TRA NHANH: đếm số dòng từng bảng
---     Kết quả mong đợi: BRAND 5, COLOR 6, MATERIAL 5, USERS 5, CUSTOMER 5,
---     ADDRESS 6, MANAGER 2, PRODUCT 6, PRODUCT_DETAIL 14, CART 2,
---     CART_DETAIL 4, BILL 3, BILL_DETAIL 5, BILL_HISTORY 8, PAYMENT_HISTORY 4
--- =====================================================================
+-- KHU VUC TEST
 SELECT 'BRAND' tbl, COUNT(*) cnt FROM BRAND UNION ALL
 SELECT 'COLOR',           COUNT(*) FROM COLOR UNION ALL
 SELECT 'MATERIAL',        COUNT(*) FROM MATERIAL UNION ALL
@@ -668,3 +663,11 @@ SELECT 'BILL',            COUNT(*) FROM BILL UNION ALL
 SELECT 'BILL_DETAIL',     COUNT(*) FROM BILL_DETAIL UNION ALL
 SELECT 'BILL_HISTORY',    COUNT(*) FROM BILL_HISTORY UNION ALL
 SELECT 'PAYMENT_HISTORY', COUNT(*) FROM PAYMENT_HISTORY;
+
+SELECT * FROM PRODUCT_DETAIL
+
+
+
+
+
+
