@@ -98,10 +98,9 @@ public class CartService {
         List<BillRequest.Item> items = details.stream()
                 .map(d -> new BillRequest.Item(d.productDetailId(), d.quantity()))
                 .toList();
-        BillRequest billReq = new BillRequest(customerId, req.addressId(), req.paymentMethod(),
-                req.shippingFee(), req.note(), items);
+        BillRequest billReq = new BillRequest(req.addressId(), req.paymentMethod(), req.note(), items);
 
-        BillView bill = billService.create(billReq);
+        BillView bill = billService.create(customerId, billReq);
         repo.markCheckedOut(cart.id());
         return bill;
     }

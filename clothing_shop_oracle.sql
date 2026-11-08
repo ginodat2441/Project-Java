@@ -665,10 +665,36 @@ SELECT 'BILL_DETAIL',     COUNT(*) FROM BILL_DETAIL UNION ALL
 SELECT 'BILL_HISTORY',    COUNT(*) FROM BILL_HISTORY UNION ALL
 SELECT 'PAYMENT_HISTORY', COUNT(*) FROM PAYMENT_HISTORY;
 
-SELECT * FROM PRODUCT_DETAIL
+SELECT * FROM PRODUCT_DETAIL;
+select * from users;
+select * from bill;
+select * from bill_detail;
+select * from manager;
+select * from manager_role;
 
+DELETE FROM PAYMENT_HISTORY;
+DELETE FROM BILL_HISTORY;
+DELETE FROM BILL_DETAIL;
+DELETE FROM BILL;
+DELETE FROM MANAGER;
+commit;
 
-
-
-
-
+                SELECT COUNT(*)
+                  FROM MANAGER m
+                  JOIN MANAGER_ROLE mr ON mr.ID = m.MANAGER_ROLE_ID
+                  WHERE mr.ROLE_CODE = 'ADMIN'
+                    AND mr.DELETE_FLAG = 0
+                    AND m.DELETE_FLAG = 0;
+                    
+                    
+                    SELECT SYS_CONTEXT('USERENV', 'SESSION_USER') AS db_user,
+       SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') AS current_schema,
+       SYS_CONTEXT('USERENV', 'SERVICE_NAME') AS service_name,
+       (SELECT COUNT(*) FROM MANAGER) AS manager_count,
+       (SELECT COUNT(*)
+          FROM MANAGER m
+          JOIN MANAGER_ROLE r ON r.ID = m.MANAGER_ROLE_ID
+         WHERE r.ROLE_CODE = 'ADMIN'
+           AND r.DELETE_FLAG = 0
+           AND m.DELETE_FLAG = 0) AS owner_count
+FROM DUAL;

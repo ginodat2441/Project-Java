@@ -4,6 +4,7 @@ import com.example.clothingshop.common.SqlHelper;
 import com.example.clothingshop.entity.Bill;
 import com.example.clothingshop.entity.BillDetail;
 import com.example.clothingshop.view.BillLineView;
+import com.example.clothingshop.view.BillHistoryView;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
@@ -90,6 +91,51 @@ public class BillRepository {
         sql.update(q, p);
     }
 
+    public void restoreStockForBill(long billId) {
+        sql.update("""
+                UPDATE PRODUCT_DETAIL pd
+                   SET QUANTITY = QUANTITY + (
+                       SELECT SUM(bd.QUANTITY)
+                         FROM BILL_DETAIL bd
+                        WHERE bd.BILL_ID = :billId
+                          AND bd.PRODUCT_DETAIL_ID = pd.ID
+                          AND bd.DELETE_FLAG = 0
+                   )
+                 WHERE EXISTS (
+                       SELECT 1
+                         FROM BILL_DETAIL bd
+                        WHERE bd.BILL_ID = :billId
+                          AND bd.PRODUCT_DETAIL_ID = pd.ID
+                          AND bd.DELETE_FLAG = 0
+                 )
+                """, Map.of("billId", billId));
+    }
+
+    public int updateCashPaymentStatus(long billId, int oldPaymentStatus, int newPaymentStatus) {
+        return sql.update("""
+                UPDATE BILL
+                   SET PAYMENT_STATUS = :newStatus
+                 WHERE ID = :id
+                   AND PAYMENT_METHOD = 'COD'
+                   AND PAYMENT_STATUS = :oldStatus
+                   AND DELETE_FLAG = 0
+                """, Map.of("id", billId, "oldStatus", oldPaymentStatus, "newStatus", newPaymentStatus));
+    }
+
+    public void insertCashPaymentHistory(long billId, BigDecimal amount, int status,
+                                         String note, boolean paid) {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("billId", billId);
+        parameters.put("amount", amount);
+        parameters.put("status", status);
+        parameters.put("note", note);
+        parameters.put("paidAt", paid ? java.sql.Timestamp.from(java.time.Instant.now()) : null);
+        sql.update("""
+                INSERT INTO PAYMENT_HISTORY (BILL_ID, AMOUNT, PAYMENT_METHOD, STATUS, PAID_AT, NOTE)
+                VALUES (:billId, :amount, 'COD', :status, :paidAt, :note)
+                """, parameters);
+    }
+
     // ====================== ENTITY (1 bảng, trả về entity) ======================
 
     private static final String SELECT_BILL = """
@@ -104,9 +150,19 @@ public class BillRepository {
         return sql.one(SELECT_BILL + " WHERE ID = :id AND DELETE_FLAG = 0", Map.of("id", id), Bill.class);
     }
 
+    public Optional<Bill> findByIdAndCustomer(long id, long customerId) {
+        return sql.one(SELECT_BILL + " WHERE ID = :id AND CUSTOMER_ID = :customerId AND DELETE_FLAG = 0",
+                Map.of("id", id, "customerId", customerId), Bill.class);
+    }
+
     public List<Bill> findByCustomer(long customerId) {
         return sql.list(SELECT_BILL + " WHERE CUSTOMER_ID = :cid AND DELETE_FLAG = 0 ORDER BY CREATED_AT DESC",
                 Map.of("cid", customerId), Bill.class);
+    }
+
+    public List<Bill> findAll() {
+        return sql.list(SELECT_BILL + " WHERE DELETE_FLAG = 0 ORDER BY CREATED_AT DESC, ID DESC",
+                Map.of(), Bill.class);
     }
 
     public List<BillDetail> findDetails(long billId) {
@@ -117,6 +173,15 @@ public class BillRepository {
                  ORDER BY ID
                 """;
         return sql.list(q, Map.of("billId", billId), BillDetail.class);
+    }
+
+    public List<BillHistoryView> findHistory(long billId) {
+        return sql.list("""
+                SELECT ID, OLD_STATUS, NEW_STATUS, NOTE, CREATED_AT
+                  FROM BILL_HISTORY
+                 WHERE BILL_ID = :billId AND DELETE_FLAG = 0
+                 ORDER BY CREATED_AT DESC, ID DESC
+                """, Map.of("billId", billId), BillHistoryView.class);
     }
 
     // ====================== VIEW (JOIN nhiều bảng, trả về view) ======================
