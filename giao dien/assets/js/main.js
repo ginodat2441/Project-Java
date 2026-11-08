@@ -16,7 +16,7 @@
   shopLink.className = 'btn btn-outline-primary m-2';
   document.querySelector('header')?.append(shopLink);
   const liveScript = document.createElement('script');
-  liveScript.src = '/admin-assets/store.js';
+  liveScript.src = '/store/js/store.js';
   liveScript.defer = true;
   document.body.append(liveScript);
 

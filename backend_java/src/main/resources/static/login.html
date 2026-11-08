@@ -1,2 +1,32 @@
-<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Đăng nhập quản trị</title><link rel="stylesheet" href="/admin-assets/admin.css"><script defer src="/admin-assets/password-visibility.js"></script><script defer src="/admin-assets/login.js"></script></head><body class="login"><main class="login-card"><p class="eyebrow">CLOTHING SHOP · QUẢN TRỊ</p><h1>Chào mừng trở lại</h1><p>Đăng nhập để quản lý cửa hàng.</p><p id="message" role="alert"></p><form action="/login" method="post"><label>Tài khoản<input name="username" autocomplete="username" required autofocus></label><label>Mật khẩu<input name="password" type="password" autocomplete="current-password" required></label><input type="hidden" name="_csrf" id="csrf"><button type="submit">Đăng nhập</button></form><p><a href="/forgot-password">Quên mật khẩu?</a></p><p><a href="/store/index.html">Về cửa hàng</a></p></main></body></html>
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Đăng nhập quản trị</title>
+    <link rel="stylesheet" href="/admin/css/admin.css" />
+    <script defer src="/shared/js/password-visibility.js"></script>
+    <script defer src="/auth/js/login.js"></script>
+  </head>
+  <body class="login">
+    <main class="login-card">
+      <p class="eyebrow">CLOTHING SHOP · QUẢN TRỊ</p>
+      <h1>Chào mừng trở lại</h1>
+      <p>Đăng nhập để quản lý cửa hàng.</p>
+      <p id="message" role="alert"></p>
+      <form action="/login" method="post">
+        <label>Tài khoản<input name="username" autocomplete="username" required autofocus /></label
+        ><label
+          >Mật khẩu<input
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required /></label
+        ><input type="hidden" name="_csrf" id="csrf" /><button type="submit">Đăng nhập</button>
+      </form>
+      <p><a href="/forgot-password">Quên mật khẩu?</a></p>
+      <p><a href="/store/index.html">Về cửa hàng</a></p>
+    </main>
+  </body>
+</html>
 ,.x

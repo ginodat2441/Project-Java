@@ -1,3 +1,4 @@
+const {readAsset}=require('./helpers/frontend-assets.cjs');
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
@@ -37,7 +38,7 @@ test('Admin can complete missing opening costs without replacing recorded receip
   if(url==='/api/admin/opening-cost/1')return response({product:{PRODUCT_CODE:'SP001',PRODUCT_NAME:'Áo'},quantity:200,openingQuantity:90,receipts:[{ID:1,DOC_CODE:'NK1',SKU:'SP001-M',QUANTITY:10,UNIT_COST:null},{ID:2,DOC_CODE:'NK2',SKU:'SP001-M',QUANTITY:100,UNIT_COST:100000}]});
   throw Error('Unexpected '+url);
  };
- w.eval(fs.readFileSync(path.join(staticRoot,'admin-assets/admin.js'),'utf8'));await waitFor(()=>d.querySelector('[data-section=stock]'));d.querySelector('[data-section=stock]').click();await waitFor(()=>d.querySelector('[data-action=opening-cost]'));d.querySelector('[data-action=opening-cost]').click();await waitFor(()=>d.querySelector('[name=openingUnitCost]'));
+ w.eval(readAsset('admin.js'));await waitFor(()=>d.querySelector('[data-section=stock]'));d.querySelector('[data-section=stock]').click();await waitFor(()=>d.querySelector('[data-action=opening-cost]'));d.querySelector('[data-action=opening-cost]').click();await waitFor(()=>d.querySelector('[name=openingUnitCost]'));
  assert.equal(d.querySelector('[data-cost-line="2"]'),null);assert.match(d.querySelector('#fields').textContent,/90/);assert.equal(d.querySelector('[name=openingUnitCost]').required,true);
  d.querySelector('[name=openingUnitCost]').value='50000';d.querySelector('[data-cost-line="1"]').value='1222';d.querySelector('[data-cost-line="1"]').dispatchEvent(new w.Event('input',{bubbles:true}));assert.match(d.querySelector('#opening-cost-preview').textContent,/14.512.220/);
  d.querySelector('[name=reason]').value='Opening invoice';d.querySelector('#editor').dispatchEvent(new w.Event('submit',{cancelable:true}));await waitFor(()=>saved);assert.deepEqual(saved,{openingUnitCost:50000,reason:'Opening invoice',receipts:[{lineId:1,unitCost:1222}]});await waitFor(()=>!d.querySelector('#dialog').open&&!d.querySelector('#editor footer button').disabled&&!d.querySelector('[data-action=opening-cost]'));dom.window.close();
@@ -52,7 +53,7 @@ test('Stock valuation keeps global total while filtering product and its value r
   if(url.startsWith('/api/admin/stock?')){requested=url;return response({items:[{ID:1,PRODUCT_CODE:'SP001',PRODUCT_NAME:'Áo',QUANTITY:2,RESERVED:0,PHYSICAL:2,AVERAGE_COST:50000,INVENTORY_VALUE:100000,PRODUCT_INVENTORY_VALUE:200000}],total:1,size:30,page:1,products:[{ID:5,NAME:'SP001 · Áo'}],globalTotals:{INVENTORY_VALUE:900000},totals:{INVENTORY_VALUE:200000}});}
   throw Error('Unexpected '+url);
  };
- w.eval(fs.readFileSync(path.join(staticRoot,'admin-assets/admin.js'),'utf8'));await waitFor(()=>d.querySelector('[data-section=stock]'));d.querySelector('[data-section=stock]').click();await waitFor(()=>d.querySelector('#stock-totals'));
+ w.eval(readAsset('admin.js'));await waitFor(()=>d.querySelector('[data-section=stock]'));d.querySelector('[data-section=stock]').click();await waitFor(()=>d.querySelector('#stock-totals'));
  assert.match(d.querySelector('.metrics').textContent,/900/);assert.match(d.querySelector('#stock-totals').textContent,/200/);assert.match(d.querySelector('thead').textContent,/Giữ cho đơn/);
  d.querySelector('[name=productId]').value='5';d.querySelector('[name=minValue]').value='100000';d.querySelector('[name=maxValue]').value='300000';d.querySelector('[name=threshold]').value='0';d.querySelector('#filter').dispatchEvent(new w.Event('submit',{cancelable:true,bubbles:true}));await waitFor(()=>requested.includes('productId=5')&&requested.includes('minValue=100000')&&requested.includes('maxValue=300000')&&requested.includes('threshold=0'));await tick();
  assert.match(d.querySelector('.metrics').textContent,/900/);d.querySelector('#clear-stock-filter').click();await waitFor(()=>!requested.includes('productId=')&&!requested.includes('minValue='));await tick();dom.window.close();
@@ -67,16 +68,16 @@ test('Product list shows current inventory value and all-page revenue totals wit
   if(url.startsWith('/api/admin/products?')){requested=url;return response({items:[{ID:1,PRODUCT_CODE:'SP001',PRODUCT_NAME:'Áo',STOCK:2,INVENTORY_VALUE:100000,TOTAL_REVENUE:url.includes('from=')?0:300000,STATUS:1}],total:25,size:20,page:1,totals:{INVENTORY_VALUE:700000,TOTAL_REVENUE:url.includes('from=')?0:900000,UNKNOWN_COST_PRODUCTS:0}});}
   throw Error('Unexpected '+url);
  };
- w.eval(fs.readFileSync(path.join(staticRoot,'admin-assets/admin.js'),'utf8'));await waitFor(()=>d.querySelector('[data-section=products]'));d.querySelector('[data-section=products]').click();await waitFor(()=>d.querySelector('#product-totals'));
+ w.eval(readAsset('admin.js'));await waitFor(()=>d.querySelector('[data-section=products]'));d.querySelector('[data-section=products]').click();await waitFor(()=>d.querySelector('#product-totals'));
  assert.match(d.querySelector('#content').textContent,/Giá trị tồn kho/);assert.match(d.querySelector('#content').textContent,/Tổng doanh thu/);assert.match(d.querySelector('#product-totals').textContent,/700/);assert.match(d.querySelector('#product-totals').textContent,/900/);
  d.querySelector('[name=from]').value='2026-01-01';d.querySelector('[name=to]').value='2026-01-31';d.querySelector('#filter').dispatchEvent(new w.Event('submit',{cancelable:true,bubbles:true}));await waitFor(()=>requested.includes('from=2026-01-01')&&requested.includes('to=2026-01-31'));await tick();
  assert.match(d.querySelector('#product-totals').textContent,/700/);assert.doesNotMatch(d.querySelector('#product-totals').textContent,/900/);assert.match(d.querySelector('.report-note').textContent,/hiện tại/);dom.window.close();
 });
-function installAdminScripts(w){for(const file of ['operations.js','admin.js']){const script=w.document.createElement('script');script.textContent=fs.readFileSync(path.join(staticRoot,'admin-assets',file),'utf8');w.document.head.append(script);}}
+function installAdminScripts(w){for(const file of ['operations.js','admin.js']){const script=w.document.createElement('script');script.textContent=readAsset(file);w.document.head.append(script);}}
 
 test('Password visibility supports login and dynamically added admin inputs without submitting',async()=>{
  const dom=new JSDOM('<body><form><label>Mật khẩu<input type="password" name="password"></label></form></body>',{url:'http://localhost/login',runScripts:'outside-only'}),w=dom.window,d=w.document;
- w.eval(fs.readFileSync(path.join(staticRoot,'admin-assets/password-visibility.js'),'utf8'));
+ w.eval(readAsset('password-visibility.js'));
  const input=d.querySelector('input'),toggle=d.querySelector('.password-toggle');assert.equal(toggle.type,'button');toggle.click();assert.equal(input.type,'text');assert.equal(toggle.getAttribute('aria-pressed'),'true');toggle.click();assert.equal(input.type,'password');
  const dynamic=d.createElement('input');dynamic.type='password';d.querySelector('form').append(dynamic);await waitFor(()=>d.querySelectorAll('.password-toggle').length===2);assert.equal(d.querySelectorAll('.password-input').length,2);dom.window.close();
 });
@@ -116,15 +117,15 @@ test('Inventory UI saves a draft then requires explicit confirmation before post
 test('Reset page consumes fragment token without displaying it and clears password after success',async()=>{
  const dom=new JSDOM(fs.readFileSync(path.join(staticRoot,'reset-password.html'),'utf8'),{url:'http://localhost/reset-password#token=one-use-test-token',runScripts:'outside-only'}),w=dom.window,d=w.document;let request;
  w.fetch=async(url,options={})=>{if(url==='/api/csrf')return response({token:'csrf',headerName:'X-XSRF-TOKEN'});request=JSON.parse(options.body);return response({message:'Đổi mật khẩu thành công'});};
- w.eval(fs.readFileSync(path.join(staticRoot,'admin-assets/recovery.js'),'utf8'));await waitFor(()=>!d.querySelector('button[type=submit]').disabled);assert.equal(w.location.hash,'');
+ w.eval(readAsset('recovery.js'));await waitFor(()=>!d.querySelector('button[type=submit]').disabled);assert.equal(w.location.hash,'');
  d.querySelector('[name=password]').value='temporary-new-password';d.querySelector('[name=confirmation]').value='temporary-new-password';d.querySelector('form').dispatchEvent(new w.Event('submit',{cancelable:true}));await waitFor(()=>d.querySelector('form').hidden);assert.equal(request.token,'one-use-test-token');assert.equal(d.querySelector('[name=password]').value,'');assert.equal(d.body.textContent.includes('one-use-test-token'),false);dom.window.close();
 });
 
 test('Forgot password styles accepted local request as success, shows next steps and keeps real errors red',async()=>{
  const dom=new JSDOM(fs.readFileSync(path.join(staticRoot,'forgot-password.html'),'utf8'),{url:'http://localhost/forgot-password',runScripts:'outside-only'}),w=dom.window,d=w.document;let fail=false;
  w.fetch=async url=>url==='/api/csrf'?response({token:'csrf',headerName:'X-XSRF-TOKEN'}):fail?{ok:false,json:async()=>({message:'Vui lòng chờ 10 phút'})}:response({message:'Đã tiếp nhận yêu cầu','delivery':'local'});
- const style=d.createElement('style');style.textContent=fs.readFileSync(path.join(staticRoot,'admin-assets/admin.css'),'utf8');d.head.append(style);
- w.eval(fs.readFileSync(path.join(staticRoot,'admin-assets/recovery.js'),'utf8'));await waitFor(()=>!d.querySelector('button[type=submit]').disabled);d.querySelector('[name=identifier]').value='test-admin';
+ const style=d.createElement('style');style.textContent=readAsset('admin.css');d.head.append(style);
+ w.eval(readAsset('recovery.js'));await waitFor(()=>!d.querySelector('button[type=submit]').disabled);d.querySelector('[name=identifier]').value='test-admin';
  d.querySelector('form').dispatchEvent(new w.Event('submit',{cancelable:true}));await waitFor(()=>d.querySelector('#message').className==='success');assert.equal(d.querySelector('#recovery-instructions').hidden,false);assert.equal(w.getComputedStyle(d.querySelector('#message')).color,'rgb(23, 99, 69)');
  fail=true;d.querySelector('form').dispatchEvent(new w.Event('submit',{cancelable:true}));await waitFor(()=>d.querySelector('#message').className==='error');assert.equal(d.querySelector('#recovery-instructions').hidden,true);assert.equal(d.querySelector('#message').getAttribute('role'),'alert');dom.window.close();
 });
@@ -132,14 +133,14 @@ test('Forgot password styles accepted local request as success, shows next steps
 test('Login throttle displays remaining wait and enables login when it expires',async()=>{
  const start=Date.now(),dom=new JSDOM(fs.readFileSync(path.join(staticRoot,'login.html'),'utf8'),{url:'http://localhost/login?lockedUntil='+(start+90000),runScripts:'outside-only'}),w=dom.window;
  let now=start,countdown;w.Date.now=()=>now;w.setInterval=fn=>{countdown=fn;return 1;};w.clearInterval=()=>{};w.fetch=async()=>response({token:'csrf-test'});
- w.eval(fs.readFileSync(path.join(staticRoot,'admin-assets/login.js'),'utf8'));await waitFor(()=>w.document.querySelector('#csrf').value==='csrf-test');
+ w.eval(readAsset('login.js'));await waitFor(()=>w.document.querySelector('#csrf').value==='csrf-test');
  const button=w.document.querySelector('button[type=submit]');assert.equal(button.disabled,true);assert.match(button.textContent,/1:30/);assert.match(w.document.querySelector('#message').textContent,/quá nhiều lần/);
  now=start+91000;countdown();assert.equal(button.disabled,false);assert.equal(button.textContent,'Đăng nhập');assert.match(w.document.querySelector('#message').textContent,/có thể đăng nhập lại/);dom.window.close();
 });
 
 test('Image dialog hides generic save, ignores submit and uploads through its own button',async()=>{
  const dom=new JSDOM(fs.readFileSync(path.join(staticRoot,'admin/index.html'),'utf8'),{url:'http://localhost/admin',runScripts:'outside-only'}),w=dom.window,d=w.document;
- const style=d.createElement('style');style.textContent=fs.readFileSync(path.join(staticRoot,'admin-assets/admin.css'),'utf8');d.head.append(style);
+ const style=d.createElement('style');style.textContent=readAsset('admin.css');d.head.append(style);
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
  let uploaded=0;
  w.fetch=async(url,options={})=>{
@@ -154,7 +155,7 @@ test('Image dialog hides generic save, ignores submit and uploads through its ow
   }
   throw Error('Unexpected endpoint '+url);
  };
- w.eval(fs.readFileSync(path.join(staticRoot,'admin-assets/admin.js'),'utf8'));await waitFor(()=>d.querySelector('[data-section=products]'));
+ w.eval(readAsset('admin.js'));await waitFor(()=>d.querySelector('[data-section=products]'));
  d.querySelector('[data-section=products]').click();await waitFor(()=>d.querySelector('[data-action=images]'));
  d.querySelector('[data-action=images]').click();await waitFor(()=>d.querySelector('[data-action=upload]'));
  assert.equal(d.querySelector('#editor footer').hidden,true);
@@ -176,7 +177,7 @@ test('Store gallery follows color, retains image across sizes, and cart stores v
   {ID:13,COLOR_ID:2,COLOR_NAME:'Trắng',SIZE_NAME:'M',PRICE:199000,QUANTITY:2},
   {ID:14,COLOR_ID:3,COLOR_NAME:'Xanh',SIZE_NAME:'M',PRICE:199000,QUANTITY:2}],
   images:[{COLOR_ID:1,IMAGE_URL:'/black.png'},{COLOR_ID:2,IMAGE_URL:'/white.png'},{COLOR_ID:null,IMAGE_URL:'/common.png'}]});
- w.eval(fs.readFileSync(path.join(staticRoot,'admin-assets/store.js'),'utf8'));await waitFor(()=>w.document.querySelector('#color'));
+ w.eval(readAsset('store.js'));await waitFor(()=>w.document.querySelector('#color'));
  const d=w.document,hero=d.querySelector('#hero'),size=d.querySelector('#size'),color=d.querySelector('#color');
  assert.equal(hero.getAttribute('src'),'/black.png');size.value='12';size.dispatchEvent(new w.Event('change'));assert.equal(hero.getAttribute('src'),'/black.png');
  color.value='2';color.dispatchEvent(new w.Event('change'));assert.equal(hero.getAttribute('src'),'/white.png');
@@ -201,7 +202,7 @@ test('Admin adds a third color without losing variant fields and submits four va
   if(url.startsWith('/api/admin/products?'))return response({items:[],total:0,page:1,size:20});
   throw Error('Unexpected endpoint '+url);
  };
- w.eval(fs.readFileSync(path.join(staticRoot,'admin-assets/admin.js'),'utf8'));await waitFor(()=>w.document.querySelector('[data-section=products]'));
+ w.eval(readAsset('admin.js'));await waitFor(()=>w.document.querySelector('[data-section=products]'));
  w.document.querySelector('[data-section=products]').click();await waitFor(()=>w.document.querySelector('[data-action=create]'));
  w.document.querySelector('[data-action=create]').click();await waitFor(()=>w.document.querySelector('#variants .variant'));
  const d=w.document;
@@ -247,7 +248,7 @@ test('Create product includes image previews, cover and color in one multipart s
   }
   throw Error('Unexpected endpoint '+url);
  };
- w.eval(fs.readFileSync(path.join(staticRoot,'admin-assets/admin.js'),'utf8'));await waitFor(()=>d.querySelector('[data-section=products]'));d.querySelector('[data-section=products]').click();await waitFor(()=>d.querySelector('[data-action=create]'));d.querySelector('[data-action=create]').click();await waitFor(()=>d.querySelector('#variants .variant'));
+ w.eval(readAsset('admin.js'));await waitFor(()=>d.querySelector('[data-section=products]'));d.querySelector('[data-section=products]').click();await waitFor(()=>d.querySelector('[data-action=create]'));d.querySelector('[data-action=create]').click();await waitFor(()=>d.querySelector('#variants .variant'));
  for(const [name,value] of Object.entries({code:'NEW',name:'Sản phẩm có ảnh',brandName:'Nhãn mới',materialName:'Vải mới',status:'1'}))d.querySelector('#editor [name='+name+']').value=value;
  const variant=d.querySelector('.variant');variant.querySelector('[name=colorId]').value='1';variant.querySelector('[name=sku]').value='NEW-M';
  const picker=d.querySelector('[name=productFiles]');Object.defineProperty(picker,'files',{value:[new w.File(['jpeg'],'a.jpg',{type:'image/jpeg'}),new w.File(['png'],'b.png',{type:'image/png'})]});picker.dispatchEvent(new w.Event('change'));
@@ -267,6 +268,6 @@ test('Editing a product has no stock input and preserves existing stock in the u
   if(url==='/api/admin/products/2'&&options.method==='PUT'){saved=JSON.parse(options.body);return response(2);}
   if(url==='/api/admin/products/2')return response({ID:2,PRODUCT_CODE:'SP002',PRODUCT_NAME:'Jeans',BRAND_ID:1,MATERIAL_ID:1,STATUS:0,images:[],variants:[{ID:22,COLOR_ID:1,SIZE_NAME:'32',SKU:'SP002-DEN-32',PRICE:199000,QUANTITY:7,STATUS:1}]});throw Error('Unexpected '+url);
  };
- w.eval(fs.readFileSync(path.join(staticRoot,'admin-assets/admin.js'),'utf8'));await waitFor(()=>d.querySelector('[data-section=products]'));d.querySelector('[data-section=products]').click();await waitFor(()=>d.querySelector('[data-action=edit]'));d.querySelector('[data-action=edit]').click();await waitFor(()=>d.querySelector('.variant'));
+ w.eval(readAsset('admin.js'));await waitFor(()=>d.querySelector('[data-section=products]'));d.querySelector('[data-section=products]').click();await waitFor(()=>d.querySelector('[data-action=edit]'));d.querySelector('[data-action=edit]').click();await waitFor(()=>d.querySelector('.variant'));
  assert.equal(d.querySelector('#editor [name=quantity]'),null);d.querySelector('[name=price]').value='259000';d.querySelector('#editor').dispatchEvent(new w.Event('submit',{cancelable:true}));await waitFor(()=>saved);assert.equal(saved.variants[0].quantity,7);assert.equal(saved.variants[0].price,259000);await waitFor(()=>!d.querySelector('#dialog').open&&!d.querySelector('#editor footer button').disabled&&d.querySelector('#content [data-action=edit]'));dom.window.close();
 });

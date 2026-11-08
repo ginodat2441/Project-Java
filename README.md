@@ -1,5 +1,7 @@
 # Clothing Shop – Spring Boot + Oracle + SQL thuần (JDBC)
 
+Cấu trúc mới: [backend theo controller/service/repository và giao diện theo chức năng](STRUCTURE.md).
+
 Trang quản trị và luồng mua hàng Oracle đã được bổ sung. Xem [hướng dẫn chạy, tạo admin và kết quả nghiệm thu](ADMIN_README.md). Với database hiện tại **không chạy lại schema.sql/sample_data.sql**; V001 và V002 đã được áp dụng. Phần tạo schema bên dưới chỉ dành cho database trống mới hoàn toàn.
 
 Java 17 · Spring Boot 3.3 · Maven · Oracle 12c+ (ojdbc11) · `NamedParameterJdbcTemplate` (KHÔNG dùng JPA/Hibernate)
@@ -14,14 +16,18 @@ Java 17 · Spring Boot 3.3 · Maven · Oracle 12c+ (ojdbc11) · `NamedParameterJ
 ## Cấu trúc (mỗi module: controller → service → repository)
 ```
 com.example.clothingshop
-├── common/    SqlHelper (list/one/scalar/maps/update/insert/page), ApiResponse, exception
-├── brand/     CRUD mẫu: INSERT / UPDATE / xóa mềm / tìm kiếm + phân trang
-├── product/   JOIN nhiều bảng, subquery, tìm kiếm động
-├── bill/      Đặt hàng @Transactional (trừ kho nguyên tử, snapshot địa chỉ)
-├── stats/     GROUP BY / HAVING / FETCH FIRST
-└── dev/       /api/dev/sql: chạy SELECT tùy ý khi học (tắt bằng profile prod)
+  controller/
+  service/
+  repository/
+  dto/
+  model/
+  config/
+  integration/
+  bootstrap/
+  util/
+  common/
 ```
-**Quy tắc: SQL chỉ nằm ở lớp `*Repository` (và `stats`).** Service lo nghiệp vụ + transaction.
+**SQL: repository. Business rules and transactions: service. HTTP: controller.** Service lo nghiệp vụ + transaction.
 
 ## Thêm chức năng mới (3 bước)
 1. Tạo `record` có field khớp tên cột (`PRODUCT_NAME` → `productName`).

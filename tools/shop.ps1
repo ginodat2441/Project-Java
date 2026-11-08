@@ -17,12 +17,14 @@ $javaCmd = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin/java.exe' } else 
 $mavenCmd = if (Get-Command mvn -ErrorAction SilentlyContinue) { 'mvn' } else { Join-Path $projectRoot '.local/apache-maven-3.9.9/bin/mvn.cmd' }
 $localEnv = Join-Path $projectRoot '.vscode/oracle-local.env'
 function Import-ShopLocalEnv {
+foreach($localEnv in @((Join-Path $projectRoot '.vscode/oracle-local.env'),(Join-Path $projectRoot '.vscode/viettel-local.env'))){
 if (Test-Path -LiteralPath $localEnv) {
     foreach ($line in Get-Content -LiteralPath $localEnv) {
-        if ($line -match '^\s*(SPRING_DATASOURCE_PASSWORD|SPRING_DATASOURCE_URL|SPRING_DATASOURCE_USERNAME|SHOP_UPLOAD_DIR|SHOP_PRIVATE_DIR|SHOP_RESET_DELIVERY|SHOP_RESET_BASE_URL|SHOP_RESET_FROM|SHOP_SMTP_AUTH|SHOP_SMTP_STARTTLS|SHOP_SMTP_SSL|SPRING_MAIL_HOST|SPRING_MAIL_PORT|SPRING_MAIL_USERNAME|SPRING_MAIL_PASSWORD)=(.*)$') {
+        if ($line -match '^\s*(SPRING_DATASOURCE_PASSWORD|SPRING_DATASOURCE_URL|SPRING_DATASOURCE_USERNAME|SHOP_UPLOAD_DIR|SHOP_PRIVATE_DIR|SHOP_RESET_DELIVERY|SHOP_RESET_BASE_URL|SHOP_RESET_FROM|SHOP_SMTP_AUTH|SHOP_SMTP_STARTTLS|SHOP_SMTP_SSL|SPRING_MAIL_HOST|SPRING_MAIL_PORT|SPRING_MAIL_USERNAME|SPRING_MAIL_PASSWORD|SHOP_SHIPPING_[A-Z_]+|SHOP_VIETTEL_[A-Z_]+)=(.*)$') {
             [Environment]::SetEnvironmentVariable($Matches[1],$Matches[2].Trim().Trim('"').Trim("'"),'Process')
         }
     }
+}
 }
 }
 Import-ShopLocalEnv

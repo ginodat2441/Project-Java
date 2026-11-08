@@ -1,3 +1,4 @@
+const {readAsset}=require('./helpers/frontend-assets.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),path=require('path');
 const {JSDOM}=require('../.local/dom-tests/node_modules/jsdom');
 const root=path.resolve(__dirname,'../backend_java/src/main/resources/static');
@@ -13,6 +14,7 @@ async function setup(role='ADMIN'){
   if(url==='/api/csrf')return response({token:'test',headerName:'X-XSRF-TOKEN'});
   if(url==='/api/admin/me')return response({username:'qa',roles:[{authority:'ROLE_'+role}]});
   if(url==='/api/admin/lookups')return response({brands:[],materials:[],colors:[],categories:[]});
+  if(url==='/api/admin/shipping/status')return response({configured:false,originConfigured:false,tokenConfigured:false,parcelConfigured:false,environment:'production',weightPolicy:'Cần cân thực tế trước khi gửi'});
   if(url.startsWith('/api/admin/dashboard'))return response({inventory:valuation,totals,revenue:[],statuses:[],topProducts:[],lowStock:[]});
   if(url.startsWith('/api/admin/stock?'))return response({items:[sku],globalTotals:valuation,totals:valuation,products:[{ID:1,NAME:'SP108 · Áo demo'}],page:1,size:30,total:1});
   if(url.startsWith('/api/admin/inventory-history?'))return response({items:[{ID:1,SKU:sku.SKU,DOCUMENT_ID:5,DOC_CODE:'XK000005',BILL_ID:12,BILL_CODE:'HD12',MOVEMENT_TYPE:'DISPATCH',PHYSICAL_BEFORE:90,PHYSICAL_AFTER:85,RESERVED_BEFORE:5,RESERVED_AFTER:0,BEFORE_QUANTITY:85,AFTER_QUANTITY:85,VALUE_BEFORE:9630000,VALUE_AFTER:9095000,HISTORY_SCOPE:'PHYSICAL_V8'}],page:1,size:30,total:1});
@@ -29,7 +31,7 @@ async function setup(role='ADMIN'){
   if(url==='/api/admin/sku-cost/108')return response({stock:{...sku,ID:108,PHYSICAL_QUANTITY:90,RESERVED_QUANTITY:5,KNOWN_VALUE:9630000},receipts:[]});
   throw Error('Unmocked '+url);
  };
- for(const file of ['operations.js','workflow.js','admin.js']){const script=d.createElement('script');script.textContent=fs.readFileSync(path.join(root,'admin-assets',file),'utf8');d.head.append(script);}
+ for(const file of ['operations.js','workflow.js','admin.js']){const script=d.createElement('script');script.textContent=readAsset(file);d.head.append(script);}
  await wait(()=>d.querySelector('[data-section=stock]'));
  async function section(name,ready){d.querySelector(`[data-section=${name}]`).click();await wait(()=>d.querySelector(ready));assert.notEqual(d.querySelector('#notice').className,'error',d.querySelector('#notice').textContent);}
  return {dom,w,d,requests,section,get postedCost(){return postedCost;}};
@@ -51,6 +53,12 @@ test('All operational screens render V8 filters and explain legacy physical-hist
 });
 test('STAFF sees stock history but no cost correction or audit controls',async()=>{
  const h=await setup('STAFF');assert.equal(h.d.querySelector('[data-section=audit]'),null);await h.section('stock','[data-action=sku-history]');assert.equal(h.d.querySelector('[data-action=sku-cost]'),null);h.dom.window.close();
+});
+test('Viettel status renders correct Vietnamese and a usable Windows configuration command',async()=>{
+ const h=await setup();await h.section('shipping','pre');
+ assert.equal(h.d.querySelector('#title').textContent,'Vận chuyển Viettel Post');
+ const text=h.d.querySelector('#content').textContent;assert.match(text,/Trạng thái: Chưa hoàn tất cấu hình/);assert.match(text,/Địa chỉ kho gửi/);assert.match(text,/Khối lượng và kích thước kiện/);assert.match(text,/Chính thức/);assert.doesNotMatch(text,/[?\uFFFD]/);
+ assert.equal(h.d.querySelector('pre').textContent,'powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\configure-viettel.ps1');h.dom.window.close();
 });
 test('Product revenue opens read-only SKU report while Edit opens the product form',async()=>{
  const h=await setup();await h.section('products','[data-action=product-revenue]');
