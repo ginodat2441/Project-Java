@@ -19,40 +19,25 @@ import java.util.Map;
 public class StatsController {
 
     private final SqlHelper sql;
+    private final com.example.clothingshop.admin.ReportService reports;
 
-    public StatsController(SqlHelper sql) { this.sql = sql; }
+    public StatsController(SqlHelper sql, com.example.clothingshop.admin.ReportService reports) { this.sql = sql; this.reports=reports; }
 
     /** Doanh thu theo tháng (chỉ đơn hoàn thành STATUS = 3) */
+    @SuppressWarnings("unchecked")
     @GetMapping("/revenue-by-month")
-    public ApiResponse<List<Map<String, Object>>> revenueByMonth() {
-        String q = """
-                SELECT TO_CHAR(CREATED_AT, 'YYYY-MM') AS MONTH,
-                       COUNT(*)                       AS TOTAL_BILLS,
-                       SUM(TOTAL_AMOUNT)              AS REVENUE
-                  FROM BILL
-                 WHERE STATUS = 3 AND DELETE_FLAG = 0
-                 GROUP BY TO_CHAR(CREATED_AT, 'YYYY-MM')
-                 ORDER BY MONTH
-                """;
-        return ApiResponse.ok(sql.maps(q, Map.of()));
+    public ApiResponse<List<Map<String,Object>>> revenueByMonth() {
+        var result=reports.report("MONTH",java.time.LocalDate.now().getYear(),null,null,null,null,null,"",1);
+        var rows=((List<Map<String,Object>>)result.get("series")).stream().map(row->{
+            Map<String,Object> mapped=new java.util.LinkedHashMap<>();mapped.put("MONTH",row.get("PERIOD"));mapped.put("TOTAL_BILLS",row.get("ORDERS"));mapped.put("REVENUE",row.get("NET_AFTER_RETURN"));return mapped;
+        }).toList();
+        return ApiResponse.ok(rows);
     }
 
     /** Top sản phẩm bán chạy (GROUP BY + HAVING + FETCH FIRST) */
     @GetMapping("/top-products")
-    public ApiResponse<List<Map<String, Object>>> topProducts(@RequestParam(defaultValue = "5") int limit,
-                                                              @RequestParam(defaultValue = "1") int minSold) {
-        String q = """
-                SELECT p.ID, p.PRODUCT_NAME, SUM(bd.QUANTITY) AS SOLD, SUM(bd.TOTAL_PRICE) AS REVENUE
-                  FROM BILL_DETAIL bd
-                  JOIN BILL b            ON b.ID  = bd.BILL_ID AND b.STATUS = 3
-                  JOIN PRODUCT_DETAIL pd ON pd.ID = bd.PRODUCT_DETAIL_ID
-                  JOIN PRODUCT p         ON p.ID  = pd.PRODUCT_ID
-                 GROUP BY p.ID, p.PRODUCT_NAME
-                HAVING SUM(bd.QUANTITY) >= :minSold
-                 ORDER BY SOLD DESC
-                 FETCH FIRST :limit ROWS ONLY
-                """;
-        return ApiResponse.ok(sql.maps(q, Map.of("limit", limit, "minSold", minSold)));
+    public ApiResponse<List<Map<String,Object>>> topProducts(@RequestParam(defaultValue="5") int limit,@RequestParam(defaultValue="1") int minSold) {
+        return ApiResponse.ok(reports.topProducts(java.time.LocalDate.now().getYear(),limit,minSold));
     }
 
     /** Biến thể sắp hết hàng (tồn <= ngưỡng) */

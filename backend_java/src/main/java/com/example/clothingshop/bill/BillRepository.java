@@ -30,7 +30,7 @@ public class BillRepository {
     }
 
     public Optional<BigDecimal> findPrice(long productDetailId) {
-        return sql.scalar("SELECT PRICE FROM PRODUCT_DETAIL WHERE ID = :id AND DELETE_FLAG = 0 AND STATUS = 1",
+        return sql.scalar("SELECT pd.PRICE FROM PRODUCT_DETAIL pd JOIN PRODUCT p ON p.ID=pd.PRODUCT_ID WHERE pd.ID = :id AND pd.DELETE_FLAG = 0 AND pd.STATUS = 1 AND p.STATUS=1 AND p.DELETE_FLAG=0 "+com.example.clothingshop.admin.CategoryVisibility.SQL+" FOR UPDATE OF pd.QUANTITY",
                 Map.of("id", productDetailId), BigDecimal.class);
     }
 
@@ -41,7 +41,7 @@ public class BillRepository {
     public int decreaseStock(long productDetailId, int qty) {
         String q = """
                 UPDATE PRODUCT_DETAIL
-                   SET QUANTITY = QUANTITY - :qty
+                   SET QUANTITY = QUANTITY - :qty, RESERVED_QUANTITY=RESERVED_QUANTITY+:qty
                  WHERE ID = :id AND QUANTITY >= :qty AND DELETE_FLAG = 0 AND STATUS = 1
                 """;
         return sql.update(q, Map.of("id", productDetailId, "qty", qty));

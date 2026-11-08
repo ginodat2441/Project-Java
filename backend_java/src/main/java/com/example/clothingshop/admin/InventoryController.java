@@ -1,0 +1,25 @@
+package com.example.clothingshop.admin;
+import static com.example.clothingshop.admin.InventoryRequests.*;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import java.time.LocalDate;
+import java.util.*;
+
+@RestController
+@RequestMapping("/api/admin/inventory")
+public class InventoryController {
+ private final InventoryService service;private final AdminService admin;private final AdminRepository db;private final InventoryReportService summary;
+ public InventoryController(InventoryService service,AdminService admin,AdminRepository db,InventoryReportService summary){this.service=service;this.admin=admin;this.db=db;this.summary=summary;}
+ @GetMapping("/order-issues") public Object orderIssues(@RequestParam(defaultValue="") String q){return db.rows("SELECT * FROM (SELECT b.ID BILL_ID,b.BILL_CODE,b.RECEIVER_NAME,b.STATUS ORDER_STATUS,d.ID DOCUMENT_ID,d.DOC_CODE,d.DOC_TYPE,ROW_NUMBER() OVER(PARTITION BY b.ID ORDER BY CASE WHEN d.DOC_TYPE='DISPATCH' AND d.STATUS<>'CANCELLED' THEN 0 ELSE 1 END,d.ID DESC) RN FROM BILL b JOIN INVENTORY_DOCUMENT d ON d.BILL_ID=b.ID AND d.DOC_TYPE IN ('SALE','DISPATCH','RESERVE') WHERE b.DELETE_FLAG=0 AND (LOWER(b.BILL_CODE) LIKE :q OR LOWER(b.RECEIVER_NAME) LIKE :q OR b.RECEIVER_PHONE LIKE :q)) WHERE RN=1 ORDER BY BILL_ID DESC FETCH FIRST 50 ROWS ONLY","q","%"+q.trim().toLowerCase(Locale.ROOT)+"%");}
+
+ @GetMapping("/variants") public Object variants(@RequestParam(defaultValue="") String q){return db.rows("SELECT pd.ID,pd.SKU,p.PRODUCT_NAME,c.COLOR_NAME,pd.SIZE_NAME,pd.QUANTITY FROM PRODUCT_DETAIL pd JOIN PRODUCT p ON p.ID=pd.PRODUCT_ID JOIN COLOR c ON c.ID=pd.COLOR_ID WHERE pd.DELETE_FLAG=0 AND (LOWER(pd.SKU) LIKE :q OR LOWER(p.PRODUCT_NAME) LIKE :q) ORDER BY pd.ID DESC FETCH FIRST 30 ROWS ONLY","q","%"+q.toLowerCase(Locale.ROOT)+"%");}
+ @GetMapping("/documents") public Object list(@RequestParam(defaultValue="") String q,@RequestParam(required=false) String type,@RequestParam(required=false) String status,@RequestParam(defaultValue="1") int page){return db.page("SELECT d.ID,d.DOC_CODE,d.DOC_TYPE,d.STATUS,d.REASON,d.BILL_ID,b.BILL_CODE,b.RECEIVER_NAME,b.STATUS ORDER_STATUS,d.SOURCE_ID,m.USERNAME CREATED_BY,d.CREATED_AT,d.POSTED_AT,(SELECT SUM(l.QUANTITY*l.UNIT_COST) FROM INVENTORY_DOCUMENT_LINE l WHERE l.DOCUMENT_ID=d.ID AND l.UNIT_COST IS NOT NULL) PURCHASE_TOTAL FROM INVENTORY_DOCUMENT d LEFT JOIN BILL b ON b.ID=d.BILL_ID LEFT JOIN MANAGER m ON m.ID=d.CREATED_BY WHERE (:t IS NULL OR d.DOC_TYPE=:t) AND (:s IS NULL OR d.STATUS=:s) AND (LOWER(d.DOC_CODE) LIKE :q OR LOWER(d.REASON) LIKE :q OR LOWER(b.BILL_CODE) LIKE :q OR LOWER(b.RECEIVER_NAME) LIKE :q) ORDER BY d.ID DESC",page,20,"t",type,"s",status,"q","%"+q.toLowerCase(Locale.ROOT)+"%");}
+ @GetMapping("/documents/{id}") public Object detail(@PathVariable long id){return Map.of("document",db.one("SELECT d.ID,d.DOC_CODE,d.DOC_TYPE,d.STATUS,d.REASON,d.BILL_ID,b.BILL_CODE,b.RECEIVER_NAME,b.STATUS ORDER_STATUS,d.SOURCE_ID,d.CREATED_BY,m.USERNAME CREATOR,a.USERNAME APPROVER,d.CANCEL_REASON,d.CREATED_AT,d.POSTED_AT,d.CANCELLED_AT FROM INVENTORY_DOCUMENT d LEFT JOIN BILL b ON b.ID=d.BILL_ID LEFT JOIN MANAGER m ON m.ID=d.CREATED_BY LEFT JOIN MANAGER a ON a.ID=d.APPROVED_BY WHERE d.ID=:i","i",id),"lines",db.rows("SELECT l.ID,l.PRODUCT_DETAIL_ID,pd.SKU,p.PRODUCT_NAME,c.COLOR_NAME,pd.SIZE_NAME,l.QUANTITY,l.EXPECTED_QUANTITY,l.BEFORE_QUANTITY,l.AFTER_QUANTITY,l.STOCK_DELTA,l.RESTOCK,l.CONDITION_NOTE,l.RETURN_VALUE,l.PHYSICAL_BEFORE,l.PHYSICAL_AFTER,l.RESERVED_BEFORE,l.RESERVED_AFTER,l.VALUE_BEFORE,l.VALUE_AFTER,l.COST_UNIT,l.QUANTITY*l.COST_UNIT COST_TOTAL,l.UNIT_COST,l.QUANTITY*l.UNIT_COST LINE_COST FROM INVENTORY_DOCUMENT_LINE l JOIN PRODUCT_DETAIL pd ON pd.ID=l.PRODUCT_DETAIL_ID JOIN PRODUCT p ON p.ID=pd.PRODUCT_ID JOIN COLOR c ON c.ID=pd.COLOR_ID WHERE l.DOCUMENT_ID=:i ORDER BY l.ID","i",id));}
+ @PostMapping("/documents") public long create(@Valid @RequestBody Document r,Authentication a){return service.save(null,r,admin.actor(a.getName()));}
+ @PutMapping("/documents/{id}") public long edit(@PathVariable long id,@Valid @RequestBody Document r,Authentication a){return service.save(id,r,admin.actor(a.getName()));}
+ @PostMapping("/documents/{id}/approve") public void approve(@PathVariable long id,Authentication a){service.approve(id,admin.actor(a.getName()));}
+ @PostMapping("/documents/{id}/cancel") public void cancel(@PathVariable long id,@Valid @RequestBody Note r,Authentication a){service.cancel(id,r.reason(),admin.actor(a.getName()));}
+ @PostMapping("/documents/{id}/reverse") public long reverse(@PathVariable long id,@Valid @RequestBody Note r,Authentication a){return service.reverse(id,r.reason(),admin.actor(a.getName()));}
+ @GetMapping("/summary") public Object summary(@RequestParam(required=false) LocalDate from,@RequestParam(required=false) LocalDate to,@RequestParam(defaultValue="") String q,@RequestParam(defaultValue="1") int page){return summary.report(from,to,q,page);}
+}

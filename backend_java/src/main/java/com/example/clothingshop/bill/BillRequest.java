@@ -12,6 +12,7 @@ public record BillRequest(
         @NotBlank @Pattern(regexp = "COD|BANK|MOMO|VNPAY") String paymentMethod,
         BigDecimal shippingFee,
         String note,
+        String voucherCode,
         @NotEmpty @Valid List<Item> items) {
 
     public record Item(@NotNull Long productDetailId, @NotNull @Min(1) Integer quantity) {}

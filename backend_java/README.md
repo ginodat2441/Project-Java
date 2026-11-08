@@ -1,5 +1,7 @@
 # Clothing Shop – Spring Boot + Oracle + SQL thuần (JDBC)
 
+Xem [ADMIN_README.md](../ADMIN_README.md) để chạy bản có quản trị, tạo admin và kiểm thử. Với database hiện tại **không chạy lại schema.sql/sample_data.sql**; V001 và V002 đã được áp dụng. Hướng dẫn tạo schema bên dưới chỉ dành cho database trống. API ghi đã yêu cầu đăng nhập/CSRF, API SQL tùy ý luôn bị khóa và cấu hình password phải dùng biến môi trường.
+
 Java 17 · Spring Boot 3.3 · Maven · Oracle 12c+ (ojdbc11) · `NamedParameterJdbcTemplate` (KHÔNG dùng JPA/Hibernate)
 
 ## Chạy dự án

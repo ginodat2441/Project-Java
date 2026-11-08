@@ -20,7 +20,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/dev")
-@Profile("!prod")
+@Profile("sql-console & !prod & !admin")
 public class SqlConsoleController {
 
     private final SqlHelper sql;

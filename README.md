@@ -1,5 +1,7 @@
 # Clothing Shop – Spring Boot + Oracle + SQL thuần (JDBC)
 
+Trang quản trị và luồng mua hàng Oracle đã được bổ sung. Xem [hướng dẫn chạy, tạo admin và kết quả nghiệm thu](ADMIN_README.md). Với database hiện tại **không chạy lại schema.sql/sample_data.sql**; V001 và V002 đã được áp dụng. Phần tạo schema bên dưới chỉ dành cho database trống mới hoàn toàn.
+
 Java 17 · Spring Boot 3.3 · Maven · Oracle 12c+ (ojdbc11) · `NamedParameterJdbcTemplate` (KHÔNG dùng JPA/Hibernate)
 
 ## Chạy dự án

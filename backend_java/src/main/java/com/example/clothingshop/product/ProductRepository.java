@@ -27,13 +27,13 @@ public class ProductRepository {
               FROM PRODUCT p
               JOIN BRAND b    ON b.ID = p.BRAND_ID
               JOIN MATERIAL m ON m.ID = p.MATERIAL_ID
-             WHERE p.DELETE_FLAG = 0
+             WHERE p.DELETE_FLAG = 0 AND p.STATUS = 1
             """;
 
     /** Tìm kiếm động: chỉ nối điều kiện khi tham số có giá trị. */
     public PageResult<ProductView> search(String keyword, Long brandId, Integer gender,
                                           int page, int size) {
-        StringBuilder q = new StringBuilder(SELECT_PRODUCT);
+        StringBuilder q = new StringBuilder(SELECT_PRODUCT+com.example.clothingshop.admin.CategoryVisibility.SQL);
         Map<String, Object> p = new HashMap<>();
         if (keyword != null && !keyword.isBlank()) {
             q.append(" AND LOWER(p.PRODUCT_NAME) LIKE '%' || LOWER(:keyword) || '%' ");
@@ -52,7 +52,7 @@ public class ProductRepository {
     }
 
     public Optional<ProductView> findById(long id) {
-        return sql.one(SELECT_PRODUCT + " AND p.ID = :id", Map.of("id", id), ProductView.class);
+        return sql.one(SELECT_PRODUCT+com.example.clothingshop.admin.CategoryVisibility.SQL + " AND p.ID = :id", Map.of("id", id), ProductView.class);
     }
 
     public List<ProductDetailView> findDetails(long productId) {
@@ -61,7 +61,9 @@ public class ProductRepository {
                        pd.SIZE_NAME, pd.SKU, pd.PRICE, pd.QUANTITY, pd.IMAGE_URL
                   FROM PRODUCT_DETAIL pd
                   JOIN COLOR c ON c.ID = pd.COLOR_ID
-                 WHERE pd.PRODUCT_ID = :pid AND pd.DELETE_FLAG = 0
+                 WHERE pd.PRODUCT_ID = :pid AND pd.DELETE_FLAG = 0 AND pd.STATUS=1
+                   AND EXISTS (SELECT 1 FROM PRODUCT p WHERE p.ID=pd.PRODUCT_ID AND p.DELETE_FLAG=0 AND p.STATUS=1"""+com.example.clothingshop.admin.CategoryVisibility.SQL+"""
+                   )
                  ORDER BY c.COLOR_NAME, pd.SIZE_NAME
                 """;
         return sql.list(q, Map.of("pid", productId), ProductDetailView.class);

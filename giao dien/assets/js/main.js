@@ -9,6 +9,17 @@
 (function() {
   "use strict";
 
+  // Live catalogue uses the same origin as Spring Boot. Original template stays available.
+  const shopLink = document.createElement('a');
+  shopLink.href = '/shop/index.html';
+  shopLink.textContent = 'Mua hàng · Sản phẩm thực tế';
+  shopLink.className = 'btn btn-outline-primary m-2';
+  document.querySelector('header')?.append(shopLink);
+  const liveScript = document.createElement('script');
+  liveScript.src = '/admin-assets/store.js';
+  liveScript.defer = true;
+  document.body.append(liveScript);
+
   /**
    * Apply .scrolled class to the body as the page is scrolled down
    */

@@ -5,14 +5,17 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import com.example.clothingshop.admin.AdminService;
+import org.springframework.security.core.Authentication;
 
 @RestController
 @RequestMapping("/api/bills")
 public class BillController {
 
     private final BillService service;
+    private final AdminService admin;
 
-    public BillController(BillService service) { this.service = service; }
+    public BillController(BillService service,AdminService admin) { this.service = service;this.admin=admin; }
 
     @PostMapping
     public ApiResponse<BillView> create(@Valid @RequestBody BillRequest req) {
@@ -34,7 +37,7 @@ public class BillController {
     @PatchMapping("/{id}/status")
     public ApiResponse<BillView> changeStatus(@PathVariable long id, @RequestParam int status,
                                               @RequestParam(required = false) Long managerId,
-                                              @RequestParam(required = false) String note) {
-        return ApiResponse.ok(service.changeStatus(id, status, managerId, note));
+                                              @RequestParam(required = false) String note,Authentication auth) {
+        return ApiResponse.ok(service.changeStatus(id, status, admin.actor(auth.getName()), note));
     }
 }
