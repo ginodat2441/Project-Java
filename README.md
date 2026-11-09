@@ -23,6 +23,19 @@ Java 17 · Spring Boot 3.3 · Maven · Oracle 12c+ (ojdbc11) · `NamedParameterJ
    ```
 4. Phí giao hàng mặc định là 30.000; có thể cấu hình qua biến môi trường `ORDER_SHIPPING_FEE`.
 
+## Chạy giao diện tiếng Việt
+1. Chạy backend ở `http://localhost:8080` sau khi Oracle và schema đã sẵn sàng.
+2. Mở thư mục `giao dien` bằng VS Code và chạy `index.html` qua Live Server (không mở trực tiếp bằng `file://`).
+   Giao diện mặc định gọi API tại `http://localhost:8080/api`.
+3. Nếu dùng địa chỉ khác, khai báo `window.CLOTHING_SHOP_API_BASE` trước `assets/js/storefront.js`.
+   CORS chỉ cho phép các origin loopback (`localhost` và `127.0.0.1`) theo mặc định; có thể đổi bằng biến
+   `CORS_ALLOWED_ORIGINS`, phân tách bằng dấu phẩy. Không mở CORS cho mọi origin khi triển khai thật.
+
+Giao diện gọi API cho danh sách/tìm kiếm và chi tiết sản phẩm, đăng ký/đăng nhập, hồ sơ và đơn hàng,
+địa chỉ giao hàng, giỏ hàng và thanh toán khi nhận hàng (COD). Token đăng nhập được giữ trong phiên
+trình duyệt hiện tại. Các trang thông tin/chính sách hiển thị tiếng Việt; cửa hàng cần rà soát và bổ sung
+thông tin pháp lý, giao nhận và liên hệ thực tế trước khi vận hành chính thức.
+
 ## Cấu trúc (mỗi module: controller → service → repository)
 ```
 com.example.clothingshop

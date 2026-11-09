@@ -6,6 +6,7 @@ D:\IT\JP1\Project-Java\backend_java\src\main\java\com\example\clothingshop\commo
 D:\IT\JP1\Project-Java\backend_java\src\main\java\com\example\clothingshop\common\NotFoundException.java
 D:\IT\JP1\Project-Java\backend_java\src\main\java\com\example\clothingshop\common\PageResult.java
 D:\IT\JP1\Project-Java\backend_java\src\main\java\com\example\clothingshop\common\SqlHelper.java
+D:\IT\JP1\Project-Java\backend_java\src\main\java\com\example\clothingshop\config\CorsConfig.java
 D:\IT\JP1\Project-Java\backend_java\src\main\java\com\example\clothingshop\config\SecurityConfig.java
 D:\IT\JP1\Project-Java\backend_java\src\main\java\com\example\clothingshop\controller\AddressController.java
 D:\IT\JP1\Project-Java\backend_java\src\main\java\com\example\clothingshop\controller\AdminController.java

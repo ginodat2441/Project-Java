@@ -43,6 +43,7 @@ com\example\clothingshop\dto\request\BillRequest$Item.class
 com\example\clothingshop\entity\Brand.class
 com\example\clothingshop\view\ProductView.class
 com\example\clothingshop\view\CartItemView.class
+com\example\clothingshop\config\CorsConfig.class
 com\example\clothingshop\testapi\SqlConsoleController$SqlRequest.class
 com\example\clothingshop\controller\CartController.class
 com\example\clothingshop\controller\ProductController.class
