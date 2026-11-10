@@ -51,3 +51,44 @@ test('server rejection never shows success and allows retry', async () => {
   assert.match(w.document.querySelector('[role="alert"]').textContent, /đã được đăng ký/);
   dom.window.close();
 });
+
+test('manager username uses Spring Security form login with CSRF and preserves username case', async () => {
+  const { dom, w, form, calls, alerts } = await setup('login');
+  w.document.getElementById('login-register-login-email').value = 'TestAdmin';
+  w.fetch = async (url, options = {}) => {
+    calls.push({url,...options});
+    return url === '/api/csrf'
+      ? {ok:true,json:async()=>({token:'csrf-test',headerName:'X-CSRF-TOKEN'})}
+      : {ok:true,status:200,url:'http://localhost/admin'};
+  };
+  form.dispatchEvent(new w.Event('submit', {cancelable:true}));await tick();await tick();
+  const request=calls.find(c=>c.method==='POST');
+  assert.equal(request.url,'/login');
+  assert.equal(request.body.get('username'),'TestAdmin');
+  assert.equal(request.headers['X-CSRF-TOKEN'],'csrf-test');
+  assert.equal(calls.some(c=>c.url==='/api/customer/login'),false);
+  assert.equal(alerts.length,1);dom.window.close();
+});
+
+test('redirect to login error never shows a manager success popup', async () => {
+  const { dom, w, form, alerts } = await setup('login');
+  w.document.getElementById('login-register-login-email').value = 'TestAdmin';
+  w.fetch = async url => url === '/api/csrf'
+    ? {ok:true,json:async()=>({token:'csrf-test',headerName:'X-CSRF-TOKEN'})}
+    : {ok:true,status:200,url:'http://localhost/login?error'};
+  form.dispatchEvent(new w.Event('submit', {cancelable:true}));await tick();await tick();
+  assert.equal(alerts.length,0);assert.match(w.document.querySelector('[role="alert"]').textContent,/không đúng/);
+  dom.window.close();
+});
+
+test('email-shaped manager username can still use manager authentication', async () => {
+  const { dom, w, form, alerts } = await setup('login');
+  let managerCalls=0;
+  w.fetch=async url=>{
+    if(url==='/api/csrf')return {ok:true,json:async()=>({token:'csrf-test',headerName:'X-CSRF-TOKEN'})};
+    if(url==='/api/customer/login')return {ok:false,status:400,json:async()=>({message:'Thử lại sau 10 phút'})};
+    assert.equal(url,'/login');managerCalls++;return {ok:true,status:200,url:'http://localhost/admin'};
+  };
+  form.dispatchEvent(new w.Event('submit',{cancelable:true}));await tick();await tick();
+  assert.equal(managerCalls,1);assert.equal(alerts.length,1);dom.window.close();
+});

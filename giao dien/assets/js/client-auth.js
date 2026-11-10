@@ -34,20 +34,38 @@
     if (!csrfResponse.ok) throw Error('Không lấy được phiên bảo mật. Hãy tải lại trang.');
     const csrf = await csrfResponse.json();
     if (!csrf.headerName || !csrf.token) throw Error('Phiên bảo mật không hợp lệ. Hãy tải lại trang.');
+    const managerLogin = async () => {
+      // Reuse Spring Security's role checks, lockout and authenticated session.
+      const response = await fetch('/login', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { [csrf.headerName]: csrf.token },
+        body: new URLSearchParams({ username: payload.email, password: payload.password })
+      });
+      const destination = new URL(response.url || '/login?error', window.location.origin);
+      if (response.ok && destination.origin === location.origin && destination.pathname === '/admin') return '/admin';
+      if (destination.searchParams.has('lockedUntil')) throw Error('Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau 10 phút.');
+      if (response.status >= 500) throw Error('Máy chủ chưa xử lý được yêu cầu đăng nhập.');
+      if (response.status === 403) throw Error('Phiên bảo mật đã hết hạn. Hãy tải lại trang.');
+      throw Error('Tài khoản hoặc mật khẩu không đúng, hoặc tài khoản đã bị khóa.');
+    };
+    if (kind === 'login' && !payload.email.includes('@')) return managerLogin();
     let response;
     try {
       response = await fetch(`/api/customer/${kind}`, {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', [csrf.headerName]: csrf.token },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(kind === 'login' ? { ...payload, email: payload.email.toLowerCase() } : payload)
       });
     } catch { throw Error('Kết nối bị gián đoạn. Vui lòng kiểm tra lại trước khi gửi tiếp.'); }
     const body = await response.json().catch(() => null);
+    if (kind === 'login' && response.status === 400 &&
+        ['Email hoặc mật khẩu không đúng', 'Thử lại sau 10 phút'].includes(body?.message)) return managerLogin();
     if (!response.ok || body?.success !== true) {
       if (response.status >= 500) throw Error('Máy chủ chưa xử lý được yêu cầu. Vui lòng thử lại sau.');
       if (response.status === 403) throw Error('Phiên bảo mật đã hết hạn. Hãy tải lại trang và thử lại.');
       throw Error(body?.message || 'Không thực hiện được yêu cầu. Vui lòng thử lại.');
     }
+    return '/store/index.html';
   }
 
   for (const [kind, form] of [['login', login], ['register', register]]) {
@@ -72,14 +90,14 @@
           if (!input('reg-firstname').value.trim() || !input('reg-lastname').value.trim()) throw Error('Vui lòng nhập đầy đủ họ và tên.');
           if (payload.name.length > 150) throw Error('Họ tên tối đa 150 ký tự.');
           if (!payload.phone) throw Error('Vui lòng nhập số điện thoại.');
-        } else payload = { email: input('login-email').value.trim().toLowerCase(), password: input('login-password').value };
+        } else payload = { email: input('login-email').value.trim(), password: input('login-password').value };
         busy = true;
         button.disabled = true;
         button.textContent = 'Đang xử lý…';
-        await submit(kind, payload);
+        const destination = await submit(kind, payload);
         form.reset();
         await popup(kind === 'register' ? 'Đăng ký thành công! Vui lòng đăng nhập bằng tài khoản vừa tạo.' : 'Đăng nhập thành công! Chào mừng bạn trở lại.');
-        window.location.assign(kind === 'register' ? '/store/login-register.html' : '/store/index.html');
+        window.location.assign(kind === 'register' ? '/store/login-register.html' : destination);
       } catch (error) {
         notice.textContent = error.message;
         notice.hidden = false;

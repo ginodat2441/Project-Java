@@ -4,6 +4,7 @@ Chạy từ backend Java, mở `/store/index.html`. Không dùng Live Server cho
 
 - Header đọc `/api/customer/me`; đăng xuất là POST có CSRF. Session khách tách với admin.
 - Đăng ký/đăng nhập dùng `client-auth.js`. Đăng ký lưu Oracle rồi yêu cầu đăng nhập riêng. Đăng nhập về trang chủ.
+- Form đăng nhập cũng nhận tên tài khoản ADMIN/STAFF: gửi tới `/login` của Spring Security và chuyển `/admin` khi xác thực thành công. Khách vẫn dùng email và API customer. Không nhận vai trò do trình duyệt gửi; đăng ký công khai chỉ tạo khách hàng.
 - Sản phẩm, giá, biến thể, tìm kiếm và bộ lọc đọc `/api/catalog`. Phải chọn màu và size có thật trước khi thêm giỏ.
 - Giỏ lưu `CART`/`CART_DETAIL`, API `/api/customer/cart`. Máy chủ lấy khách từ session, không nhận customer ID của trình duyệt. Không chuyển giỏ localStorage cũ sang tài khoản mới. Thêm giỏ không giữ/trừ kho; tồn được kiểm tra lại khi đặt đơn.
 - Hồ sơ, địa chỉ và đơn hàng chỉ lấy theo khách đang đăng nhập. Tài khoản mới có giỏ/đơn/sổ địa chỉ trống. Địa chỉ gắn vào hóa đơn là snapshot, không sửa qua sổ địa chỉ.

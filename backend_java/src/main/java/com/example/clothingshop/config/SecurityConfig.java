@@ -125,6 +125,8 @@ public class SecurityConfig {
                     .successHandler(
                         (req, res, auth) -> {
                           attempts.remove(req.getRemoteAddr());
+                          req.getSession().removeAttribute("customer");
+                          req.getSession().removeAttribute("customer-access-version");
                           req.getSession()
                               .setAttribute(
                                   "manager-access-version",
