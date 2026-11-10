@@ -1,0 +1,71 @@
+/* Only state and controls for the customer integration; main.css is unchanged. */
+body[data-client-store]:not(.client-ready) :is(#account, #cart, #product-details) {
+  visibility: hidden;
+}
+body[data-client-store]:not(.client-ready) :is(.product-card, .product-box) {
+  visibility: hidden;
+}
+.client-message {
+  padding: 1rem;
+  border-radius: 0.65rem;
+  background: #f3f7fc;
+  margin: 1rem 0;
+}
+.client-message[role='alert'] {
+  color: #842029;
+  background: #f8e8eb;
+}
+.client-filters {
+  display: grid;
+  gap: 0.8rem;
+  margin-bottom: 1.5rem;
+}
+.client-filters input,
+.client-filters select {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid #dce0e5;
+  border-radius: 0.4rem;
+  background: white;
+}
+.client-variant {
+  min-width: 3rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid #d6dce4;
+  border-radius: 0.4rem;
+  background: white;
+  margin: 0.2rem;
+}
+.client-variant[aria-pressed='true'] {
+  border-color: #0d6efd;
+  color: #0d6efd;
+  box-shadow: 0 0 0 1px #0d6efd;
+}
+.client-variant:disabled {
+  opacity: 0.45;
+}
+.client-status {
+  display: block;
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
+}
+.client-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.client-address-card {
+  border: 1px solid #e2e7ed;
+  border-radius: 0.8rem;
+  padding: 1.2rem;
+  margin-bottom: 1rem;
+}
+.client-address-card button {
+  margin-right: 0.6rem;
+}
+body[data-client-store] [hidden] {
+  display: none !important;
+}
