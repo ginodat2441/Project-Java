@@ -413,9 +413,9 @@ INSERT INTO ROLES (ROLE_CODE, ROLE_NAME, DESCRIPTION)
 VALUES ('VIP', N'Khách hàng VIP', N'Khách hàng thân thiết, có ưu đãi riêng');
 
 INSERT INTO MANAGER_ROLE (ROLE_CODE, ROLE_NAME, DESCRIPTION)
-VALUES ('ADMIN', N'Quản trị viên', N'Toàn quyền trên hệ thống');
+VALUES ('ADMIN', N'Chủ cửa hàng', N'Quản lý cửa hàng, nhân viên, đơn hàng và thanh toán');
 INSERT INTO MANAGER_ROLE (ROLE_CODE, ROLE_NAME, DESCRIPTION)
-VALUES ('STAFF', N'Nhân viên', N'Xử lý đơn hàng, quản lý sản phẩm');
+VALUES ('STAFF', N'Nhân viên bán hàng', N'Xem và duyệt đơn hàng');
 
 COMMIT;
 

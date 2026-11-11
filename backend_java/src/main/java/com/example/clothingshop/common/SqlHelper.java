@@ -13,10 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * Bọc NamedParameterJdbcTemplate: bạn chỉ viết SQL thuần + tham số :ten,
- * kết quả tự map vào record (cột MIN_PRICE -> field minPrice).
- */
 @Component
 public class SqlHelper {
 
