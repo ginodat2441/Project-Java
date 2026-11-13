@@ -1,326 +1,21 @@
 (function () {
   "use strict";
 
-  const apiBase = (window.CLOTHING_SHOP_API_BASE || "http://localhost:8080/api").replace(/\/+$/, "");
+  const isLoopbackHost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  const useSameOriginApi = !isLoopbackHost || window.location.port === "3000";
+  const defaultApiBase = useSameOriginApi ? "/api" : "http://localhost:8080/api";
+  const apiBase = (window.CLOTHING_SHOP_API_BASE || defaultApiBase).replace(/\/+$/, "");
   const tokenKey = "clothingShopToken";
   const userKey = "clothingShopUser";
   const orderKey = "clothingShopLastOrder";
   const money = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" });
+  const sePayQrBank = "Vietcombank";
+  const sePayQrAccount = "SBSEPAYGL9TEMZRXDAK";
 
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";
   stylesheet.href = "assets/css/storefront.css";
   document.head.appendChild(stylesheet);
-
-  const translations = {
-    "Need help? Call us:": "Cần hỗ trợ? Gọi cho chúng tôi:",
-    "Free shipping on orders over $50": "Thanh toán khi nhận hàng",
-    "30 days money back guarantee.": "Phí giao hàng hiển thị khi thanh toán",
-    "20% off on your first order": "Hỗ trợ tư vấn chọn size",
-    "My Profile": "Tài khoản của tôi",
-    "My Orders": "Đơn hàng của tôi",
-    "My Wishlist": "Sản phẩm yêu thích",
-    "Settings": "Cài đặt",
-    "Sign In": "Đăng nhập",
-    "Register": "Đăng ký",
-    "Access account & manage orders": "Quản lý tài khoản và đơn hàng",
-    "Welcome to": "Chào mừng đến",
-    "Search for products": "Tìm kiếm sản phẩm",
-    "Search foree products": "Tìm kiếm sản phẩm",
-    "Home": "Trang chủ",
-    "Shop": "Cửa hàng",
-    "Products": "Sản phẩm",
-    "Product": "Sản phẩm",
-    "Category": "Danh mục",
-    "Categories": "Danh mục",
-    "Product Details": "Chi tiết sản phẩm",
-    "Checkout": "Thanh toán",
-    "Cart": "Giỏ hàng",
-    "Contact": "Liên hệ",
-    "Contact Us": "Liên hệ với chúng tôi",
-    "About": "Giới thiệu",
-    "About Us": "Về chúng tôi",
-    "Support": "Hỗ trợ",
-    "Help Center": "Trung tâm trợ giúp",
-    "Order Status": "Theo dõi đơn hàng",
-    "Shipping Info": "Thông tin giao hàng",
-    "Returns & Exchanges": "Đổi trả hàng",
-    "Hướng dẫn chọn size": "Hướng dẫn chọn size",
-    "Privacy Policy": "Chính sách bảo mật",
-    "Terms of Service": "Điều khoản dịch vụ",
-    "Featured": "Nổi bật",
-    "Featured Products": "Sản phẩm nổi bật",
-    "Sale Items": "Sản phẩm",
-    "New Arrivals": "Sản phẩm mới",
-    "Bestsellers": "Bán chạy",
-    "Best Sellers": "Bán chạy",
-    "Women's Clothing": "Thời trang nữ",
-    "Men's Clothing": "Thời trang nam",
-    "Accessories": "Phụ kiện",
-    "Footwear": "Giày dép",
-    "Clothing": "Quần áo",
-    "Collection": "Bộ sưu tập",
-    "Women": "Nữ",
-    "Men": "Nam",
-    "Kids": "Trẻ em",
-    "Kids'": "Trẻ em",
-    "Women's": "Nữ",
-    "Men's": "Nam",
-    "WOMEN": "NỮ",
-    "Men's Wear": "Thời trang nam",
-    "Women's Wear": "Thời trang nữ",
-    "Kids Collection": "Bộ sưu tập trẻ em",
-    "Sportswear": "Đồ thể thao",
-    "Shirts & Tops": "Áo sơ mi & áo kiểu",
-    "T-shirts & Tops": "Áo thun & áo kiểu",
-    "Coats & Outerwear": "Áo khoác",
-    "Jackets & Coats": "Áo khoác",
-    "Dresses": "Đầm",
-    "Sweatshirts": "Áo nỉ",
-    "Hoodies": "Áo hoodie",
-    "Underwear": "Đồ mặc trong",
-    "Swimwear": "Đồ bơi",
-    "Shoes": "Giày",
-    "Boots": "Bốt",
-    "Sandals": "Dép sandal",
-    "Slippers": "Dép",
-    "Sneakers": "Giày thể thao",
-    "Loafers": "Giày lười",
-    "Heels": "Giày cao gót",
-    "Oxfords": "Giày tây",
-    "Accessories": "Phụ kiện",
-    "Belts": "Thắt lưng",
-    "Handbags": "Túi xách",
-    "Backpacks": "Ba lô",
-    "Hats & Caps": "Mũ",
-    "Socks": "Tất",
-    "Scarves": "Khăn choàng",
-    "Gloves": "Găng tay",
-    "Jewelry": "Trang sức",
-    "Watches": "Đồng hồ",
-    "Sunglasses": "Kính mát",
-    "View all": "Xem tất cả",
-    "View All": "Xem tất cả",
-    "Shop now": "Mua ngay",
-    "View Product": "Xem sản phẩm",
-    "Join Our Newsletter": "Đăng ký nhận tin",
-    "Subscribe": "Đăng ký",
-    "Your email address": "Địa chỉ email của bạn",
-    "Your subscription request has been sent. Thank you!": "Đăng ký nhận tin thành công. Cảm ơn bạn!",
-    "Shop on the go with our mobile app": "Mua sắm thuận tiện mọi lúc",
-    "Download Our App": "Tải ứng dụng",
-    "Company": "Công ty",
-    "Careers": "Tuyển dụng",
-    "Press": "Báo chí",
-    "Affiliates": "Đối tác",
-    "Responsibility": "Trách nhiệm xã hội",
-    "Investors": "Nhà đầu tư",
-    "Cookies Settings": "Cài đặt cookie",
-    ". All Rights Reserved.": ". Đã đăng ký bản quyền.",
-    "Sale": "Sản phẩm",
-    "About Us": "Về chúng tôi",
-    "Dropdown": "Danh mục",
-    "Dropdown 1": "Danh mục 1",
-    "Dropdown 2": "Danh mục 2",
-    "Dropdown 3": "Danh mục 3",
-    "Dropdown 4": "Danh mục 4",
-    "Deep Dropdown": "Danh mục con",
-    "Deep Dropdown 1": "Danh mục con 1",
-    "Deep Dropdown 2": "Danh mục con 2",
-    "Deep Dropdown 3": "Danh mục con 3",
-    "Deep Dropdown 4": "Danh mục con 4",
-    "Deep Dropdown 5": "Danh mục con 5",
-    "Megamenu 1": "Thời trang",
-    "Megamenu 2": "Bộ sưu tập",
-    "My account": "Tài khoản",
-    "Loading": "Đang tải",
-    "Next": "Tiếp",
-    "Previous": "Trước",
-    "Read More": "Đọc thêm",
-    "Continue Shopping": "Tiếp tục mua sắm",
-    "Proceed to Checkout": "Tiến hành thanh toán",
-    "Add to Cart": "Thêm vào giỏ",
-    "Buy Now": "Mua ngay",
-    "Quantity": "Số lượng",
-    "Size": "Kích cỡ",
-    "Color": "Màu sắc",
-    "Description": "Mô tả",
-    "Specifications": "Thông tin sản phẩm",
-    "Reviews": "Đánh giá",
-    "Write a Review": "Viết đánh giá",
-    "Your Rating": "Đánh giá của bạn",
-    "Price": "Giá",
-    "Availability": "Tình trạng",
-    "In Stock": "Còn hàng",
-    "Out of Stock": "Hết hàng",
-    "Order Summary": "Tóm tắt đơn hàng",
-    "Subtotal": "Tạm tính",
-    "Shipping": "Phí giao hàng",
-    "Total": "Tổng cộng",
-    "Full Name": "Họ và tên",
-    "Email": "Email",
-    "Password": "Mật khẩu",
-    "Phone": "Số điện thoại",
-    "Address": "Địa chỉ",
-    "Country": "Quốc gia",
-    "City": "Tỉnh / Thành phố",
-    "State": "Quận / Huyện",
-    "Postal Code": "Mã bưu chính",
-    "First Name": "Tên",
-    "Last Name": "Họ",
-    "Order Confirmation": "Xác nhận đơn hàng",
-    "Thank you for your order!": "Cảm ơn bạn đã đặt hàng!",
-    "Your order has been placed successfully.": "Đơn hàng của bạn đã được tiếp nhận.",
-    "Order Number": "Mã đơn hàng",
-    "Payment Method": "Phương thức thanh toán",
-    "Cash on Delivery": "Thanh toán khi nhận hàng",
-    "COD": "Thanh toán khi nhận hàng",
-    "eStore": "eStore"
-  };
-  Object.assign(translations, {
-    "Subscribe to get special offers, free giveaways, and once-in-a-lifetime deals.": "Nhận cập nhật về sản phẩm và thông tin mới từ cửa hàng.",
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam in nibh vehicula, facilisis magna ut, consectetur lorem.": "Cửa hàng mang đến những lựa chọn thời trang thiết yếu, chất lượng và dễ phối cho phong cách hàng ngày.",
-    "123 Fashion Street, New York, NY 10001": "Thông tin địa chỉ cửa hàng sẽ được cập nhật.",
-    "hello@example.com": "Thông tin email hỗ trợ sẽ được cập nhật.",
-    "We Accept:": "Phương thức thanh toán:",
-    "All Rights Reserved.": "Đã đăng ký bản quyền.",
-    "Copyright": "Bản quyền",
-    "Designed by": "Thiết kế bởi",
-    "Premium Headphones": "Áo sơ mi basic",
-    "Smart Watch": "Áo khoác thường ngày",
-    "Wireless Earbuds": "Áo thun cotton",
-    "Bluetooth Speaker": "Quần kaki",
-    "Fitness Tracker": "Quần jean",
-    "Wireless Charger": "Áo len cổ tròn",
-    "Smart Bulb Set": "Bộ đồ mặc nhà",
-    "Portable Power Bank": "Áo khoác nhẹ",
-    "Wireless Keyboard": "Áo polo",
-    "Gaming Mouse": "Quần jogger",
-    "Desk Lamp": "Chân váy",
-    "USB-C Hub": "Túi đeo",
-    "Electronics": "Thời trang",
-    "Smartphones": "Áo thun",
-    "Laptops": "Quần",
-    "Audio Devices": "Phụ kiện",
-    "Smart Home": "Đồ mặc nhà",
-    "Home & Living": "Phong cách sống",
-    "Furniture": "Thời trang",
-    "Decor": "Phụ kiện",
-    "Kitchen": "Đồ mặc nhà",
-    "Bedding": "Đồ mặc nhà",
-    "Lighting": "Phụ kiện",
-    "Beauty": "Phong cách",
-    "Skincare": "Chăm sóc vải",
-    "Makeup": "Phụ kiện",
-    "Fragrances": "Phụ kiện",
-    "Haircare": "Chăm sóc trang phục",
-    "Personal Care": "Chăm sóc cá nhân",
-    "12-month warranty": "Chất liệu được mô tả trong thông tin sản phẩm",
-    "2-year warranty": "Hỗ trợ đổi trả theo chính sách cửa hàng",
-    "Free shipping on orders over $50": "Thanh toán khi nhận hàng",
-    "Sale": "Sản phẩm",
-    "New": "Mới",
-    "Featured": "Nổi bật",
-    "New Arrivals": "Sản phẩm mới",
-    "New Arrival": "Sản phẩm mới",
-    "Shop by Category": "Mua sắm theo danh mục",
-    "Shop by category": "Mua sắm theo danh mục",
-    "Explore our collection": "Khám phá bộ sưu tập",
-    "Our Products": "Sản phẩm của chúng tôi",
-    "All Products": "Tất cả sản phẩm",
-    "Trending": "Xu hướng",
-    "Trending Now": "Xu hướng hiện nay",
-    "Best Sellers": "Sản phẩm bán chạy",
-    "Featured Collection": "Bộ sưu tập nổi bật",
-    "Related Products": "Sản phẩm liên quan",
-    "Recently Viewed": "Sản phẩm đã xem",
-    "Customer Reviews": "Đánh giá của khách hàng",
-    "Product Overview": "Tổng quan sản phẩm",
-    "Key Features": "Đặc điểm nổi bật",
-    "What's in the Box": "Thông tin sản phẩm",
-    "Technical Specifications": "Thông số sản phẩm",
-    "Features": "Đặc điểm",
-    "Colors:": "Màu sắc:",
-    "Size:": "Kích cỡ:",
-    "Quantity:": "Số lượng:",
-    "Out of Stock": "Hết hàng",
-    "In Stock": "Còn hàng",
-    "We Accept": "Phương thức thanh toán",
-    "Sort by": "Sắp xếp theo",
-    "Filter": "Bộ lọc",
-    "Apply Filters": "Áp dụng bộ lọc",
-    "Clear Filters": "Xóa bộ lọc",
-    "Showing": "Đang hiển thị",
-    "of": "trên",
-    "Results": "kết quả",
-    "No products found": "Không tìm thấy sản phẩm",
-    "Page Not Found": "Không tìm thấy trang",
-    "Oops! Page Not Found": "Rất tiếc! Không tìm thấy trang",
-    "Go to Home": "Về trang chủ",
-    "Frequently Asked Questions": "Câu hỏi thường gặp",
-    "How can we help you?": "Chúng tôi có thể hỗ trợ gì cho bạn?",
-    "Get in Touch": "Liên hệ với chúng tôi",
-    "Send Message": "Gửi tin nhắn",
-    "Your Message": "Nội dung tin nhắn",
-    "Subject": "Chủ đề",
-    "Name": "Họ tên",
-    "Message": "Tin nhắn",
-    "Shipping & Returns": "Giao hàng và đổi trả",
-    "Return Policy": "Chính sách đổi trả",
-    "Payment Methods": "Phương thức thanh toán",
-    "Privacy": "Quyền riêng tư",
-    "Terms": "Điều khoản",
-    "Latest Articles": "Bài viết mới nhất",
-    "Read More": "Đọc thêm",
-    "Continue Reading": "Đọc tiếp",
-    "Related Articles": "Bài viết liên quan",
-    "Share This Article": "Chia sẻ bài viết",
-    "Back to Blog": "Quay lại bài viết",
-    "Start Shopping": "Bắt đầu mua sắm",
-    "Track Your Order": "Theo dõi đơn hàng",
-    "Order Details": "Chi tiết đơn hàng",
-    "Billing Details": "Thông tin nhận hàng",
-    "Shipping Address": "Địa chỉ giao hàng",
-    "Place Order": "Đặt hàng",
-    "Continue to Checkout": "Tiếp tục thanh toán",
-    "Your Cart": "Giỏ hàng của bạn",
-    "Your cart is empty": "Giỏ hàng của bạn đang trống",
-    "Remove": "Xóa",
-    "Update Cart": "Cập nhật giỏ hàng",
-    "Order Total": "Tổng đơn hàng",
-    "Estimated delivery": "Thời gian giao hàng dự kiến",
-    "Frequently bought together": "Sản phẩm thường được chọn",
-    "Email address": "Địa chỉ email",
-    "Confirm Password": "Xác nhận mật khẩu",
-    "Forgot Password?": "Quên mật khẩu?",
-    "Don't have an account?": "Chưa có tài khoản?",
-    "Already have an account?": "Đã có tài khoản?",
-    "Create Account": "Tạo tài khoản",
-    "Create an Account": "Tạo tài khoản",
-    "Welcome Back": "Chào mừng bạn quay lại",
-    "Account Details": "Thông tin tài khoản",
-    "Personal Information": "Thông tin cá nhân",
-    "Save Changes": "Lưu thay đổi",
-    "Default Address": "Địa chỉ mặc định",
-    "Delivery Information": "Thông tin giao nhận",
-    "Order History": "Lịch sử đơn hàng",
-    "Recent Orders": "Đơn hàng gần đây",
-    "View Details": "Xem chi tiết",
-    "Cancel Order": "Hủy đơn hàng",
-    "Status": "Trạng thái",
-    "Date": "Ngày",
-    "Thank you for your order!": "Cảm ơn bạn đã đặt hàng!",
-    "Your order has been placed successfully.": "Đơn hàng của bạn đã được tiếp nhận.",
-    "Cash on Delivery": "Thanh toán khi nhận hàng",
-    "Our Story": "Câu chuyện của chúng tôi",
-    "Our Mission": "Sứ mệnh",
-    "Our Values": "Giá trị của chúng tôi",
-    "Meet Our Team": "Đội ngũ của chúng tôi",
-    "Learn More": "Tìm hiểu thêm",
-    "Explore More": "Khám phá thêm",
-    "Thank you": "Cảm ơn bạn",
-    "Oops!": "Rất tiếc!"
-  });
 
   function escapeHtml(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (char) {
@@ -350,110 +45,16 @@
       "shiping-info.html": "Thông tin giao hàng",
       "support.html": "Trung tâm hỗ trợ",
       "tos.html": "Điều khoản sử dụng",
-      "blog.html": "Cẩm nang mặc đẹp",
-      "blog-details.html": "Cẩm nang mặc đẹp",
+      "blog.html": "Bài viết",
+      "blog-details.html": "Bài viết",
       "starter-page.html": "Thông tin cửa hàng",
       "404.html": "Không tìm thấy trang"
     };
     const filename = window.location.pathname.split("/").pop().toLowerCase();
     if (pageTitles[filename]) document.title = pageTitles[filename] + " | eStore";
-
-    document.querySelectorAll(".top-bar-item.dropdown").forEach(function (dropdown) {
-      const link = dropdown.querySelector(".dropdown-toggle");
-      if (!link) return;
-      const isCurrency = Boolean(dropdown.querySelector(".bi-currency-dollar"));
-      link.innerHTML = isCurrency
-        ? '<i class="bi bi-currency-exchange me-2" aria-hidden="true"></i>VND'
-        : '<i class="bi bi-translate me-2" aria-hidden="true"></i>Tiếng Việt';
-      link.classList.remove("dropdown-toggle");
-      link.removeAttribute("data-bs-toggle");
-      dropdown.querySelector(".dropdown-menu")?.remove();
-    });
-
     const navigation = document.querySelector("#navmenu > ul");
-    if (navigation) {
-      const links = [
-        ["index.html", "Trang chủ"],
-        ["category.html", "Sản phẩm"],
-        ["size-guide.html", "Hướng dẫn chọn size"],
-        ["faq.html", "Câu hỏi thường gặp"],
-        ["contact.html", "Liên hệ"]
-      ];
-      navigation.innerHTML = links.map(function (entry) {
-        const active = filename === entry[0] ? ' class="active"' : "";
-        return '<li><a href="' + entry[0] + '"' + active + ">" + entry[1] + "</a></li>";
-      }).join("");
-      navigation.addEventListener("click", function (event) {
-        if (event.target.closest("a") && document.body.classList.contains("mobile-nav-active")) {
-          document.body.classList.remove("mobile-nav-active");
-          const toggle = document.querySelector(".mobile-nav-toggle");
-          toggle?.classList.remove("bi-x");
-          toggle?.classList.add("bi-list");
-        }
-      });
-    }
-
-    document.querySelectorAll(".header-action-btn").forEach(function (button) {
-      if (button.querySelector(".bi-heart")) button.closest("a")?.remove();
-    });
-
-    document.querySelectorAll(".announcement-slider .swiper-slide").forEach(function (slide, index) {
-      slide.textContent = [
-        "Thanh toán khi nhận hàng",
-        "Phí giao hàng hiển thị khi thanh toán",
-        "Hỗ trợ tư vấn chọn size"
-      ][index % 3];
-    });
-
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    let node;
-    while ((node = walker.nextNode())) {
-      const parent = node.parentElement;
-      if (!parent || /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/i.test(parent.tagName)) continue;
-      const original = node.nodeValue.trim();
-      if (translations[original]) node.nodeValue = node.nodeValue.replace(original, translations[original]);
-    }
-
-    document.querySelectorAll("[placeholder], [aria-label], [title]").forEach(function (element) {
-      ["placeholder", "aria-label", "title"].forEach(function (attribute) {
-        const value = element.getAttribute(attribute);
-        if (value && translations[value]) element.setAttribute(attribute, translations[value]);
-      });
-    });
-    document.querySelectorAll('a[href="#"]').forEach(function (link) {
-      if (/^(Size Guide|Sale|Bestsellers|New Arrivals)$/.test(link.textContent.trim())) {
-        link.setAttribute("href", "category.html");
-      }
-    });
-    document.querySelectorAll('a[href="account.html"]').forEach(function (link) {
-      if (link.closest(".account-dropdown")) link.href = "account.html";
-    });
-    document.querySelectorAll('a[href^="tel:"], a[href^="mailto:"]').forEach(function (link) {
-      link.href = "contact.html";
-      link.textContent = "Liên hệ";
-    });
-
-    const newsletter = document.querySelector(".footer-newsletter");
-    if (newsletter) {
-      const heading = newsletter.querySelector("h2");
-      const description = newsletter.querySelector("p");
-      if (heading) heading.textContent = "Thông tin cửa hàng";
-      if (description) description.textContent = "Khám phá sản phẩm thời trang và chính sách mua hàng của eStore.";
-      newsletter.querySelector("form")?.remove();
-    }
-    document.querySelectorAll(".footer-widget").forEach(function (widget) {
-      if (/Download Our App|Tải ứng dụng/.test(widget.textContent)) widget.remove();
-    });
-    const paymentIcons = document.querySelector(".payment-icons");
-    if (paymentIcons) {
-      paymentIcons.innerHTML = '<i class="bi bi-cash" aria-label="Thanh toán khi nhận hàng"></i>';
-      const label = paymentIcons.parentElement?.querySelector("span");
-      if (label) label.textContent = "Thanh toán:";
-    }
-    document.querySelectorAll(".footer-contact .contact-item").forEach(function (item, index) {
-      if (index === 0) item.innerHTML = '<i class="bi bi-geo-alt" aria-hidden="true"></i><span>Địa chỉ cửa hàng sẽ được cập nhật.</span>';
-      if (index === 1) item.innerHTML = '<i class="bi bi-telephone" aria-hidden="true"></i><span>Vui lòng xem trang Liên hệ.</span>';
-      if (index === 2) item.innerHTML = '<i class="bi bi-envelope" aria-hidden="true"></i><span>Kênh email hỗ trợ sẽ được cập nhật.</span>';
+    navigation?.querySelectorAll("a").forEach(function (link) {
+      if (link.getAttribute("href") === filename) link.classList.add("active");
     });
   }
 
@@ -506,6 +107,20 @@
 
   function formatPrice(value) {
     return money.format(Number(value) || 0);
+  }
+
+  function sePayQrUrl(amount, description) {
+    const numericAmount = Number(amount);
+    if (!Number.isSafeInteger(numericAmount) || numericAmount <= 0) {
+      throw new Error("Số tiền thanh toán SePay không hợp lệ.");
+    }
+    const url = new URL("https://vietqr.app/img");
+    url.searchParams.set("bank", sePayQrBank);
+    url.searchParams.set("acc", sePayQrAccount);
+    url.searchParams.set("template", "compact");
+    url.searchParams.set("amount", String(numericAmount));
+    url.searchParams.set("des", String(description));
+    return url.toString();
   }
 
   function setBusy(button, busy, label) {
@@ -574,11 +189,12 @@
   }
 
   function productCard(product) {
-    const image = product.thumbnailUrl || "assets/img/product/product-1.webp";
     const available = Number(product.totalStock) > 0;
     return '<article class="col-sm-6 col-lg-4 col-xl-3"><div class="store-product-card h-100">' +
       '<a class="store-product-image" href="product-details.html?id=' + encodeURIComponent(product.id) + '">' +
-      '<img src="' + escapeHtml(image) + '" alt="' + escapeHtml(product.productName) + '" loading="lazy">' +
+      (product.thumbnailUrl
+        ? '<img src="' + escapeHtml(product.thumbnailUrl) + '" alt="' + escapeHtml(product.productName) + '" loading="lazy">'
+        : '<span class="store-product-image-placeholder">Chưa có hình ảnh</span>') +
       '</a><div class="store-product-info"><p class="text-muted mb-1">' + escapeHtml(product.brandName || "") + '</p>' +
       '<h2 class="h5"><a href="product-details.html?id=' + encodeURIComponent(product.id) + '">' + escapeHtml(product.productName) + '</a></h2>' +
       '<p class="store-product-price mb-1">' + formatPrice(product.minPrice) + '</p><p class="small mb-0 ' +
@@ -648,11 +264,13 @@
       api("/products/" + encodeURIComponent(id) + "/details")
     ]);
     const colors = Array.from(new Map(variants.map(function (item) { return [item.colorName, item]; })).values());
-    const image = product.thumbnailUrl || (variants[0] && variants[0].imageUrl) || "assets/img/product/product-details-1.webp";
-    const content = '<div class="row g-5"><div class="col-lg-6"><img class="img-fluid rounded-3 w-100" src="' + escapeHtml(image) +
-      '" alt="' + escapeHtml(product.productName) + '"></div><div class="col-lg-6"><p class="text-muted mb-1">' + escapeHtml(product.brandName || "") +
+    const image = product.thumbnailUrl || (variants[0] && variants[0].imageUrl);
+    const productImage = image
+      ? '<img class="img-fluid rounded-3 w-100" src="' + escapeHtml(image) + '" alt="' + escapeHtml(product.productName) + '">'
+      : '<div class="store-product-image-placeholder store-product-detail-placeholder">Chưa có hình ảnh</div>';
+    const content = '<div class="row g-5"><div class="col-lg-6">' + productImage + '</div><div class="col-lg-6"><p class="text-muted mb-1">' + escapeHtml(product.brandName || "") +
       '</p><h2>' + escapeHtml(product.productName) + '</h2><p class="store-product-price fs-4">' + formatPrice(product.minPrice) +
-      '</p><p>' + escapeHtml(product.materialName ? "Chất liệu: " + product.materialName : "Sản phẩm thời trang chất lượng.") +
+      '</p>' + (product.materialName ? '<p>' + escapeHtml("Chất liệu: " + product.materialName) + '</p>' : '') +
       '</p><p class="text-success">Tổng tồn kho: ' + Number(product.totalStock || 0) + '</p><div class="mb-3"><label class="form-label" for="variant-color">Màu sắc</label>' +
       '<select class="form-select" id="variant-color">' + colors.map(function (color) { return '<option value="' + escapeHtml(color.colorName) + '">' + escapeHtml(color.colorName) + "</option>"; }).join("") +
       '</select></div><div class="mb-3"><label class="form-label" for="variant-size">Kích cỡ</label><select class="form-select" id="variant-size"></select>' +
@@ -709,7 +327,9 @@
     sessionStorage.setItem("clothingShopCartCount", String(cart.totalItems || 0));
     const rows = (cart.items || []).map(function (item) {
       return '<div class="store-cart-row row align-items-center g-3 py-3 border-bottom" data-item-id="' + escapeHtml(item.id) + '">' +
-        '<div class="col-4 col-md-2"><img class="img-fluid rounded" src="' + escapeHtml(item.imageUrl || "assets/img/product/product-1.webp") + '" alt="' + escapeHtml(item.productName) + '"></div>' +
+        '<div class="col-4 col-md-2">' + (item.imageUrl
+          ? '<img class="img-fluid rounded" src="' + escapeHtml(item.imageUrl) + '" alt="' + escapeHtml(item.productName) + '">'
+          : '<div class="store-product-image-placeholder rounded">Chưa có hình ảnh</div>') + '</div>' +
         '<div class="col-8 col-md-4"><h2 class="h6 mb-1">' + escapeHtml(item.productName) + '</h2><p class="small text-muted mb-0">' + escapeHtml(item.colorName) + " / " + escapeHtml(item.sizeName) + '</p>' +
         '<p class="small mb-0">' + formatPrice(item.unitPrice) + " / sản phẩm</p></div><div class=\"col-6 col-md-3\"><label class=\"visually-hidden\" for=\"quantity-" + escapeHtml(item.id) + '\">Số lượng</label>' +
         '<input class="form-control store-cart-quantity" id="quantity-' + escapeHtml(item.id) + '" type="number" min="1" max="' + Math.max(1, Number(item.stock || 1)) + '" value="' + Number(item.quantity || 1) + '"></div>' +
@@ -780,10 +400,15 @@
       cart.items.map(function (item) { return '<li class="list-group-item d-flex justify-content-between gap-3 px-0"><span>' + escapeHtml(item.productName) + " · " +
         escapeHtml(item.colorName) + " / " + escapeHtml(item.sizeName) + " × " + Number(item.quantity) + "</span><strong>" + formatPrice(item.totalPrice) + "</strong></li>"; }).join("") +
       '</ul><div class="d-flex justify-content-between"><span>Tạm tính</span><strong>' + formatPrice(cart.totalAmount) + '</strong></div><p class="small text-muted mt-2">Phí giao hàng sẽ được cộng theo cấu hình cửa hàng.</p>' +
-      '<div class="mb-3"><label class="form-label" for="payment-method">Thanh toán</label><select class="form-select" id="payment-method"><option value="COD">Thanh toán khi nhận hàng (COD)</option></select></div>' +
+      '<div class="mb-3"><label class="form-label" for="payment-method">Thanh toán</label><select class="form-select" id="payment-method"><option value="COD">Thanh toán khi nhận hàng (COD)</option><option value="SEPAY">Chuyển khoản QR qua SePay</option></select><p class="small text-muted mt-2 mb-0">Sau khi đặt hàng, mã QR sẽ hiển thị để bạn quét và chuyển khoản.</p></div>' +
       '<p class="store-message" id="checkout-message" role="status"></p><button class="btn btn-primary w-100" id="place-order" type="button">Đặt hàng</button></div></div></div>';
     const shell = pageShell("Thanh toán", "Chọn địa chỉ nhận hàng và phương thức thanh toán.", content);
     const message = shell.querySelector("#checkout-message");
+    const paymentMethod = shell.querySelector("#payment-method");
+    const placeOrderButton = shell.querySelector("#place-order");
+    paymentMethod.addEventListener("change", function () {
+      placeOrderButton.textContent = paymentMethod.value === "SEPAY" ? "Tạo đơn và hiện mã QR" : "Đặt hàng";
+    });
     let currentAddresses = addresses.slice();
     shell.querySelector("#save-address").addEventListener("click", async function (event) {
       const button = event.currentTarget;
@@ -822,16 +447,22 @@
       const button = event.currentTarget;
       setBusy(button, true);
       try {
-        const bill = await api(cartPath() + "/checkout", {
+        const selectedPaymentMethod = paymentMethod.value;
+        const result = await api(cartPath() + (selectedPaymentMethod === "SEPAY" ? "/checkout/sepay" : "/checkout"), {
           method: "POST",
           body: JSON.stringify({
             addressId: Number(addressId),
-            paymentMethod: "COD",
+            paymentMethod: selectedPaymentMethod,
             note: shell.querySelector("#order-note").value.trim()
           })
         });
+        const bill = result;
         sessionStorage.setItem(orderKey, String(bill.id));
         sessionStorage.setItem("clothingShopCartCount", "0");
+        if (selectedPaymentMethod === "SEPAY") {
+          window.location.href = "order-confirmation.html?orderId=" + encodeURIComponent(bill.id);
+          return;
+        }
         window.location.href = "order-confirmation.html?orderId=" + encodeURIComponent(bill.id);
       } catch (error) {
         setMessage(message, error.message, true);
@@ -917,15 +548,24 @@
     })[status] || "Đang cập nhật";
   }
 
+  function paymentStatus(status) {
+    return ({ 0: "Chưa thanh toán", 1: "Đã thanh toán", 2: "Đã hoàn tiền" })[status] || "Đang cập nhật";
+  }
+
+  function paymentMethodLabel(method) {
+    return method === "SEPAY" ? "SePay" : method === "COD" ? "COD" : method;
+  }
+
   async function renderAccount() {
     if (!currentUserId()) return showSignInNotice("Tài khoản của tôi", "Đăng nhập để xem hồ sơ và đơn hàng.");
     const [user, bills] = await Promise.all([api("/auth/me"), api("/bills")]);
     sessionStorage.setItem(userKey, JSON.stringify(user));
-    const orders = bills.length ? '<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Mã đơn</th><th>Ngày đặt</th><th>Trạng thái</th><th>Tổng tiền</th><th></th></tr></thead><tbody>' +
+    const orders = bills.length ? '<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Mã đơn</th><th>Ngày đặt</th><th>Trạng thái</th><th>Thanh toán</th><th>Tổng tiền</th><th></th></tr></thead><tbody>' +
       bills.map(function (bill) {
         return '<tr><td>' + escapeHtml(bill.billCode) + '</td><td>' + escapeHtml(new Date(bill.createdAt).toLocaleDateString("vi-VN")) +
-          '</td><td>' + orderStatus(bill.status) + '</td><td>' + formatPrice(bill.totalAmount) + '</td><td><button class="btn btn-sm btn-outline-primary" type="button" data-order-id="' +
-          escapeHtml(bill.id) + '">Chi tiết</button>' + (bill.status === 0 ? ' <button class="btn btn-sm btn-outline-danger" type="button" data-cancel-id="' + escapeHtml(bill.id) + '">Hủy</button>' : "") + "</td></tr>";
+          '</td><td>' + orderStatus(bill.status) + '</td><td>' + escapeHtml(paymentMethodLabel(bill.paymentMethod)) + ' · ' + escapeHtml(paymentStatus(bill.paymentStatus)) +
+          '</td><td>' + formatPrice(bill.totalAmount) + '</td><td><button class="btn btn-sm btn-outline-primary" type="button" data-order-id="' +
+          escapeHtml(bill.id) + '">Chi tiết</button>' + (bill.status === 0 && bill.paymentStatus !== 1 ? ' <button class="btn btn-sm btn-outline-danger" type="button" data-cancel-id="' + escapeHtml(bill.id) + '">Hủy</button>' : "") + "</td></tr>";
       }).join("") + "</tbody></table></div>" : '<div class="alert alert-info">Bạn chưa có đơn hàng nào.</div>';
     const content = '<div class="row g-4"><div class="col-lg-4"><div class="border rounded-3 p-4"><h2 class="h5">Thông tin tài khoản</h2><p class="mb-1"><strong>' +
       escapeHtml(user.fullName) + '</strong></p><p class="mb-1">' + escapeHtml(user.email) + '</p><p class="mb-0">' + escapeHtml(user.phone || "Chưa cập nhật số điện thoại") + '</p></div></div>' +
@@ -956,14 +596,31 @@
     if (!currentUserId()) return showSignInNotice("Đơn hàng", "Đăng nhập để theo dõi đơn hàng.");
     const requestedId = new URLSearchParams(window.location.search).get("orderId") || sessionStorage.getItem(orderKey);
     if (!requestedId || !/^\d+$/.test(requestedId)) {
-      return pageShell("Đơn hàng của tôi", "Theo dõi trạng thái các đơn đã đặt.", '<div class="alert alert-info">Chưa có đơn hàng cần hiển thị. <a href="account.html">Xem đơn hàng của tôi</a></div>');
+      const paymentNotice = new URLSearchParams(window.location.search).has("payment")
+        ? '<div class="alert alert-warning">Không thể xác minh đơn hàng. Đăng nhập để xem trạng thái thanh toán trong mục <a href="account.html">đơn hàng của tôi</a>.</div>'
+        : "";
+      return pageShell("Đơn hàng của tôi", "Theo dõi trạng thái các đơn đã đặt.", paymentNotice + '<div class="alert alert-info">Chưa có đơn hàng cần hiển thị. <a href="account.html">Xem đơn hàng của tôi</a></div>');
     }
     const [bill, lines, history] = await Promise.all([
       api("/bills/" + encodeURIComponent(requestedId)),
       api("/bills/" + encodeURIComponent(requestedId) + "/lines"),
       api("/bills/" + encodeURIComponent(requestedId) + "/history")
     ]);
-    const content = '<div class="alert alert-success"><h2 class="h4">Đã tiếp nhận đơn hàng</h2><p class="mb-0">Mã đơn: <strong>' + escapeHtml(bill.billCode) +
+    const paymentNotice = bill.paymentMethod === "SEPAY"
+      ? bill.paymentStatus === 1
+        ? '<div class="alert alert-success" role="status">Thanh toán SePay đã được xác nhận.</div>'
+        : '<div class="alert alert-warning" role="status">Đơn hàng đang chờ SePay xác nhận giao dịch chuyển khoản.</div>'
+      : "";
+    const paymentLabel = paymentMethodLabel(bill.paymentMethod) + " · " + paymentStatus(bill.paymentStatus);
+    const paymentQr = bill.paymentMethod === "SEPAY" && bill.paymentStatus === 0 && bill.status !== 4
+      ? '<div class="border rounded-3 p-3 mt-3 text-center"><h3 class="h5">Quét mã QR để chuyển khoản</h3>' +
+        '<img class="img-fluid" style="max-width:320px" src="' + escapeHtml(sePayQrUrl(bill.totalAmount, bill.billCode)) +
+        '" alt="Mã QR thanh toán SePay"><p class="mb-1">Số tiền: <strong>' + formatPrice(bill.totalAmount) +
+        '</strong></p><p class="mb-2">Nội dung chuyển khoản: <strong>' + escapeHtml(bill.billCode) +
+        '</strong></p><p class="small text-muted">Vui lòng giữ nguyên số tiền và nội dung để hệ thống tự đối soát.</p>' +
+        '<button class="btn btn-outline-primary" type="button" data-refresh-payment>Kiểm tra trạng thái thanh toán</button></div>'
+      : "";
+    const content = paymentNotice + '<div class="alert alert-info"><h2 class="h4">Thông tin đơn hàng</h2><p class="mb-0">Mã đơn: <strong>' + escapeHtml(bill.billCode) +
       '</strong> · Trạng thái: ' + orderStatus(bill.status) + '</p></div><div class="row g-4"><div class="col-lg-7"><h3 class="h5">Sản phẩm</h3>' +
       '<ul class="list-group mb-4">' + lines.map(function (line) {
         return '<li class="list-group-item d-flex justify-content-between gap-3"><span>' + escapeHtml(line.productName) + " · " + escapeHtml(line.colorName) + " / " +
@@ -973,12 +630,15 @@
           escapeHtml(new Date(entry.createdAt).toLocaleString("vi-VN")) + "</span></li>";
       }).join("") + '</ul></div><div class="col-lg-5"><div class="border rounded-3 p-4"><h3 class="h5">Thông tin giao hàng</h3><p>' +
       escapeHtml(bill.receiverName) + " · " + escapeHtml(bill.receiverPhone) + "<br>" + escapeHtml(bill.shippingAddress) +
-      '</p><p>Thanh toán: ' + escapeHtml(bill.paymentMethod === "COD" ? "Khi nhận hàng (COD)" : bill.paymentMethod) +
+      '</p><p>Thanh toán: ' + escapeHtml(paymentLabel) +
       '</p><div class="d-flex justify-content-between"><span>Tạm tính</span><span>' + formatPrice(bill.subTotal) +
       '</span></div><div class="d-flex justify-content-between"><span>Giao hàng</span><span>' + formatPrice(bill.shippingFee) +
       '</span></div><hr><div class="d-flex justify-content-between fw-bold"><span>Tổng cộng</span><span>' + formatPrice(bill.totalAmount) +
-      '</span></div></div></div></div><a class="btn btn-outline-primary mt-4" href="account.html">Về đơn hàng của tôi</a>';
-    pageShell("Chi tiết đơn hàng", "Thông tin trạng thái và giao nhận.", content);
+      '</span></div>' + paymentQr + '</div></div></div><a class="btn btn-outline-primary mt-4" href="account.html">Về đơn hàng của tôi</a>';
+    const shell = pageShell("Chi tiết đơn hàng", "Thông tin trạng thái và giao nhận.", content);
+    shell.querySelector("[data-refresh-payment]")?.addEventListener("click", function () {
+      window.location.reload();
+    });
   }
 
   function renderError(error) {
@@ -1004,12 +664,12 @@
       "faq.html": {
         title: "Câu hỏi thường gặp",
         subtitle: "Thông tin nhanh về sản phẩm, thanh toán và đơn hàng.",
-        content: '<div class="accordion" id="store-faq"><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faq-size">Làm sao để chọn đúng kích cỡ?</button></h2><div id="faq-size" class="accordion-collapse collapse show" data-bs-parent="#store-faq"><div class="accordion-body">Đo vòng ngực, eo và hông rồi đối chiếu <a href="size-guide.html">bảng size tham khảo</a>. Nếu sản phẩm có hướng dẫn riêng, hãy ưu tiên thông tin trên trang sản phẩm.</div></div></div><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq-payment">Website hiện hỗ trợ thanh toán nào?</button></h2><div id="faq-payment" class="accordion-collapse collapse" data-bs-parent="#store-faq"><div class="accordion-body">Hiện hệ thống chỉ hỗ trợ thanh toán khi nhận hàng (COD).</div></div></div><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq-shipping">Phí giao hàng là bao nhiêu?</button></h2><div id="faq-shipping" class="accordion-collapse collapse" data-bs-parent="#store-faq"><div class="accordion-body">Phí mặc định hiện là 30.000 đồng và có thể được cửa hàng cấu hình lại. Tổng tiền và phí giao hàng được hiển thị trong thông tin đơn.</div></div></div><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq-cancel">Tôi có thể hủy đơn hàng không?</button></h2><div id="faq-cancel" class="accordion-collapse collapse" data-bs-parent="#store-faq"><div class="accordion-body">Bạn có thể gửi yêu cầu hủy khi đơn còn ở trạng thái chờ xác nhận, trong mục <a href="account.html">đơn hàng của tôi</a>.</div></div></div><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq-status">Theo dõi đơn hàng ở đâu?</button></h2><div id="faq-status" class="accordion-collapse collapse" data-bs-parent="#store-faq"><div class="accordion-body">Đăng nhập rồi mở mục tài khoản để xem trạng thái, chi tiết và lịch sử cập nhật đơn hàng.</div></div></div></div>'
+        content: '<div class="accordion" id="store-faq"><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faq-size">Làm sao để chọn đúng kích cỡ?</button></h2><div id="faq-size" class="accordion-collapse collapse show" data-bs-parent="#store-faq"><div class="accordion-body">Đo vòng ngực, eo và hông rồi đối chiếu <a href="size-guide.html">bảng size tham khảo</a>. Nếu sản phẩm có hướng dẫn riêng, hãy ưu tiên thông tin trên trang sản phẩm.</div></div></div><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq-payment">Website hiện hỗ trợ thanh toán nào?</button></h2><div id="faq-payment" class="accordion-collapse collapse" data-bs-parent="#store-faq"><div class="accordion-body">Bạn có thể thanh toán khi nhận hàng (COD) hoặc thanh toán trực tuyến qua cổng SePay. Trạng thái chỉ được xác nhận sau khi máy chủ nhận IPN hợp lệ và đối chiếu đúng hóa đơn, số tiền.</div></div></div><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq-shipping">Phí giao hàng là bao nhiêu?</button></h2><div id="faq-shipping" class="accordion-collapse collapse" data-bs-parent="#store-faq"><div class="accordion-body">Phí mặc định hiện là 30.000 đồng và có thể được cửa hàng cấu hình lại. Tổng tiền và phí giao hàng được hiển thị trong thông tin đơn.</div></div></div><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq-cancel">Tôi có thể hủy đơn hàng không?</button></h2><div id="faq-cancel" class="accordion-collapse collapse" data-bs-parent="#store-faq"><div class="accordion-body">Bạn có thể gửi yêu cầu hủy khi đơn còn ở trạng thái chờ xác nhận và chưa thanh toán, trong mục <a href="account.html">đơn hàng của tôi</a>.</div></div></div><div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq-status">Theo dõi đơn hàng ở đâu?</button></h2><div id="faq-status" class="accordion-collapse collapse" data-bs-parent="#store-faq"><div class="accordion-body">Đăng nhập rồi mở mục tài khoản để xem trạng thái, chi tiết và lịch sử cập nhật đơn hàng.</div></div></div></div>'
       },
       "payment-methods.html": {
         title: "Phương thức thanh toán",
         subtitle: "Phương thức thanh toán hiện được hệ thống hỗ trợ.",
-        content: '<div class="border rounded-3 p-4"><h2 class="h4">Thanh toán khi nhận hàng (COD)</h2><p>Khách hàng thanh toán cho đơn vị giao hàng khi nhận sản phẩm. Vui lòng kiểm tra thông tin người nhận và số điện thoại trước khi đặt hàng.</p><p class="mb-0">Thanh toán trực tuyến bằng thẻ, ví điện tử hoặc chuyển khoản chưa được tích hợp.</p></div>'
+        content: '<div class="row g-4"><div class="col-md-6"><div class="h-100 border rounded-3 p-4"><h2 class="h4">Thanh toán khi nhận hàng (COD)</h2><p class="mb-0">Thanh toán cho đơn vị giao hàng khi nhận sản phẩm. Vui lòng kiểm tra thông tin người nhận và số điện thoại trước khi đặt hàng.</p></div></div><div class="col-md-6"><div class="h-100 border rounded-3 p-4"><h2 class="h4">Thanh toán trực tuyến qua SePay</h2><p class="mb-0">Bạn sẽ được chuyển đến cổng SePay để thanh toán. Đơn hàng chỉ được đánh dấu đã thanh toán sau khi máy chủ nhận IPN hợp lệ và đối chiếu hóa đơn, số tiền.</p></div></div></div>'
       },
       "privacy.html": {
         title: "Chính sách quyền riêng tư",
@@ -1029,22 +689,12 @@
       "support.html": {
         title: "Trung tâm hỗ trợ",
         subtitle: "Hướng dẫn sử dụng các chức năng mua hàng.",
-        content: '<div class="row g-4"><div class="col-md-4"><div class="h-100 border rounded-3 p-4"><h2 class="h5">Chọn sản phẩm</h2><p>Xem màu sắc, kích cỡ, giá và tình trạng hàng trên trang chi tiết sản phẩm.</p><a href="size-guide.html">Hướng dẫn chọn size</a></div></div><div class="col-md-4"><div class="h-100 border rounded-3 p-4"><h2 class="h5">Thanh toán</h2><p>Đặt hàng với địa chỉ nhận hàng hợp lệ. Hiện chỉ hỗ trợ thanh toán khi nhận hàng.</p><a href="payment-methods.html">Chi tiết thanh toán</a></div></div><div class="col-md-4"><div class="h-100 border rounded-3 p-4"><h2 class="h5">Đơn hàng</h2><p>Đăng nhập để xem trạng thái, lịch sử và yêu cầu hủy đơn đang chờ xác nhận.</p><a href="account.html">Mở tài khoản</a></div></div></div><p class="mt-4">Cần thêm trợ giúp? Xem <a href="faq.html">câu hỏi thường gặp</a> hoặc <a href="contact.html">thông tin liên hệ</a>.</p>'
+        content: '<div class="row g-4"><div class="col-md-4"><div class="h-100 border rounded-3 p-4"><h2 class="h5">Chọn sản phẩm</h2><p>Xem màu sắc, kích cỡ, giá và tình trạng hàng trên trang chi tiết sản phẩm.</p><a href="size-guide.html">Hướng dẫn chọn size</a></div></div><div class="col-md-4"><div class="h-100 border rounded-3 p-4"><h2 class="h5">Thanh toán</h2><p>Chọn COD hoặc thanh toán trực tuyến qua SePay khi đặt hàng.</p><a href="payment-methods.html">Chi tiết thanh toán</a></div></div><div class="col-md-4"><div class="h-100 border rounded-3 p-4"><h2 class="h5">Đơn hàng</h2><p>Đăng nhập để xem trạng thái, lịch sử và yêu cầu hủy đơn đang chờ xác nhận.</p><a href="account.html">Mở tài khoản</a></div></div></div><p class="mt-4">Cần thêm trợ giúp? Xem <a href="faq.html">câu hỏi thường gặp</a> hoặc <a href="contact.html">thông tin liên hệ</a>.</p>'
       },
       "tos.html": {
         title: "Điều khoản sử dụng",
         subtitle: "Các nguyên tắc cơ bản khi sử dụng website mua hàng.",
         content: '<div class="row justify-content-center"><div class="col-lg-9"><h2 class="h5">Thông tin sản phẩm</h2><p>Giá, kích cỡ và tình trạng tồn kho được hiển thị theo dữ liệu cửa hàng. Đơn hàng chỉ được tiếp nhận khi hệ thống xác nhận thành công.</p><h2 class="h5 mt-4">Tài khoản</h2><p>Bạn cần cung cấp thông tin nhận hàng chính xác và bảo vệ thông tin đăng nhập của mình.</p><h2 class="h5 mt-4">Thanh toán và hủy đơn</h2><p>Phương thức thanh toán hiện hỗ trợ là COD. Đơn hàng chỉ có thể được hủy khi đang chờ xác nhận.</p><h2 class="h5 mt-4">Chính sách cửa hàng</h2><p>Các điều khoản pháp lý, quyền và nghĩa vụ cụ thể cần được cửa hàng rà soát và bổ sung trước khi website được đưa vào vận hành chính thức.</p></div></div>'
-      },
-      "blog.html": {
-        title: "Cẩm nang mặc đẹp",
-        subtitle: "Gợi ý chọn và chăm sóc trang phục.",
-        content: '<div class="row g-4"><div class="col-md-6"><article class="border rounded-3 p-4 h-100"><p class="text-muted">Hướng dẫn</p><h2 class="h4"><a href="blog-details.html">Cách chọn kích cỡ quần áo phù hợp</a></h2><p>Đo số đo cơ thể, đối chiếu bảng size và lưu ý phom dáng để chọn trang phục thoải mái.</p><a href="size-guide.html">Xem bảng size</a></article></div><div class="col-md-6"><article class="border rounded-3 p-4 h-100"><p class="text-muted">Chăm sóc trang phục</p><h2 class="h4">Đọc nhãn hướng dẫn giặt trước khi sử dụng</h2><p>Phân loại màu sắc và làm theo hướng dẫn trên nhãn để giữ trang phục bền đẹp.</p></article></div></div>'
-      },
-      "blog-details.html": {
-        title: "Cách chọn kích cỡ quần áo phù hợp",
-        subtitle: "Hướng dẫn chọn size cơ bản.",
-        content: '<article class="row justify-content-center"><div class="col-lg-9"><p>Để chọn kích cỡ phù hợp, hãy dùng thước dây mềm và đo trực tiếp trên cơ thể. Giữ thước vừa sát, không siết chặt.</p><h2 class="h5 mt-4">Đối chiếu số đo</h2><p>Đo vòng ngực, vòng eo và vòng hông. Với áo, ưu tiên vòng ngực; với quần hoặc chân váy, chú ý vòng eo và hông.</p><h2 class="h5 mt-4">Chọn phom mặc</h2><p>Nếu số đo nằm giữa hai mức, cân nhắc chọn size lớn hơn để mặc thoải mái. Bảng size của từng sản phẩm (nếu có) luôn được ưu tiên.</p><a class="btn btn-primary mt-2" href="size-guide.html">Mở hướng dẫn chọn size</a></div></article>'
       },
       "starter-page.html": {
         title: "Thông tin cửa hàng",
@@ -1058,7 +708,13 @@
       }
     };
     const page = pages[filename];
-    if (page) pageShell(page.title, page.subtitle, page.content);
+    if (page) {
+      pageShell(page.title, page.subtitle, page.content);
+      return;
+    }
+    if (filename === "blog.html" || filename === "blog-details.html") {
+      pageShell("Bài viết", "Chưa có bài viết từ cửa hàng.");
+    }
   }
 
   function selectedView() {

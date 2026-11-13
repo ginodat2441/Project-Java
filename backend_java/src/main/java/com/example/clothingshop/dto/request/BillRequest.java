@@ -6,7 +6,7 @@ import java.util.List;
 
 public record BillRequest(
         @NotNull Long addressId,
-        @NotBlank @Pattern(regexp = "COD") String paymentMethod,
+        @NotBlank @Pattern(regexp = "COD|SEPAY") String paymentMethod,
         @Size(max = 500) String note,
         @NotEmpty @Valid List<Item> items) {
 

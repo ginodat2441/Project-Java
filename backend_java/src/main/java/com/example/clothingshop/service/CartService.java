@@ -89,6 +89,18 @@ public class CartService {
      */
     @Transactional
     public BillView checkout(long customerId, CartCheckoutRequest req) {
+        return createBillFromCart(customerId, req);
+    }
+
+    @Transactional
+    public BillView checkoutSePay(long customerId, CartCheckoutRequest req) {
+        if (!"SEPAY".equals(req.paymentMethod())) {
+            throw new BusinessException("Phương thức thanh toán không hợp lệ cho luồng SePay");
+        }
+        return createBillFromCart(customerId, req);
+    }
+
+    private BillView createBillFromCart(long customerId, CartCheckoutRequest req) {
         ensureCustomer(customerId);
         Cart cart = repo.findActiveCart(customerId)
                 .orElseThrow(() -> new BusinessException("Giỏ hàng đang trống"));

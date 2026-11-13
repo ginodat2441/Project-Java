@@ -63,4 +63,12 @@ public class CartController {
         return ApiResponse.ok("Đặt hàng thành công",
                 service.checkout(CustomerIdentity.requireCustomer(jwt, customerId), req));
     }
+
+    @PostMapping("/checkout/sepay")
+    public ApiResponse<BillView> checkoutSePay(@AuthenticationPrincipal Jwt jwt,
+                                               @PathVariable long customerId,
+                                               @Valid @RequestBody CartCheckoutRequest req) {
+        return ApiResponse.ok("Đã tạo đơn hàng, đang chuyển đến SePay",
+                service.checkoutSePay(CustomerIdentity.requireCustomer(jwt, customerId), req));
+    }
 }

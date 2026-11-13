@@ -3,6 +3,7 @@ package com.example.clothingshop.repositories;
 import com.example.clothingshop.common.SqlHelper;
 import com.example.clothingshop.entity.Bill;
 import com.example.clothingshop.entity.BillDetail;
+import com.example.clothingshop.entity.SePayPaymentAttempt;
 import com.example.clothingshop.view.BillLineView;
 import com.example.clothingshop.view.BillHistoryView;
 import org.springframework.stereotype.Repository;
@@ -38,14 +39,13 @@ public class BillRepository {
                 Map.of("id", productDetailId), BigDecimal.class);
     }
 
-    /**
-     * Trừ tồn kho NGUYÊN TỬ: điều kiện QUANTITY >= :qty nằm ngay trong UPDATE
-     * nên 2 người mua cùng lúc cũng không làm tồn kho âm. Trả 0 nếu không đủ hàng.
-     */
-    public int decreaseStock(long productDetailId, int qty) {
+    /** Giữ chỗ nguyên tử; QUANTITY vẫn là số lượng còn bán được trên website. */
+    public int reserveStock(long productDetailId, int qty) {
         String q = """
                 UPDATE PRODUCT_DETAIL
-                   SET QUANTITY = QUANTITY - :qty
+                   SET QUANTITY = QUANTITY - :qty,
+                       RESERVED_QUANTITY = RESERVED_QUANTITY + :qty,
+                       STOCK_VERSION = STOCK_VERSION + 1
                  WHERE ID = :id AND QUANTITY >= :qty AND DELETE_FLAG = 0 AND STATUS = 1
                 """;
         return sql.update(q, Map.of("id", productDetailId, "qty", qty));
@@ -55,10 +55,10 @@ public class BillRepository {
         String q = """
                 INSERT INTO BILL (BILL_CODE, CUSTOMER_ID, ADDRESS_ID, RECEIVER_NAME, RECEIVER_PHONE,
                                   SHIPPING_ADDRESS, SUB_TOTAL, SHIPPING_FEE, DISCOUNT_AMOUNT,
-                                  TOTAL_AMOUNT, PAYMENT_METHOD, NOTE)
+                                  TOTAL_AMOUNT, PAYMENT_METHOD, NOTE, STOCK_RESERVED)
                 VALUES (:code, :customerId, :addressId, :receiverName, :receiverPhone,
                         :shippingAddress, :subTotal, :shippingFee, :discount,
-                        :total, :paymentMethod, :note)
+                        :total, :paymentMethod, :note, 1)
                 """;
         return sql.insert(q, p);
     }
@@ -91,16 +91,36 @@ public class BillRepository {
         sql.update(q, p);
     }
 
-    public void restoreStockForBill(long billId) {
-        sql.update("""
+    public void releaseReservedStockForBill(long billId) {
+        int reservationClaimed = sql.update("""
+                UPDATE BILL
+                   SET STOCK_RESERVED = 0
+                 WHERE ID = :billId AND STOCK_RESERVED = 1 AND DELETE_FLAG = 0
+                """, Map.of("billId", billId));
+        if (reservationClaimed == 0) return;
+
+        Long expectedProducts = sql.scalar("""
+                SELECT COUNT(DISTINCT PRODUCT_DETAIL_ID)
+                  FROM BILL_DETAIL
+                 WHERE BILL_ID = :billId AND DELETE_FLAG = 0
+                """, Map.of("billId", billId), Long.class).orElse(0L);
+        int releasedProducts = sql.update("""
                 UPDATE PRODUCT_DETAIL pd
-                   SET QUANTITY = QUANTITY + (
+                   SET RESERVED_QUANTITY = RESERVED_QUANTITY - (
                        SELECT SUM(bd.QUANTITY)
                          FROM BILL_DETAIL bd
                         WHERE bd.BILL_ID = :billId
                           AND bd.PRODUCT_DETAIL_ID = pd.ID
                           AND bd.DELETE_FLAG = 0
-                   )
+                   ),
+                       QUANTITY = QUANTITY + (
+                       SELECT SUM(bd.QUANTITY)
+                         FROM BILL_DETAIL bd
+                        WHERE bd.BILL_ID = :billId
+                          AND bd.PRODUCT_DETAIL_ID = pd.ID
+                          AND bd.DELETE_FLAG = 0
+                   ),
+                       STOCK_VERSION = STOCK_VERSION + 1
                  WHERE EXISTS (
                        SELECT 1
                          FROM BILL_DETAIL bd
@@ -108,7 +128,17 @@ public class BillRepository {
                           AND bd.PRODUCT_DETAIL_ID = pd.ID
                           AND bd.DELETE_FLAG = 0
                  )
+                   AND RESERVED_QUANTITY >= (
+                       SELECT SUM(bd.QUANTITY)
+                         FROM BILL_DETAIL bd
+                        WHERE bd.BILL_ID = :billId
+                          AND bd.PRODUCT_DETAIL_ID = pd.ID
+                          AND bd.DELETE_FLAG = 0
+                   )
                 """, Map.of("billId", billId));
+        if (releasedProducts != expectedProducts) {
+            throw new IllegalStateException("Không thể giải phóng đủ tồn kho giữ chỗ cho đơn hàng id=" + billId);
+        }
     }
 
     public int updateCashPaymentStatus(long billId, int oldPaymentStatus, int newPaymentStatus) {
@@ -136,6 +166,61 @@ public class BillRepository {
                 """, parameters);
     }
 
+    public Optional<SePayPaymentAttempt> findPendingSePayPayment(long billId) {
+        return sql.one("""
+                SELECT PH.TRANSACTION_CODE AS INVOICE_NUMBER, PH.BILL_ID, PH.AMOUNT, PH.STATUS
+                  FROM PAYMENT_HISTORY PH
+                 WHERE PH.BILL_ID = :billId
+                   AND PH.PAYMENT_METHOD = 'SEPAY'
+                   AND PH.STATUS = 0
+                   AND PH.DELETE_FLAG = 0
+                 ORDER BY PH.CREATED_AT DESC, PH.ID DESC
+                FETCH FIRST 1 ROWS ONLY
+                """, Map.of("billId", billId), SePayPaymentAttempt.class);
+    }
+
+    public Optional<SePayPaymentAttempt> findSePayPayment(String invoiceNumber) {
+        return sql.one("""
+                SELECT PH.TRANSACTION_CODE AS INVOICE_NUMBER, PH.BILL_ID, PH.AMOUNT, PH.STATUS
+                  FROM PAYMENT_HISTORY PH
+                 WHERE PH.TRANSACTION_CODE = :invoiceNumber
+                   AND PH.PAYMENT_METHOD = 'SEPAY'
+                   AND PH.DELETE_FLAG = 0
+                """, Map.of("invoiceNumber", invoiceNumber), SePayPaymentAttempt.class);
+    }
+
+    public void insertSePayPayment(long billId, BigDecimal amount, String invoiceNumber) {
+        sql.update("""
+                INSERT INTO PAYMENT_HISTORY (BILL_ID, AMOUNT, PAYMENT_METHOD, TRANSACTION_CODE, STATUS, NOTE)
+                VALUES (:billId, :amount, 'SEPAY', :invoiceNumber, 0, 'Đang chờ thanh toán SePay')
+                """, Map.of("billId", billId, "amount", amount, "invoiceNumber", invoiceNumber));
+    }
+
+    public int updateSePayPaymentStatus(String invoiceNumber, int oldStatus, int newStatus, String note) {
+        return sql.update("""
+                UPDATE PAYMENT_HISTORY
+                   SET STATUS = :newStatus,
+                       PAID_AT = CASE WHEN :newStatus = 1 THEN SYSTIMESTAMP ELSE PAID_AT END,
+                       NOTE = :note
+                 WHERE TRANSACTION_CODE = :invoiceNumber
+                   AND PAYMENT_METHOD = 'SEPAY'
+                   AND STATUS = :oldStatus
+                   AND DELETE_FLAG = 0
+                """, Map.of("invoiceNumber", invoiceNumber, "oldStatus", oldStatus,
+                "newStatus", newStatus, "note", note));
+    }
+
+    public int markSePayBillPaid(long billId) {
+        return sql.update("""
+                UPDATE BILL
+                   SET PAYMENT_STATUS = 1
+                 WHERE ID = :billId
+                   AND PAYMENT_METHOD = 'SEPAY'
+                   AND PAYMENT_STATUS = 0
+                   AND DELETE_FLAG = 0
+                """, Map.of("billId", billId));
+    }
+
     // ====================== ENTITY (1 bảng, trả về entity) ======================
 
     private static final String SELECT_BILL = """
@@ -152,6 +237,16 @@ public class BillRepository {
 
     public Optional<Bill> findByIdAndCustomer(long id, long customerId) {
         return sql.one(SELECT_BILL + " WHERE ID = :id AND CUSTOMER_ID = :customerId AND DELETE_FLAG = 0",
+                Map.of("id", id, "customerId", customerId), Bill.class);
+    }
+
+    public Optional<Bill> lockById(long id) {
+        return sql.one(SELECT_BILL + " WHERE ID = :id AND DELETE_FLAG = 0 FOR UPDATE",
+                Map.of("id", id), Bill.class);
+    }
+
+    public Optional<Bill> lockByIdAndCustomer(long id, long customerId) {
+        return sql.one(SELECT_BILL + " WHERE ID = :id AND CUSTOMER_ID = :customerId AND DELETE_FLAG = 0 FOR UPDATE",
                 Map.of("id", id, "customerId", customerId), Bill.class);
     }
 

@@ -24,6 +24,22 @@
   object-fit: cover;
 }
 
+.store-product-image-placeholder {
+  display: grid;
+  min-height: 10rem;
+  height: 100%;
+  place-items: center;
+  padding: 1rem;
+  color: #667085;
+  background: #f5f6f7;
+  text-align: center;
+}
+
+.store-product-detail-placeholder {
+  min-height: 24rem;
+  border-radius: 0.75rem;
+}
+
 .store-product-info {
   padding: 1rem;
 }

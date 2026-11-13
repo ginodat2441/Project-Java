@@ -52,12 +52,55 @@ public class UserRepository {
     }
 
     public long customerRoleId() {
-        return sql.scalar("""
+        Optional<Long> existingRoleId = sql.scalar("""
                 SELECT ID FROM ROLES
-                 WHERE ROLE_CODE = 'CUSTOMER' AND DELETE_FLAG = 0
-                """, Map.of(), Long.class)
-                .orElseThrow(() -> new IllegalStateException("Không tìm thấy role CUSTOMER trong bảng ROLES"));
+                 WHERE UPPER(TRIM(ROLE_CODE)) = 'CUSTOMER'
+                   AND DELETE_FLAG = 0
+                """, Map.of(), Long.class);
+        if (existingRoleId.isPresent()) {
+            return existingRoleId.get();
+        }
+
+        sql.update("""
+                MERGE INTO ROLES target
+                USING (SELECT 'CUSTOMER' AS ROLE_CODE FROM DUAL) source
+                  ON (UPPER(TRIM(target.ROLE_CODE)) = source.ROLE_CODE)
+                WHEN MATCHED THEN
+                     UPDATE SET target.ROLE_NAME = N'Khách hàng',
+                                target.DESCRIPTION = N'Người dùng mua hàng trên website',
+                                target.DELETE_FLAG = 0
+                 WHEN NOT MATCHED THEN
+                      INSERT (ROLE_CODE, ROLE_NAME, DESCRIPTION, DELETE_FLAG)
+                      VALUES ('CUSTOMER', N'Khách hàng',
+                              N'Người dùng mua hàng trên website', 0)
+                """, Map.of());
+
+        Optional<Long> customerRoleId = sql.scalar("""
+                SELECT ID FROM ROLES
+                 WHERE UPPER(TRIM(ROLE_CODE)) = 'CUSTOMER'
+                   AND DELETE_FLAG = 0
+                """, Map.of(), Long.class);
+        if (customerRoleId.isPresent()) {
+            return customerRoleId.get();
+        }
+
+        DatabaseContext context = sql.one("""
+                SELECT SYS_CONTEXT('USERENV', 'SESSION_USER') AS DB_USER,
+                       SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') AS CURRENT_SCHEMA,
+                       SYS_CONTEXT('USERENV', 'SERVICE_NAME') AS SERVICE_NAME,
+                       SYS_CONTEXT('USERENV', 'CON_NAME') AS CONTAINER_NAME
+                  FROM DUAL
+                """, Map.of(), DatabaseContext.class)
+                .orElseThrow(() -> new IllegalStateException("Không đọc được thông tin kết nối Oracle"));
+        throw new IllegalStateException(
+                "Không tạo hoặc kích hoạt được role CUSTOMER. Oracle connection: dbUser="
+                        + context.dbUser() + ", schema=" + context.currentSchema()
+                        + ", service=" + context.serviceName()
+                        + ", container=" + context.containerName());
     }
+
+    public record DatabaseContext(String dbUser, String currentSchema,
+                                  String serviceName, String containerName) {}
 
     public long insertUser(long roleId, String username, String email, String passwordHash) {
         return sql.insert("""

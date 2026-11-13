@@ -28,6 +28,15 @@ public class BillController {
                 service.create(CustomerIdentity.customerId(jwt), req));
     }
 
+    @PostMapping("/{id}/sepay-payment")
+    public ApiResponse<BillView> createSePayPayment(@AuthenticationPrincipal Jwt jwt,
+                                                    @PathVariable long id) {
+        long customerId = CustomerIdentity.customerId(jwt);
+        service.createSePayPayment(customerId, id);
+        return ApiResponse.ok("Đã chuẩn bị thanh toán SePay",
+                service.get(customerId, id));
+    }
+
     @GetMapping
     public ApiResponse<List<BillView>> mine(@AuthenticationPrincipal Jwt jwt) {
         return ApiResponse.ok(service.byCustomer(CustomerIdentity.customerId(jwt)));
