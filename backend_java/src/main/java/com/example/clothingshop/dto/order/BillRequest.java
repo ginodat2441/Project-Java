@@ -8,7 +8,7 @@ import java.util.List;
 public record BillRequest(
     @NotNull Long customerId,
     @NotNull Long addressId,
-    @NotBlank @Pattern(regexp = "COD|BANK|MOMO|VNPAY") String paymentMethod,
+    @NotBlank @Pattern(regexp = "COD") String paymentMethod,
     BigDecimal shippingFee,
     String note,
     String voucherCode,

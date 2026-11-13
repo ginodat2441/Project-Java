@@ -103,6 +103,10 @@
   function header() {
     $$('a[href="product-details.html"]').forEach((link) => (link.href = 'category.html'));
     const menu = $('.account-dropdown .dropdown-menu');
+    const guestActions = $('.client-guest-actions');
+    if (guestActions) guestActions.hidden = !!customer;
+    const accountDropdown = $('.account-dropdown');
+    if (accountDropdown) accountDropdown.hidden = !customer;
     if (menu) {
       menu.innerHTML = `<div class="dropdown-header"><h6>${customer ? 'Xin chào ' + esc(customer.FULL_NAME) : 'Chào mừng bạn'}</h6><p class="mb-0">${customer ? esc(customer.EMAIL) : identityError ? 'Chưa tải được trạng thái tài khoản' : 'Đăng nhập để quản lý tài khoản và giỏ hàng'}</p></div><div class="dropdown-body"><a class="dropdown-item" href="account.html#settings">Hồ sơ của tôi</a><a class="dropdown-item" href="account.html#orders">Đơn hàng của tôi</a><a class="dropdown-item" href="cart.html">Giỏ hàng của tôi</a></div><div class="dropdown-footer">${customer ? '<button type="button" class="btn btn-primary w-100" data-client-logout>Đăng xuất</button>' : '<a class="btn btn-primary w-100 mb-2" href="login-register.html">Đăng nhập</a><a class="btn btn-outline-primary w-100" href="login-register.html#register">Đăng ký</a>'}</div>`;
       $('[data-client-logout]', menu)?.addEventListener('click', (event) =>
@@ -176,9 +180,11 @@
     ])
       if (query.has(key)) qs.set(key, query.get(key));
     const data = await api('/api/catalog?' + (isListing ? qs : 'page=1'));
+    let mainIndex = 0;
     templates.forEach(({ node }, i) => {
-      if (data.items.length) {
-        fillCard(node, data.items[i % data.items.length]);
+      const index = node.closest('main') ? mainIndex++ : i % Math.max(1, data.items.length);
+      if (data.items[index]) {
+        fillCard(node, data.items[index]);
         node.hidden = false;
       }
     });
@@ -191,6 +197,7 @@
     if (first) {
       const wrapped = grid.className.includes('col-');
       const parent = wrapped ? grid.parentElement : grid;
+      parent.classList.add('client-product-grid');
       const template = wrapped ? grid.cloneNode(true) : first.clone;
       const siblings = wrapped
         ? [...parent.children].filter((n) => $('.product-card,.product-box', n))
@@ -205,6 +212,7 @@
         fillCard(card, product);
         node.removeAttribute('data-aos');
         node.classList.add('aos-animate');
+        if (wrapped) node.className = 'client-product-cell';
         parent.append(node);
       }
     }
@@ -234,8 +242,10 @@
       $('main .widgets-container') ||
       $('#category-header .container') ||
       $('main section .container');
-    if (filtersHost?.classList.contains('widgets-container')) filtersHost.replaceChildren(form);
-    else filtersHost?.prepend(form);
+    if (file !== 'search-results.html') {
+      if (filtersHost?.classList.contains('widgets-container')) filtersHost.replaceChildren(form);
+      else filtersHost?.prepend(form);
+    }
     const oldFilters = $('#category-header .filter-container');
     if (oldFilters && !oldFilters.contains(form)) oldFilters.hidden = true;
     const searchHeader = $('.search-results-header');
@@ -244,6 +254,18 @@
       const title = $('h1,h2', searchHeader);
       if (title)
         title.textContent = `Tìm kiếm: ${query.get('q') || 'Tất cả sản phẩm'} · ${data.total} kết quả`;
+      const description =
+        $('.search-results-count', searchHeader) || $('h1 + p,h2 + p', searchHeader);
+      if (description) description.textContent = `${data.total} sản phẩm phù hợp`;
+      $('.search-filters', searchHeader)?.remove();
+      const searchForm = $('form.search-form', searchHeader);
+      if (searchForm) {
+        searchForm.method = 'get';
+        searchForm.action = 'search-results.html';
+        const input = $('input', searchForm);
+        input.name = 'q';
+        input.value = query.get('q') || '';
+      }
     }
     const pagination =
       $('#category-pagination .container') ||
@@ -339,6 +361,10 @@
     };
     const chooseColor = (value) => {
       color = value;
+      const colorImage =
+        data.images.find((photo) => photo.COLOR_ID === value) ||
+        data.images.find((photo) => photo.COLOR_ID == null);
+      image(mainImage, colorImage?.IMAGE_URL || product.THUMBNAIL_URL, product.PRODUCT_NAME);
       selected = null;
       sizes.replaceChildren();
       $$('.client-variant', colors).forEach((n) =>
@@ -397,6 +423,24 @@
     buy.onclick = () => action(buy, () => addItem(true));
     sync();
   }
+  function selectedCartIds() {
+    const allowed = new Set(cart.items.map((line) => line.productDetailId));
+    const key = 'store-cart-selection:' + (customer?.EMAIL || 'guest');
+    try {
+      const saved = sessionStorage.getItem(key);
+      return new Set(
+        (saved === null ? [...allowed] : JSON.parse(saved)).filter((id) => allowed.has(id)),
+      );
+    } catch {
+      return new Set(allowed);
+    }
+  }
+  function saveCartSelection(ids) {
+    sessionStorage.setItem(
+      'store-cart-selection:' + (customer?.EMAIL || 'guest'),
+      JSON.stringify([...ids]),
+    );
+  }
   async function cartPage() {
     const host = $('#cart'),
       items = $('.cart-items', host),
@@ -406,8 +450,66 @@
     empty.className = 'client-cart-empty';
     items.prepend(empty);
     const summary = $('.cart-summary', host);
+    const selectAll = document.createElement('label');
+    selectAll.className = 'client-select-all';
+    selectAll.innerHTML = '<input type="checkbox" aria-label="Chọn tất cả sản phẩm"> Chọn tất cả';
+    items.prepend(selectAll);
     const render = () => {
       $$('.cart-item', items).forEach((n) => n.remove());
+      const chosen = selectedCartIds();
+      const syncSelection = () => {
+        saveCartSelection(chosen);
+        const selectedLines = cart.items.filter((line) => chosen.has(line.productDetailId));
+        const total = selectedLines.reduce(
+          (sum, line) => sum + Number(line.price) * line.quantity,
+          0,
+        );
+        $$('.summary-item', summary).forEach((node, index) => {
+          if (index === 0) $('.summary-value', node).textContent = money(total);
+          else node.hidden = true;
+        });
+        $('.summary-total .summary-value', summary).textContent = money(total);
+        let count = $('.client-selected-count', summary);
+        if (!count) {
+          count = document.createElement('p');
+          count.className = 'client-selected-count';
+          summary.prepend(count);
+        }
+        count.textContent =
+          'Đã chọn ' +
+          selectedLines.length +
+          ' mặt hàng (' +
+          selectedLines.reduce((sum, line) => sum + line.quantity, 0) +
+          ' sản phẩm)';
+        const allowed =
+          selectedLines.length > 0 &&
+          selectedLines.every((line) => line.available && line.quantity <= line.stock);
+        const checkout = $('.checkout-button a', summary);
+        checkout.href = customer
+          ? 'checkout.html?items=' + [...chosen].join(',')
+          : 'login-register.html';
+        checkout.textContent = customer ? 'Mua các sản phẩm đã chọn' : 'Đăng nhập để mua hàng';
+        checkout.setAttribute('aria-disabled', String(!!customer && !allowed));
+        checkout.classList.toggle('disabled', !!customer && !allowed);
+        checkout.onclick = (e) => {
+          if (customer && !allowed) {
+            e.preventDefault();
+            message(host, 'Chọn ít nhất một sản phẩm còn đủ hàng trước khi thanh toán.', true);
+          }
+        };
+        const all = $('input', selectAll);
+        all.checked = cart.items.length > 0 && chosen.size === cart.items.length;
+        all.indeterminate = chosen.size > 0 && chosen.size < cart.items.length;
+        all.disabled = !cart.items.length;
+      };
+      $('input', selectAll).onchange = (e) => {
+        chosen.clear();
+        if (e.target.checked) cart.items.forEach((line) => chosen.add(line.productDetailId));
+        $$('.client-cart-select', items).forEach(
+          (input) => (input.checked = chosen.has(Number(input.value))),
+        );
+        syncSelection();
+      };
       empty.textContent = cart.items.length
         ? ''
         : customer
@@ -418,6 +520,21 @@
         row.removeAttribute('data-aos');
         row.classList.add('aos-animate');
         row.dataset.variantId = line.productDetailId;
+        const choose = document.createElement('input');
+        choose.type = 'checkbox';
+        choose.className = 'client-cart-select';
+        choose.value = line.productDetailId;
+        choose.checked = chosen.has(line.productDetailId);
+        choose.setAttribute(
+          'aria-label',
+          'Chọn ' + line.productName + ' ' + line.colorName + ' ' + line.sizeName,
+        );
+        choose.onchange = () => {
+          if (choose.checked) chosen.add(line.productDetailId);
+          else chosen.delete(line.productDetailId);
+          syncSelection();
+        };
+        $('.product-info', row).prepend(choose);
         $('.product-title', row).innerHTML =
           `<a href="${productLink(line.productId)}">${esc(line.productName)}</a>`;
         image($('img', row), line.imageUrl, line.productName);
@@ -458,23 +575,7 @@
           message(row, 'Sản phẩm hiện không đủ hàng. Hãy cập nhật giỏ trước khi thanh toán.', true);
         items.insertBefore(row, $('.cart-actions', items));
       }
-      $$('.summary-item', summary).forEach((n, i) => {
-        if (i === 0) $('.summary-value', n).textContent = money(cart.subtotal);
-        else n.hidden = true;
-      });
-      $('.summary-total .summary-value', summary).textContent = money(cart.subtotal);
-      const checkout = $('.checkout-button a', summary);
-      checkout.href =
-        customer && cart.checkoutAllowed
-          ? 'checkout.html'
-          : customer
-            ? 'category.html'
-            : 'login-register.html';
-      checkout.textContent = cart.checkoutAllowed
-        ? 'Tiếp tục thanh toán'
-        : customer
-          ? 'Tiếp tục mua sắm'
-          : 'Đăng nhập để mua hàng';
+      syncSelection();
     };
     $('.coupon-form', host).hidden = true;
     $('.cart-actions .btn-outline-accent', host).onclick = (e) =>
@@ -719,7 +820,19 @@
     form.replaceChildren();
     const summary = $('main .order-summary-content');
     if (summary) summary.replaceChildren();
-    if (!customer || !cart.checkoutAllowed) {
+    const requestedIds = query.has('items')
+      ? new Set(query.get('items').split(',').filter(Boolean).map(Number))
+      : selectedCartIds();
+    const checkoutItems = cart.items.filter((line) => requestedIds.has(line.productDetailId));
+    const itemCount = $('main .order-summary-header .item-count');
+    if (itemCount)
+      itemCount.textContent =
+        checkoutItems.reduce((sum, line) => sum + line.quantity, 0) + ' sản phẩm';
+    const selectionValid =
+      checkoutItems.length > 0 &&
+      checkoutItems.length === requestedIds.size &&
+      checkoutItems.every((line) => line.available && line.quantity <= line.stock);
+    if (!customer || !selectionValid) {
       message(
         form,
         customer
@@ -742,16 +855,18 @@
             `<label class="d-block mb-3">${label}<input class="form-control" name="${name}" value="${esc(value)}" required maxlength="${max}"></label>`,
         )
         .join('') +
-      '<label class="d-block mb-3">Thanh toán<select name="paymentMethod" class="form-select"><option value="COD">Thanh toán khi nhận hàng</option><option value="BANK">Chuyển khoản</option></select></label><label class="d-block mb-3">Mã ưu đãi<input name="voucherCode" class="form-control" maxlength="50"></label><label class="d-block mb-3">Ghi chú<textarea name="note" class="form-control" maxlength="500"></textarea></label><button type="button" class="btn btn-outline-primary" data-quote>Tính phí giao hàng</button><div class="client-shipping-options my-3"></div><button type="submit" class="btn btn-primary" disabled>Đặt hàng</button>';
+      '<label class="d-block mb-3">Phương thức thanh toán<input class="form-control" value="Thanh toán khi nhận hàng (COD)" readonly aria-readonly="true"><input type="hidden" name="paymentMethod" value="COD"></label><label class="d-block mb-3">Mã ưu đãi<input name="voucherCode" class="form-control" maxlength="50"></label><label class="d-block mb-3">Ghi chú<textarea name="note" class="form-control" maxlength="500"></textarea></label><button type="button" class="btn btn-outline-primary" data-quote>Tính phí giao hàng</button><div class="client-shipping-options my-3"></div><button type="submit" class="btn btn-primary" disabled>Đặt hàng</button>';
     if (summary) {
-      for (const line of cart.items) {
+      for (const line of checkoutItems) {
         const p = document.createElement('p');
         p.textContent = `${line.productName} · ${line.colorName} / ${line.sizeName} × ${line.quantity}: ${money(line.price * line.quantity)}`;
         summary.append(p);
       }
       message(
         summary,
-        'Tiền hàng: ' + money(cart.subtotal) + '. Chọn dịch vụ giao hàng để xem tổng thanh toán.',
+        'Tiền hàng: ' +
+          money(checkoutItems.reduce((sum, line) => sum + Number(line.price) * line.quantity, 0)) +
+          '. Chọn dịch vụ giao hàng để xem tổng thanh toán.',
       );
     }
     let selected = null,
@@ -760,9 +875,15 @@
       shipping = $('.client-shipping-options', form);
     const payload = () => ({
       ...Object.fromEntries(new FormData(form)),
-      items: cart.items.map((n) => ({ productDetailId: n.productDetailId, quantity: n.quantity })),
+      paymentMethod: 'COD',
+      items: checkoutItems.map((n) => ({
+        productDetailId: n.productDetailId,
+        quantity: n.quantity,
+      })),
     });
+    let quoteVersion = 0;
     form.oninput = () => {
+      quoteVersion++;
       selected = null;
       quoted = null;
       button.disabled = true;
@@ -774,8 +895,11 @@
         selected = null;
         button.disabled = true;
         shipping.replaceChildren();
+        const version = ++quoteVersion;
         const p = payload();
-        quoted = await api('/api/catalog/quote', 'POST', { ...p, code: p.voucherCode });
+        const result = await api('/api/catalog/quote', 'POST', { ...p, code: p.voucherCode });
+        if (version !== quoteVersion) return;
+        quoted = result;
         for (const service of quoted.services || []) {
           const b = document.createElement('button');
           b.type = 'button';
@@ -805,7 +929,8 @@
           shippingService: selected.serviceCode,
           expectedShippingFee: selected.fee,
         });
-        window.alert('Đặt hàng thành công! Mã đơn: ' + order.billCode);
+        saveCartSelection(new Set());
+        window.alert('Đặt hàng COD thành công! Mã đơn: ' + order.billCode);
         location.assign('account.html#orders');
       });
     };

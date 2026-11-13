@@ -169,22 +169,21 @@ test('Image dialog hides generic save, ignores submit and uploads through its ow
  dom.window.close();
 });
 
-test('Store gallery follows color, retains image across sizes, and cart stores variant ID',async()=>{
- const dom=new JSDOM('<main class="live-shop"></main>',{url:'http://localhost/shop/index.html?id=1',runScripts:'outside-only'}),w=dom.window;
- w.fetch=async url=>response(url==='/api/csrf'?{token:'test',headerName:'X-XSRF-TOKEN'}:{product:{ID:1,PRODUCT_NAME:'Áo thun basic',DESCRIPTION:'Cotton',THUMBNAIL_URL:'/cover.png'},variants:[
-  {ID:11,COLOR_ID:1,COLOR_NAME:'Đen',SIZE_NAME:'M',PRICE:199000,QUANTITY:3},
-  {ID:12,COLOR_ID:1,COLOR_NAME:'Đen',SIZE_NAME:'L',PRICE:199000,QUANTITY:5},
-  {ID:13,COLOR_ID:2,COLOR_NAME:'Trắng',SIZE_NAME:'M',PRICE:199000,QUANTITY:2},
-  {ID:14,COLOR_ID:3,COLOR_NAME:'Xanh',SIZE_NAME:'M',PRICE:199000,QUANTITY:2}],
-  images:[{COLOR_ID:1,IMAGE_URL:'/black.png'},{COLOR_ID:2,IMAGE_URL:'/white.png'},{COLOR_ID:null,IMAGE_URL:'/common.png'}]});
- w.eval(readAsset('store.js'));await waitFor(()=>w.document.querySelector('#color'));
- const d=w.document,hero=d.querySelector('#hero'),size=d.querySelector('#size'),color=d.querySelector('#color');
- assert.equal(hero.getAttribute('src'),'/black.png');size.value='12';size.dispatchEvent(new w.Event('change'));assert.equal(hero.getAttribute('src'),'/black.png');
- color.value='2';color.dispatchEvent(new w.Event('change'));assert.equal(hero.getAttribute('src'),'/white.png');
- d.querySelector('[name=quantity]').value='1';d.querySelector('#buy').dispatchEvent(new w.Event('submit',{cancelable:true}));
- assert.deepEqual(JSON.parse(w.localStorage.getItem('clothing-cart')).map(i=>[i.id,i.quantity]),[[13,1]]);
- d.querySelector('[name=quantity]').value='2';d.querySelector('#buy').dispatchEvent(new w.Event('submit',{cancelable:true}));assert.match(d.querySelector('#shop-message').textContent,/vượt tồn/);
- color.value='3';color.dispatchEvent(new w.Event('change'));assert.equal(hero.getAttribute('src'),'/common.png');dom.window.close();
+test('Store gallery follows color and submits variant ID to the account cart API',async()=>{
+ const dom=new JSDOM(fs.readFileSync(path.join(root,'giao dien/product-details.html'),'utf8'),{url:'http://localhost/store/product-details.html?id=1',runScripts:'outside-only'}),w=dom.window;let submitted;
+ const images=[{COLOR_ID:1,IMAGE_URL:'/store/assets/img/black.png'},{COLOR_ID:2,IMAGE_URL:'/store/assets/img/white.png'},{COLOR_ID:null,IMAGE_URL:'/store/assets/img/common.png'}];
+ w.fetch=async(url,o={})=>{
+  if(url==='/api/csrf')return response({token:'t',headerName:'X-CSRF-TOKEN'});
+  if(url==='/api/customer/me')return response({FULL_NAME:'Demo',EMAIL:'demo@example.test'});
+  if(url==='/api/customer/cart')return response({items:[],totalQuantity:0});
+  if(url.startsWith('/api/catalog?'))return response({items:[],total:0,size:15});
+  if(url==='/api/customer/cart/items'){submitted=JSON.parse(o.body);return response({items:[],totalQuantity:1});}
+  return response({product:{ID:1,PRODUCT_NAME:'Áo',THUMBNAIL_URL:'/store/assets/img/cover.png'},images,variants:[{ID:11,COLOR_ID:1,COLOR_NAME:'Đen',SIZE_NAME:'M',PRICE:199000,QUANTITY:3},{ID:12,COLOR_ID:1,COLOR_NAME:'Đen',SIZE_NAME:'L',PRICE:199000,QUANTITY:3},{ID:13,COLOR_ID:2,COLOR_NAME:'Trắng',SIZE_NAME:'M',PRICE:199000,QUANTITY:2}]});
+ };
+ w.eval(fs.readFileSync(path.join(root,'giao dien/assets/js/client-store.js'),'utf8'));await waitFor(()=>w.document.body.classList.contains('client-ready'));
+ const d=w.document;d.querySelectorAll('.color-options button')[0].click();d.querySelectorAll('.size-options button')[1].click();assert.equal(d.querySelector('#main-product-image').getAttribute('src'),images[0].IMAGE_URL);
+ d.querySelectorAll('.color-options button')[1].click();d.querySelector('.size-options button').click();assert.equal(d.querySelector('#main-product-image').getAttribute('src'),images[1].IMAGE_URL);
+ d.querySelector('.add-to-cart-btn').click();await waitFor(()=>submitted);assert.deepEqual(submitted,{productDetailId:13,quantity:1});assert.equal(w.localStorage.getItem('clothing-cart'),null);dom.window.close();
 });
 
 test('Admin adds a third color without losing variant fields and submits four variants',async()=>{

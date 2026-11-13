@@ -80,16 +80,24 @@ public class CustomerCartService {
     repo.lockCustomer(customer);
     Long id = repo.activeCart(customer);
     Cart cart = view(id);
-    if (!cart.checkoutAllowed()) throw new BusinessException("Kiểm tra giỏ hàng: có sản phẩm hết hàng hoặc số lượng đã thay đổi.");
+    if (!"COD".equals(request.paymentMethod())) throw new BusinessException("Cửa hàng chỉ thanh toán khi nhận hàng (COD).");
     Map<Long, Integer> expected = new TreeMap<>();
     cart.items().forEach(line -> expected.put(line.productDetailId(), line.quantity()));
     Map<Long, Integer> submitted = new TreeMap<>();
     request.items().forEach(line -> {
       if (submitted.put(line.productDetailId(), line.quantity()) != null) throw new BusinessException("Giỏ hàng có dòng trùng.");
     });
-    if (!expected.equals(submitted)) throw new BusinessException("Giỏ hàng đã thay đổi. Tải lại giỏ trước khi đặt đơn.");
+    if (submitted.isEmpty()) throw new BusinessException("Chọn ít nhất một sản phẩm để đặt hàng.");
+    for (var line : cart.items()) {
+      if (submitted.containsKey(line.productDetailId()) &&
+          (!line.available() || line.quantity() > line.stock()))
+        throw new BusinessException("Sản phẩm đã chọn không đủ hàng. Vui lòng kiểm tra lại giỏ.");
+    }
+    if (submitted.entrySet().stream().anyMatch(e -> !Objects.equals(expected.get(e.getKey()), e.getValue())))
+      throw new BusinessException("Giỏ hàng đã thay đổi. Tải lại giỏ trước khi đặt đơn.");
     Object order = store.checkout(request, session);
-    repo.finish(id);
+    submitted.keySet().forEach(variant -> repo.remove(id, variant));
+    if (submitted.size() == expected.size()) repo.finish(id);
     return order;
   }
 

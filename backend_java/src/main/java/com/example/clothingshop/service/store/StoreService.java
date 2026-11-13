@@ -122,6 +122,7 @@ public class StoreService {
 
   @Transactional
   public Object checkout(Checkout r, HttpSession session) {
+    if (!"COD".equals(r.paymentMethod())) throw new BusinessException("Chỉ hỗ trợ thanh toán khi nhận hàng (COD).");
     long customer = customer(session);
     var amounts = amounts(r.voucherCode(), r.items());
     var offers =
@@ -201,6 +202,7 @@ public class StoreService {
   }
 
   public Object quote(Quote r) {
+    if (r.paymentMethod() != null && !"COD".equals(r.paymentMethod())) throw new BusinessException("Chỉ hỗ trợ thanh toán khi nhận hàng (COD).");
     var a = amounts(r.code(), r.items());
     var result = new LinkedHashMap<String, Object>();
     result.put("subtotal", a[0]);

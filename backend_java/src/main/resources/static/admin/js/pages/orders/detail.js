@@ -38,7 +38,7 @@ async function orderEditor(id) {
         SIZE: x.sizeName,
         QTY: x.quantity,
         PRICE: x.unitPrice,
-        TOTAL: x.totalPrice,
+        TOTAL: x.totalAmount ?? x.totalPrice,
       })),
       [
         ["NAME", "Sản phẩm"],
@@ -64,7 +64,7 @@ async function orderEditor(id) {
         { ID: 1, NAME: "Đã nhận tiền" },
       ],
       r.PAYMENT_STATUS,
-    )}${input("carrier", "Đơn vị vận chuyển", r.CARRIER, "text", false)}${input("trackingCode", "Mã theo dõi", r.TRACKING_CODE, "text", false)}</div><div class="toolbar">${button("Lưu giao hàng / thanh toán", "save-shipping", id)}</div>${Number(r.STATUS) === 1 ? `<div class="toolbar">${button("Lập phiếu xuất giao (ADMIN duyệt)", "prepare-dispatch", id)}</div>` : ""}<h3>Chuyển trạng thái</h3><div class="toolbar">${select(
+    )}${input("carrier", "Đơn vị vận chuyển", r.CARRIER, "text", false)}${input("trackingCode", "Mã theo dõi", r.TRACKING_CODE, "text", false)}</div><div class="toolbar">${button("Lưu thông tin giao hàng", "save-shipping", id)}</div>${Number(r.STATUS) === 1 ? `<div class="toolbar">${button("Lập phiếu xuất giao (ADMIN duyệt)", "prepare-dispatch", id)}</div>` : ""}<h3>Chuyển trạng thái</h3><div class="toolbar">${select(
       "nextStatus",
       "Trạng thái mới",
       (transitions[r.STATUS] || []).map((ID) => ({ ID, NAME: statusNames[ID] })),
@@ -80,6 +80,15 @@ async function orderEditor(id) {
       ],
     )}`,
   );
+  // Payment terms and collection state belong to the order workflow, not this editor.
+  for (const name of ["paymentMethod", "paymentStatus"]) {
+    const control = $("[name=" + name + "]");
+    if (control) { control.disabled = true; control.title = "Thông tin thanh toán của đơn không được sửa tại đây"; }
+  }
+  if (Number(r.STATUS) >= 3) {
+    for (const name of ["carrier", "trackingCode"]) $("[name=" + name + "]").disabled = true;
+    const save = $("[data-action=save-shipping]"); if (save) save.hidden = true;
+  }
   $("#fields").onclick = async (e) => {
     const b = e.target.closest("[data-action]");
     if (!b) return;
@@ -109,13 +118,14 @@ async function orderEditor(id) {
       }
       if (b.dataset.action === "save-shipping")
         await api(`/api/admin/orders/${id}/shipping`, "PUT", {
-          paymentMethod: $("[name=paymentMethod]").value,
-          paymentStatus: Number($("[name=paymentStatus]").value),
+          paymentMethod: r.PAYMENT_METHOD,
+          paymentStatus: Number(r.PAYMENT_STATUS),
           carrier: $("[name=carrier]").value,
           trackingCode: $("[name=trackingCode]").value,
         });
       else {
         if ($("[name=nextStatus]").value === "") throw Error("Chọn trạng thái mới.");
+        if (Number($("[name=nextStatus]").value) === 3 && r.PAYMENT_METHOD === "COD" && !confirm("Xác nhận giao thành công và đã thu đủ tiền COD theo đơn?")) { b.disabled = false; return; }
         await api(`/api/admin/orders/${id}/status`, "PUT", {
           status: Number($("[name=nextStatus]").value),
           note: $("[name=note]").value,

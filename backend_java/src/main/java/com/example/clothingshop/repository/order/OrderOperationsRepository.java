@@ -66,7 +66,13 @@ public class OrderOperationsRepository {
   }
 
   public int updateBill5(Object... args) {
-    return db.update("UPDATE BILL SET PAYMENT_STATUS=1 WHERE ID=:i", args);
+    return db.update("UPDATE BILL SET PAYMENT_STATUS=1 WHERE ID=:i AND PAYMENT_STATUS=0", args);
+  }
+
+  public void recordCodPayment(long id) {
+    db.update("INSERT INTO PAYMENT_HISTORY(BILL_ID,AMOUNT,PAYMENT_METHOD,STATUS,PAID_AT,NOTE) "
+        + "SELECT ID,TOTAL_AMOUNT,'COD',1,LOCALTIMESTAMP,'Thu tiền khi giao thành công' FROM BILL WHERE ID=:i "
+        + "AND NOT EXISTS (SELECT 1 FROM PAYMENT_HISTORY WHERE BILL_ID=:i AND PAYMENT_METHOD='COD' AND STATUS=1 AND DELETE_FLAG=0)", "i", id);
   }
 
   public int updateVoucher(Object... args) {
@@ -79,13 +85,13 @@ public class OrderOperationsRepository {
 
   public Map<String, Object> findBill3(Object... args) {
     return db.one(
-        "SELECT STATUS,PAYMENT_STATUS FROM BILL WHERE ID=:i AND DELETE_FLAG=0 FOR UPDATE", args);
+        "SELECT STATUS,PAYMENT_STATUS,PAYMENT_METHOD FROM BILL WHERE ID=:i AND DELETE_FLAG=0 FOR UPDATE", args);
   }
 
   public int updateBill6(Object... args) {
     return db.update(
         "UPDATE BILL SET"
-            + " PAYMENT_METHOD=:p,PAYMENT_STATUS=:s,CARRIER=:c,TRACKING_CODE=:t,HANDLED_BY=:a WHERE"
+            + " CARRIER=:c,TRACKING_CODE=:t,HANDLED_BY=:a WHERE"
             + " ID=:i",
         args);
   }

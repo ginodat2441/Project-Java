@@ -106,9 +106,9 @@ public class StoreOperationsRepository {
     if (min != null) { variant += " AND pd.PRICE>=:min"; args.add("min"); args.add(min); }
     if (max != null) { variant += " AND pd.PRICE<=:max"; args.add("max"); args.add(max); }
     where += " AND EXISTS (SELECT 1 FROM PRODUCT_DETAIL pd WHERE " + variant + ")";
-    String order = switch (sort) { case "price-asc" -> "PRICE ASC,p.ID DESC"; case "price-desc" -> "PRICE DESC,p.ID DESC"; case "name" -> "p.PRODUCT_NAME,p.ID"; default -> "p.ID DESC"; };
-    return db.page("SELECT p.ID,p.PRODUCT_NAME,p.THUMBNAIL_URL,c.CATEGORY_NAME,(SELECT MIN(pd.PRICE) FROM PRODUCT_DETAIL pd WHERE "
-        + variant + ") PRICE FROM PRODUCT p LEFT JOIN CATEGORY c ON c.ID=p.CATEGORY_ID" + where + " ORDER BY " + order, page, 20, args.toArray());
+    String order = switch (sort) { case "price-asc" -> "PRICE ASC,p.ID DESC"; case "price-desc" -> "PRICE DESC,p.ID DESC"; case "name" -> "p.PRODUCT_NAME,p.ID"; default -> "p.CREATED_AT DESC,p.ID DESC"; };
+    return db.page("SELECT p.ID,p.PRODUCT_NAME,p.THUMBNAIL_URL,p.CREATED_AT,c.CATEGORY_NAME,(SELECT MIN(pd.PRICE) FROM PRODUCT_DETAIL pd WHERE "
+        + variant + ") PRICE FROM PRODUCT p LEFT JOIN CATEGORY c ON c.ID=p.CATEGORY_ID" + where + " ORDER BY " + order, page, 15, args.toArray());
   }
 
   public Map<String, Object> findProduct(Object... args) {

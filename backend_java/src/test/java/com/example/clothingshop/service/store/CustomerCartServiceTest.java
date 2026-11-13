@@ -114,6 +114,32 @@ class CustomerCartServiceTest {
     when(store.checkout(request,session)).thenThrow(new BusinessException("Phí giao hàng thay đổi"));
     assertThrows(BusinessException.class,()->service.checkout(session,request));
     verify(repo,never()).finish(anyLong());
+    verify(repo,never()).remove(anyLong(),anyLong());
+  }
+
+  @Test void partialOrderKeepsUnselectedItemsInActiveCart() {
+    var second=new HashMap<>(line(2,5,1));second.put("PRODUCT_DETAIL_ID",13L);
+    when(repo.lines(41L)).thenReturn(List.of(line(2,5,1),second));
+    var request=checkout(List.of(new BillRequest.Item(12L,2)));
+    when(store.checkout(request,session)).thenReturn(Map.of("id",88L));
+    service.checkout(session,request);
+    verify(repo).remove(41L,12L);
+    verify(repo,never()).remove(41L,13L);
+    verify(repo,never()).finish(anyLong());
+  }
+
+  @Test void unavailableUnselectedItemDoesNotBlockValidSelectedItem() {
+    var other=new HashMap<>(line(1,0,0));other.put("PRODUCT_DETAIL_ID",13L);
+    when(repo.lines(41L)).thenReturn(List.of(line(2,5,1),other));
+    var request=checkout(List.of(new BillRequest.Item(12L,2)));
+    service.checkout(session,request);
+    verify(store).checkout(request,session);
+    verify(repo,never()).remove(41L,13L);
+  }
+
+  @Test void itemOutsideOwnedCartNeverCreatesOrder() {
+    assertThrows(BusinessException.class,()->service.checkout(session,checkout(List.of(new BillRequest.Item(999L,2)))));
+    verify(store,never()).checkout(any(),any());
   }
 
   @Test void unauthenticatedSessionCannotReadOrWriteCart() {

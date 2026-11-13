@@ -1,5 +1,13 @@
 # Chức năng khách hàng
 
+## COD và chọn sản phẩm trong giỏ
+
+Đơn mới chỉ nhận COD. Phương thức thanh toán và các khoản tiền là dữ liệu do máy chủ quyết định; không có trường để khách nhập lại đơn giá/tổng tiền. Khách được sửa người nhận/địa chỉ trước khi đặt. Mỗi dòng giỏ có checkbox và có Chọn tất cả; tạm tính chỉ cộng các dòng được chọn. Trạng thái chọn lưu trong phiên trình duyệt theo email khách, còn sản phẩm/số lượng/giá vẫn đọc từ Oracle. Checkout kiểm tra lại các SKU được chọn thuộc giỏ của khách và số lượng chưa đổi; sau khi tạo đơn chỉ bỏ những dòng đã mua, giữ phần còn lại trong giỏ.
+
+Đơn COD mới có trạng thái chưa thu tiền. Admin không được đổi phương thức hay trạng thái thu tiền trong form giao hàng; API cũng từ chối sửa các trường này. Xác nhận giao thành công đồng thời xác nhận đã thu COD, cập nhật trạng thái và ghi PAYMENT_HISTORY trong cùng giao dịch. Không ghi nhận thu tiền hai lần khi gửi lại chuyển trạng thái. Đơn đã kết thúc khóa sửa vận chuyển; đổi trả/hoàn tiền tiếp tục đi theo chứng từ nghiệp vụ hiện có. Dữ liệu phương thức thanh toán của đơn cũ được giữ nguyên, không tự chuyển đổi sang COD.
+
+`SelectedCodOracleTest` kiểm tra đơn một phần trên Oracle thật, rollback toàn bộ sau kiểm thử, chỉ mô phỏng báo giá nhà vận chuyển. Mặc định không chạy; cần bật rõ `RUN_COD_ORACLE_TEST=true`. Không dùng phí kiểm thử làm cấu hình giao hàng thực tế.
+
 Chạy từ backend Java, mở `/store/index.html`. Không dùng Live Server cho các API tài khoản/giỏ hàng. Trang gốc vẫn giữ HTML, ID, các section và `assets/css/main.css` của nhóm; nội dung tĩnh đã được Việt hóa. `assets/js/client-store.js` điền dữ liệu Java vào các vùng sản phẩm, giỏ và tài khoản có sẵn. `client-store.css` chỉ bổ sung trạng thái và bộ chọn.
 
 - Header đọc `/api/customer/me`; đăng xuất là POST có CSRF. Session khách tách với admin.

@@ -23,7 +23,7 @@ public final class StoreRequests {
       @NotBlank @Size(max = 100) String province,
       @NotBlank @Size(max = 100) String ward,
       @NotBlank @Size(max = 300) String address,
-      @Pattern(regexp = "COD|BANK") @NotNull String paymentMethod,
+      @Pattern(regexp = "COD") @NotNull String paymentMethod,
       @Size(max = 50) String voucherCode,
       @Size(max = 500) String note,
       @NotEmpty @Size(max = 100) @Valid List<BillRequest.Item> items,
@@ -36,5 +36,5 @@ public final class StoreRequests {
       @Size(max = 100) String province,
       @Size(max = 100) String ward,
       @Size(max = 300) String address,
-      @Pattern(regexp = "COD|BANK") String paymentMethod) {}
+      @Pattern(regexp = "COD") String paymentMethod) {}
 }

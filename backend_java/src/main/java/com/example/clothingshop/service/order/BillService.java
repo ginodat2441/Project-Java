@@ -18,6 +18,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,8 +73,8 @@ public class BillService {
     if (req.items() == null || req.items().isEmpty() || req.items().size() > 100)
       throw new BusinessException("Giỏ hàng không hợp lệ");
     queries.findCustomer("i", req.customerId());
-    if (!java.util.Set.of("COD", "BANK").contains(req.paymentMethod()))
-      throw new BusinessException("Chỉ hỗ trợ COD hoặc chuyển khoản thủ công");
+    if (!"COD".equals(req.paymentMethod()))
+      throw new BusinessException("Đơn mới chỉ hỗ trợ thanh toán khi nhận hàng (COD)");
     var addr =
         repo.findAddress(req.addressId(), req.customerId())
             .orElseThrow(() -> new BusinessException("Địa chỉ không hợp lệ"));
@@ -186,7 +187,8 @@ public class BillService {
     }
     if (newStatus == 3) queries.updateBill3("i", billId);
     if (newStatus == 5) queries.updateBill4("i", billId);
-    if (newStatus == 3 && bill.paymentMethod().equals("COD")) queries.updateBill5("i", billId);
+    if (newStatus == 3 && bill.paymentMethod().equals("COD") && queries.updateBill5("i", billId) == 1)
+      queries.recordCodPayment(billId);
     db.auditChange(
         managerId,
         "STATUS_" + newStatus,
@@ -223,6 +225,10 @@ public class BillService {
     var order = queries.findBill3("i", id);
     if (number(order, "STATUS") >= 3)
       throw new BusinessException("Đơn đã kết thúc; không thể sửa thông tin thanh toán/giao hàng");
+    if (!Objects.equals(order.get("PAYMENT_METHOD"), r.paymentMethod()))
+      throw new BusinessException("Không được thay đổi phương thức thanh toán của đơn đã đặt.");
+    if (number(order, "PAYMENT_STATUS") != r.paymentStatus())
+      throw new BusinessException("Trạng thái thu tiền được hệ thống cập nhật khi xác nhận giao thành công; không sửa tại đây.");
     if (number(order, "PAYMENT_STATUS") == 1 && r.paymentStatus() == 0)
       throw new BusinessException("Không thể bỏ ghi nhận thanh toán đã nhận");
     queries.updateBill6(

@@ -43,67 +43,7 @@
 
   <header id="header" class="header position-relative">
     <!-- Top Bar -->
-    <div class="top-bar py-2">
-      <div class="container-fluid container-xl">
-        <div class="row align-items-center">
-          <div class="col-lg-4 d-none d-lg-flex">
-            <div class="top-bar-item">
-              <i class="bi bi-telephone-fill me-2"></i>
-              <span>Cần hỗ trợ? Liên hệ: </span>
-              <a href="tel:+1234567890">+1 (234) 567-890</a>
-            </div>
-          </div>
-
-          <div class="col-lg-4 col-md-12 text-center">
-            <div class="announcement-slider swiper init-swiper">
-              <script type="application/json" class="swiper-config">
-                {
-                  "loop": true,
-                  "speed": 600,
-                  "autoplay": {
-                    "delay": 5000
-                  },
-                  "slidesPerView": 1,
-                  "direction": "vertical",
-                  "effect": "slide"
-                }
-              </script>
-              <div class="swiper-wrapper">
-                <div class="swiper-slide">🚚 Xem phí giao hàng tại bước thanh toán</div>
-                <div class="swiper-slide">💬 Xem hướng dẫn đổi trả trước khi mua</div>
-                <div class="swiper-slide">🎁 Nhập mã ưu đãi nếu có khi thanh toán</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-lg-4 d-none d-lg-block">
-            <div class="d-flex justify-content-end">
-              <div class="top-bar-item dropdown me-3">
-                <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">
-                  <i class="bi bi-translate me-2"></i>VI
-                </a>
-                <ul class="dropdown-menu">
-                  <li><a class="dropdown-item" href="#"><i class="bi bi-check2 me-2 selected-icon"></i>Tiếng Việt</a></li>
-                  <li><a class="dropdown-item" href="#">Tiếng Tây Ban Nha</a></li>
-                  <li><a class="dropdown-item" href="#">Tiếng Pháp</a></li>
-                  <li><a class="dropdown-item" href="#">Tiếng Đức</a></li>
-                </ul>
-              </div>
-              <div class="top-bar-item dropdown">
-                <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">
-                  <i class="bi bi-currency-dollar me-2"></i>VNĐ
-                </a>
-                <ul class="dropdown-menu">
-                  <li><a class="dropdown-item" href="#"><i class="bi bi-check2 me-2 selected-icon"></i>VNĐ</a></li>
-                  <li><a class="dropdown-item" href="#">EUR</a></li>
-                  <li><a class="dropdown-item" href="#">GBP</a></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    
 
     <!-- Main Header -->
     <div class="main-header">
@@ -136,6 +76,7 @@
             </button>
 
             <!-- Account -->
+            <div class="client-guest-actions"><a href="login-register.html" class="btn btn-outline-primary">Đăng nhập</a><a href="login-register.html#register" class="btn btn-primary">Đăng ký</a></div>
             <div class="dropdown account-dropdown">
               <button class="header-action-btn" data-bs-toggle="dropdown">
                 <i class="bi bi-person"></i>
@@ -197,11 +138,11 @@
           <nav id="navmenu" class="navmenu">
             <ul>
               <li><a href="index.html">Trang chủ</a></li>
-              <li><a href="about.html">Giới thiệu</a></li>
+              
               <li><a href="category.html">Danh mục</a></li>
-              <li><a href="product-details.html">Chi tiết sản phẩm</a></li>
-              <li><a href="cart.html">Giỏ hàng</a></li>
-              <li><a href="checkout.html" class="active">Thanh toán</a></li>
+              <li><a href="category.html">Sản phẩm</a></li>
+              
+              
               <li class="dropdown"><a href="#"><span>Khám phá</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
                 <ul>
                   <li><a href="#">Sản phẩm mới</a></li>
