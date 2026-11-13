@@ -5,3 +5,7 @@ target/
 .local/
 uploads/
 *.log
+
+.local.zip
+
+.vscode.zip

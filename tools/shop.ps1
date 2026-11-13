@@ -4,16 +4,20 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $projectRoot
-`$javaHomeCandidates = @(`$env:JAVA_HOME)
-
-if (-not $env:JAVA_HOME) {
+$javaHomeCandidates = @(
+    $env:JAVA_HOME,
+    'G:\oracle\sqldeveloper\jdk\jre',
+    (Join-Path $env:USERPROFILE 'Downloads/sqldeveloper-26.2.0.186.2220-x64/sqldeveloper/jdk/jre')
+)
+if (-not $env:JAVA_HOME -or -not (Test-Path -LiteralPath (Join-Path $env:JAVA_HOME 'bin/javac.exe'))) {
     foreach ($candidate in $javaHomeCandidates) {
-        if ($candidate -and (Test-Path -LiteralPath (Join-Path $candidate 'bin/java.exe'))) { $env:JAVA_HOME=$candidate; break }
+        if ($candidate -and (Test-Path -LiteralPath (Join-Path $candidate 'bin/javac.exe'))) { $env:JAVA_HOME=$candidate; break }
     }
 }
 $javaCmd = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin/java.exe' } else { 'java' }
-$javaVersionOutput = (& $javaCmd -version 2>&1 | Out-String)
-if ($LASTEXITCODE -ne 0 -or $javaVersionOutput -notmatch 'version "25(?:\.|")') { throw 'JDK 25 LTS is required. Set JAVA_HOME to a JDK 25 installation.' }
+$javaVersionOutput = (& $javaCmd --version | Out-String)
+if ($LASTEXITCODE -ne 0 -or $javaVersionOutput -notmatch '(?:java|openjdk)\s+(\d+)' -or [int]$Matches[1] -lt 17) { throw 'JDK 17 or newer is required. Set JAVA_HOME to the JDK directory containing bin/java.exe and bin/javac.exe.' }
+if ($env:JAVA_HOME) { $env:Path = "$(Join-Path $env:JAVA_HOME 'bin');$env:Path" }
 $mavenCmd = if (Get-Command mvn -ErrorAction SilentlyContinue) { 'mvn' } else { Join-Path $projectRoot '.local/apache-maven-3.9.9/bin/mvn.cmd' }
 $localEnv = Join-Path $projectRoot '.vscode/oracle-local.env'
 function Import-ShopLocalEnv {

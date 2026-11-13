@@ -14,7 +14,7 @@
   <name>clothing-shop</name>
   <description>Clothing shop - Spring Boot + Oracle + pure SQL (JDBC)</description>
   <properties>
-    <java.version>25</java.version>
+    <java.version>17</java.version>
   </properties>
   <dependencies>
     <dependency>
