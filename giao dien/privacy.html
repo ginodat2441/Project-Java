@@ -4,24 +4,28 @@
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
-  <title>Thời trang eStore</title>
-  <meta name="description" content="">
+  <title>Bảo mật thông tin | eStore</title>
+  <meta name="description" content="Bảo mật thông tin | eStore — Xem sản phẩm, chọn màu và kích cỡ, quản lý tài khoản và mua sắm tại cửa hàng.">
   <meta name="keywords" content="">
 
-
+  <!-- Favicons -->
   <link href="assets/img/favicon.png" rel="icon">
   <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
 
-
+  <!-- Fonts -->
   <link href="https://fonts.googleapis.com" rel="preconnect">
   <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Nunito:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
 
-
+  <!-- Vendor CSS Files -->
   <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+  <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
+  <link href="assets/vendor/aos/aos.css" rel="stylesheet">
+  <link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
+  <link href="assets/vendor/drift-zoom/drift-basic.css" rel="stylesheet">
 
-
+  <!-- Main CSS File -->
   <link href="assets/css/main.css" rel="stylesheet">
 
   <!-- =======================================================
@@ -31,29 +35,1030 @@
   * Author: BootstrapMade.com
   * License: https://bootstrapmade.com/license/
   ======================================================== -->
+  <!-- Trạng thái bổ sung cho chức năng client; giữ CSS gốc. -->
+  <link href="assets/css/client-store.css" rel="stylesheet">
 </head>
 
-<body class="privacy-page">
+<body class="privacy-page" data-client-store="true">
 
-  <header id="header" class="header position-relative"><div class="main-header"><div class="container-fluid container-xl"><div class="d-flex py-3 align-items-center justify-content-between"><a href="index.html" class="logo d-flex align-items-center" aria-label="Trang chủ eStore"><h1 class="sitename">eStore</h1></a><form class="search-form"><div class="input-group"><input type="search" class="form-control" placeholder="Tìm kiếm sản phẩm" aria-label="Tìm kiếm sản phẩm"><button class="btn" type="submit" aria-label="Tìm kiếm"><i class="bi bi-search" aria-hidden="true"></i></button></div></form><div class="header-actions d-flex align-items-center justify-content-end"><div class="dropdown account-dropdown"><button class="header-action-btn" type="button" data-bs-toggle="dropdown" aria-label="Tài khoản"><i class="bi bi-person" aria-hidden="true"></i></button><div class="dropdown-menu dropdown-menu-end"><div class="dropdown-header"><h6>Chào mừng đến eStore</h6><p class="mb-0">Quản lý tài khoản và đơn hàng</p></div><div class="dropdown-body"></div><div class="dropdown-footer"></div></div></div><a href="cart.html" class="header-action-btn" aria-label="Giỏ hàng"><i class="bi bi-cart3" aria-hidden="true"></i><span class="badge">0</span></a><button class="mobile-nav-toggle d-xl-none bi bi-list me-0 btn p-0 border-0 bg-transparent" type="button" aria-label="Mở menu" aria-expanded="false"></button></div></div></div></div><div class="header-nav"><div class="container-fluid container-xl"><div class="position-relative"><nav id="navmenu" class="navmenu"><ul><li><a href="index.html">Trang chủ</a></li><li><a href="category.html">Sản phẩm</a></li><li><a href="size-guide.html">Hướng dẫn chọn size</a></li><li><a href="faq.html">Câu hỏi thường gặp</a></li><li><a href="contact.html">Liên hệ</a></li></ul></nav></div></div></div></header>
+  <header id="header" class="header position-relative">
+    <!-- Top Bar -->
+    
 
-  <main class="main"><section class="section"><div class="container text-center text-muted">Đang tải dữ liệu từ cửa hàng...</div></section></main>
+    <!-- Main Header -->
+    <div class="main-header">
+      <div class="container-fluid container-xl">
+        <div class="d-flex py-3 align-items-center justify-content-between">
 
-  <footer id="footer" class="footer"><div class="footer-main"><div class="container"><div class="row gy-4"><div class="col-md-4"><div class="footer-widget footer-about"><a href="index.html" class="logo"><span class="sitename">eStore</span></a><p>Thời trang dành cho phong cách của bạn.</p></div></div><div class="col-md-4"><div class="footer-widget"><h4>Mua sắm</h4><ul class="footer-links"><li><a href="category.html">Tất cả sản phẩm</a></li><li><a href="size-guide.html">Hướng dẫn chọn size</a></li></ul></div></div><div class="col-md-4"><div class="footer-widget"><h4>Hỗ trợ</h4><ul class="footer-links"><li><a href="account.html">Đơn hàng của tôi</a></li><li><a href="payment-methods.html">Phương thức thanh toán</a></li><li><a href="return-policy.html">Chính sách đổi trả</a></li><li><a href="contact.html">Liên hệ</a></li></ul></div></div></div></div></div><div class="footer-bottom"><div class="container"><div class="payment-methods d-flex align-items-center justify-content-center"><span>Thanh toán:</span><div class="payment-icons"><span class="badge text-bg-primary">SePay</span><i class="bi bi-cash" aria-label="Thanh toán khi nhận hàng"></i></div></div><div class="legal-links"><a href="tos.html">Điều khoản sử dụng</a><a href="privacy.html">Chính sách quyền riêng tư</a></div><div class="copyright text-center"><p>© <strong class="sitename">eStore</strong>. Bản quyền được bảo lưu.</p></div></div></div></footer>
+          <!-- Logo -->
+          <a href="index.html" class="logo d-flex align-items-center">
+            <!-- Uncomment the line below if you also wish to use an image logo -->
+            <!-- <img src="assets/img/logo.webp" alt=""> -->
+            <h1 class="sitename">eStore</h1>
+          </a>
 
+          <!-- Search -->
+          <form class="search-form desktop-search-form">
+            <div class="input-group">
+              <input type="text" class="form-control" placeholder="Tìm kiếm sản phẩm">
+              <button class="btn" type="submit">
+                <i class="bi bi-search"></i>
+              </button>
+            </div>
+          </form>
 
+          <!-- Actions -->
+          <div class="header-actions d-flex align-items-center justify-content-end">
+
+            <!-- Mobile Search Toggle -->
+            <button class="header-action-btn mobile-search-toggle d-xl-none" type="button" data-bs-toggle="collapse" data-bs-target="#mobileSearch" aria-expanded="false" aria-controls="mobileSearch">
+              <i class="bi bi-search"></i>
+            </button>
+
+            <!-- Account -->
+            <div class="client-guest-actions"><a href="login-register.html" class="btn btn-outline-primary">Đăng nhập</a><a href="login-register.html#register" class="btn btn-primary">Đăng ký</a></div>
+            <div class="dropdown account-dropdown">
+              <button class="header-action-btn" data-bs-toggle="dropdown">
+                <i class="bi bi-person"></i>
+              </button>
+              <div class="dropdown-menu">
+                <div class="dropdown-header">
+                  <h6>Chào mừng đến với <span class="sitename">eStore</span></h6>
+                  <p class="mb-0">Truy cập tài khoản và quản lý đơn hàng</p>
+                </div>
+                <div class="dropdown-body">
+                  <a class="dropdown-item d-flex align-items-center" href="account.html">
+                    <i class="bi bi-person-circle me-2"></i>
+                    <span>Hồ sơ của tôi</span>
+                  </a>
+                  <a class="dropdown-item d-flex align-items-center" href="account.html">
+                    <i class="bi bi-bag-check me-2"></i>
+                    <span>Đơn hàng của tôi</span>
+                  </a>
+                  <a class="dropdown-item d-flex align-items-center" href="account.html">
+                    <i class="bi bi-heart me-2"></i>
+                    <span>Sản phẩm yêu thích</span>
+                  </a>
+                  <a class="dropdown-item d-flex align-items-center" href="account.html">
+                    <i class="bi bi-gear me-2"></i>
+                    <span>Cài đặt</span>
+                  </a>
+                </div>
+                <div class="dropdown-footer">
+                  <a href="login-register.html" class="btn btn-primary w-100 mb-2">Đăng nhập</a>
+                  <a href="login-register.html" class="btn btn-outline-primary w-100">Đăng ký</a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Wishlist -->
+            <a href="account.html" class="header-action-btn d-none d-md-block">
+              <i class="bi bi-heart"></i>
+              <span class="badge">0</span>
+            </a>
+
+            <!-- Cart -->
+            <a href="cart.html" class="header-action-btn">
+              <i class="bi bi-cart3"></i>
+              <span class="badge">3</span>
+            </a>
+
+            <!-- Mobile Navigation Toggle -->
+            <i class="mobile-nav-toggle d-xl-none bi bi-list me-0"></i>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="header-nav">
+      <div class="container-fluid container-xl">
+        <div class="position-relative">
+          <nav id="navmenu" class="navmenu">
+            <ul>
+              <li><a href="index.html">Trang chủ</a></li>
+              
+              <li><a href="category.html">Danh mục</a></li>
+              <li><a href="category.html">Sản phẩm</a></li>
+              
+              
+              <li class="dropdown"><a href="#"><span>Khám phá</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                <ul>
+                  <li><a href="#">Sản phẩm mới</a></li>
+                  <li class="dropdown"><a href="#"><span>Thông tin mua sắm</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                    <ul>
+                      <li><a href="#">Tìm sản phẩm</a></li>
+                      <li><a href="#">Chọn kích cỡ</a></li>
+                      <li><a href="#">Giỏ hàng</a></li>
+                      <li><a href="#">Giao hàng</a></li>
+                      <li><a href="#">Đổi trả</a></li>
+                    </ul>
+                  </li>
+                  <li><a href="#">Tài khoản</a></li>
+                  <li><a href="#">Hỗ trợ</a></li>
+                  <li><a href="#">Thông tin cửa hàng</a></li>
+                </ul>
+              </li>
+
+              <!-- Products Mega Menu 1 -->
+              <li class="products-megamenu-1"><a href="#"><span>Bộ sưu tập</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+
+                <!-- Products Mega Menu 1 Mobile View -->
+                <ul class="mobile-megamenu">
+
+                  <li><a href="#">Sản phẩm nổi bật</a></li>
+                  <li><a href="#">Sản phẩm mới</a></li>
+                  <li><a href="#">Sản phẩm ưu đãi</a></li>
+
+                  <li class="dropdown"><a href="#"><span>Quần áo</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                    <ul>
+                      <li><a href="#">Thời trang nam</a></li>
+                      <li><a href="#">Thời trang nữ</a></li>
+                      <li><a href="#">Bộ sưu tập trẻ em</a></li>
+                      <li><a href="#">Trang phục thể thao</a></li>
+                      <li><a href="#">Phụ kiện</a></li>
+                    </ul>
+                  </li>
+
+                  <li class="dropdown"><a href="#"><span>Áo khoác</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                    <ul>
+                      <li><a href="#">Áo khoác nhẹ</a></li>
+                      <li><a href="#">Áo khoác dáng dài</a></li>
+                      <li><a href="#">Áo khoác thường ngày</a></li>
+                      <li><a href="#">Trang phục ở nhà</a></li>
+                      <li><a href="#">Phụ kiện</a></li>
+                    </ul>
+                  </li>
+
+                  <li class="dropdown"><a href="#"><span>Trang phục hằng ngày</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                    <ul>
+                      <li><a href="#">Trang phục cơ bản</a></li>
+                      <li><a href="#">Phụ kiện phối đồ</a></li>
+                      <li><a href="#">Trang phục thoải mái</a></li>
+                      <li><a href="#">Đồ ngủ</a></li>
+                      <li><a href="#">Màu sắc nổi bật</a></li>
+                    </ul>
+                  </li>
+
+                  <li class="dropdown"><a href="#"><span>Phong cách cá nhân</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                    <ul>
+                      <li><a href="#">Chất liệu mềm mại</a></li>
+                      <li><a href="#">Phối màu</a></li>
+                      <li><a href="#">Phụ kiện tóc</a></li>
+                      <li><a href="#">Phụ kiện thời trang</a></li>
+                      <li><a href="#">Chăm sóc trang phục</a></li>
+                    </ul>
+                  </li>
+
+                </ul><!-- End Products Mega Menu 1 Mobile View -->
+
+                <!-- Products Mega Menu 1 Desktop View -->
+                <div class="desktop-megamenu">
+
+                  <div class="megamenu-tabs">
+                    <ul class="nav nav-tabs" id="productMegaMenuTabs" role="tablist">
+                      <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="featured-tab" data-bs-toggle="tab" data-bs-target="#featured-content-1862" type="button" aria-selected="true" role="tab">Nổi bật</button>
+                      </li>
+                      <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="new-tab" data-bs-toggle="tab" data-bs-target="#new-content-1862" type="button" aria-selected="false" tabindex="-1" role="tab">Sản phẩm mới</button>
+                      </li>
+                      <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="sale-tab" data-bs-toggle="tab" data-bs-target="#sale-content-1862" type="button" aria-selected="false" tabindex="-1" role="tab">Ưu đãi</button>
+                      </li>
+                      <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="category-tab" data-bs-toggle="tab" data-bs-target="#category-content-1862" type="button" aria-selected="false" tabindex="-1" role="tab">Danh mục sản phẩm</button>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <!-- Tabs Content -->
+                  <div class="megamenu-content tab-content">
+
+                    <!-- Featured Tab -->
+                    <div class="tab-pane fade show active" id="featured-content-1862" role="tabpanel" aria-labelledby="featured-tab">
+                      <div class="product-grid">
+                        <div class="product-card">
+                          <div class="product-image">
+                            <img src="assets/img/product/product-1.webp" alt="Sản phẩm nổi bật" loading="lazy">
+                          </div>
+                          <div class="product-info">
+                            <h5>Áo sơ mi phong cách</h5>
+                            <p class="price">$129.99</p>
+                            <a href="#" class="btn-view">Xem sản phẩm</a>
+                          </div>
+                        </div>
+                        <div class="product-card">
+                          <div class="product-image">
+                            <img src="assets/img/product/product-2.webp" alt="Sản phẩm nổi bật" loading="lazy">
+                          </div>
+                          <div class="product-info">
+                            <h5>Áo thun cơ bản</h5>
+                            <p class="price">$199.99</p>
+                            <a href="#" class="btn-view">Xem sản phẩm</a>
+                          </div>
+                        </div>
+                        <div class="product-card">
+                          <div class="product-image">
+                            <img src="assets/img/product/product-3.webp" alt="Sản phẩm nổi bật" loading="lazy">
+                          </div>
+                          <div class="product-info">
+                            <h5>Áo khoác nhẹ</h5>
+                            <p class="price">$89.99</p>
+                            <a href="#" class="btn-view">Xem sản phẩm</a>
+                          </div>
+                        </div>
+                        <div class="product-card">
+                          <div class="product-image">
+                            <img src="assets/img/product/product-4.webp" alt="Sản phẩm nổi bật" loading="lazy">
+                          </div>
+                          <div class="product-info">
+                            <h5>Áo sơ mi thường ngày</h5>
+                            <p class="price">$79.99</p>
+                            <a href="#" class="btn-view">Xem sản phẩm</a>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- New Arrivals Tab -->
+                    <div class="tab-pane fade" id="new-content-1862" role="tabpanel" aria-labelledby="new-tab">
+                      <div class="product-grid">
+                        <div class="product-card">
+                          <div class="product-image">
+                            <img src="assets/img/product/product-5.webp" alt="Sản phẩm mới" loading="lazy">
+                            <span class="badge-new">Mới</span>
+                          </div>
+                          <div class="product-info">
+                            <h5>Trang phục thể thao</h5>
+                            <p class="price">$69.99</p>
+                            <a href="#" class="btn-view">Xem sản phẩm</a>
+                          </div>
+                        </div>
+                        <div class="product-card">
+                          <div class="product-image">
+                            <img src="assets/img/product/product-6.webp" alt="Sản phẩm mới" loading="lazy">
+                            <span class="badge-new">Mới</span>
+                          </div>
+                          <div class="product-info">
+                            <h5>Áo polo</h5>
+                            <p class="price">$39.99</p>
+                            <a href="#" class="btn-view">Xem sản phẩm</a>
+                          </div>
+                        </div>
+                        <div class="product-card">
+                          <div class="product-image">
+                            <img src="assets/img/product/product-7.webp" alt="Sản phẩm mới" loading="lazy">
+                            <span class="badge-new">Mới</span>
+                          </div>
+                          <div class="product-info">
+                            <h5>Bộ trang phục</h5>
+                            <p class="price">$49.99</p>
+                            <a href="#" class="btn-view">Xem sản phẩm</a>
+                          </div>
+                        </div>
+                        <div class="product-card">
+                          <div class="product-image">
+                            <img src="assets/img/product/product-8.webp" alt="Sản phẩm mới" loading="lazy">
+                            <span class="badge-new">Mới</span>
+                          </div>
+                          <div class="product-info">
+                            <h5>Quần dài</h5>
+                            <p class="price">$59.99</p>
+                            <a href="#" class="btn-view">Xem sản phẩm</a>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Sale Tab -->
+                    <div class="tab-pane fade" id="sale-content-1862" role="tabpanel" aria-labelledby="sale-tab">
+                      <div class="product-grid">
+                        <div class="product-card">
+                          <div class="product-image">
+                            <img src="assets/img/product/product-9.webp" alt="Sản phẩm ưu đãi" loading="lazy">
+                            <span class="badge-sale">-30%</span>
+                          </div>
+                          <div class="product-info">
+                            <h5>Quần short</h5>
+                            <p class="price"><span class="original-price">$89.99</span> $62.99</p>
+                            <a href="#" class="btn-view">Xem sản phẩm</a>
+                          </div>
+                        </div>
+                        <div class="product-card">
+                          <div class="product-image">
+                            <img src="assets/img/product/product-10.webp" alt="Sản phẩm ưu đãi" loading="lazy">
+                            <span class="badge-sale">-25%</span>
+                          </div>
+                          <div class="product-info">
+                            <h5>Áo nỉ</h5>
+                            <p class="price"><span class="original-price">$59.99</span> $44.99</p>
+                            <a href="#" class="btn-view">Xem sản phẩm</a>
+                          </div>
+                        </div>
+                        <div class="product-card">
+                          <div class="product-image">
+                            <img src="assets/img/product/product-11.webp" alt="Sản phẩm ưu đãi" loading="lazy">
+                            <span class="badge-sale">-40%</span>
+                          </div>
+                          <div class="product-info">
+                            <h5>Áo khoác</h5>
+                            <p class="price"><span class="original-price">$49.99</span> $29.99</p>
+                            <a href="#" class="btn-view">Xem sản phẩm</a>
+                          </div>
+                        </div>
+                        <div class="product-card">
+                          <div class="product-image">
+                            <img src="assets/img/product/product-12.webp" alt="Sản phẩm ưu đãi" loading="lazy">
+                            <span class="badge-sale">-20%</span>
+                          </div>
+                          <div class="product-info">
+                            <h5>Phụ kiện phối đồ</h5>
+                            <p class="price"><span class="original-price">$39.99</span> $31.99</p>
+                            <a href="#" class="btn-view">Xem sản phẩm</a>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Categories Tab -->
+                    <div class="tab-pane fade" id="category-content-1862" role="tabpanel" aria-labelledby="category-tab">
+                      <div class="category-grid">
+                        <div class="category-column">
+                          <h4>Quần áo</h4>
+                          <ul>
+                            <li><a href="#">Thời trang nam</a></li>
+                            <li><a href="#">Thời trang nữ</a></li>
+                            <li><a href="#">Bộ sưu tập trẻ em</a></li>
+                            <li><a href="#">Trang phục thể thao</a></li>
+                            <li><a href="#">Phụ kiện</a></li>
+                          </ul>
+                        </div>
+                        <div class="category-column">
+                          <h4>Áo khoác</h4>
+                          <ul>
+                            <li><a href="#">Áo khoác nhẹ</a></li>
+                            <li><a href="#">Áo khoác dáng dài</a></li>
+                            <li><a href="#">Áo khoác thường ngày</a></li>
+                            <li><a href="#">Trang phục ở nhà</a></li>
+                            <li><a href="#">Phụ kiện</a></li>
+                          </ul>
+                        </div>
+                        <div class="category-column">
+                          <h4>Trang phục hằng ngày</h4>
+                          <ul>
+                            <li><a href="#">Trang phục cơ bản</a></li>
+                            <li><a href="#">Phụ kiện phối đồ</a></li>
+                            <li><a href="#">Trang phục thoải mái</a></li>
+                            <li><a href="#">Đồ ngủ</a></li>
+                            <li><a href="#">Màu sắc nổi bật</a></li>
+                          </ul>
+                        </div>
+                        <div class="category-column">
+                          <h4>Phong cách cá nhân</h4>
+                          <ul>
+                            <li><a href="#">Chất liệu mềm mại</a></li>
+                            <li><a href="#">Phối màu</a></li>
+                            <li><a href="#">Phụ kiện tóc</a></li>
+                            <li><a href="#">Phụ kiện thời trang</a></li>
+                            <li><a href="#">Chăm sóc trang phục</a></li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                </div><!-- End Products Mega Menu 1 Desktop View -->
+
+              </li><!-- End Products Mega Menu 1 -->
+              <!-- Products Mega Menu 2 -->
+              <li class="products-megamenu-2"><a href="#"><span>Phong cách</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+
+                <!-- Products Mega Menu 2 Mobile View -->
+                <ul class="mobile-megamenu">
+
+                  <li><a href="#">Nữ</a></li>
+                  <li><a href="#">Nam</a></li>
+                  <li><a href="#">Trẻ em</a></li>
+
+                  <li class="dropdown"><a href="#"><span>Quần áo</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                    <ul>
+                      <li><a href="#">Áo sơ mi và áo thun</a></li>
+                      <li><a href="#">Áo khoác</a></li>
+                      <li><a href="#">Đồ mặc trong</a></li>
+                      <li><a href="#">Áo nỉ</a></li>
+                      <li><a href="#">Váy và đầm</a></li>
+                      <li><a href="#">Đồ bơi</a></li>
+                    </ul>
+                  </li>
+
+                  <li class="dropdown"><a href="#"><span>Giày</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                    <ul>
+                      <li><a href="#">Giày bốt</a></li>
+                      <li><a href="#">Xăng đan</a></li>
+                      <li><a href="#">Giày cao gót</a></li>
+                      <li><a href="#">Giày lười</a></li>
+                      <li><a href="#">Dép</a></li>
+                      <li><a href="#">Giày buộc dây</a></li>
+                    </ul>
+                  </li>
+
+                  <li class="dropdown"><a href="#"><span>Phụ kiện</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                    <ul>
+                      <li><a href="#">Túi xách</a></li>
+                      <li><a href="#">Kính</a></li>
+                      <li><a href="#">Mũ</a></li>
+                      <li><a href="#">Đồng hồ</a></li>
+                      <li><a href="#">Trang sức</a></li>
+                      <li><a href="#">Thắt lưng</a></li>
+                    </ul>
+                  </li>
+
+                  <li class="dropdown"><a href="#"><span>Kích cỡ đa dạng</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                    <ul>
+                      <li><a href="#">Cỡ lớn</a></li>
+                      <li><a href="#">Dáng nhỏ</a></li>
+                      <li><a href="#">Giày dáng rộng</a></li>
+                      <li><a href="#">Giày dáng ôm</a></li>
+                    </ul>
+                  </li>
+
+                </ul><!-- End Products Mega Menu 2 Mobile View -->
+
+                <!-- Products Mega Menu 2 Desktop View -->
+                <div class="desktop-megamenu">
+
+                  <div class="megamenu-tabs">
+                    <ul class="nav nav-tabs" role="tablist">
+                      <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="womens-tab" data-bs-toggle="tab" data-bs-target="#womens-content-1883" type="button" aria-selected="true" role="tab">NỮ</button>
+                      </li>
+                      <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="mens-tab" data-bs-toggle="tab" data-bs-target="#mens-content-1883" type="button" aria-selected="false" tabindex="-1" role="tab">NAM</button>
+                      </li>
+                      <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="kids-tab" data-bs-toggle="tab" data-bs-target="#kids-content-1883" type="button" aria-selected="false" tabindex="-1" role="tab">TRẺ EM</button>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <!-- Tabs Content -->
+                  <div class="megamenu-content tab-content">
+
+                    <!-- Women Tab -->
+                    <div class="tab-pane fade show active" id="womens-content-1883" role="tabpanel" aria-labelledby="womens-tab">
+                      <div class="category-layout">
+                        <div class="categories-section">
+                          <div class="category-headers">
+                            <h4>Quần áo</h4>
+                            <h4>Giày</h4>
+                            <h4>Phụ kiện</h4>
+                            <h4>Kích cỡ đa dạng</h4>
+                          </div>
+
+                          <div class="category-links">
+                            <div class="link-row">
+                              <a href="#">Áo sơ mi và áo thun</a>
+                              <a href="#">Giày bốt</a>
+                              <a href="#">Túi xách</a>
+                              <a href="#">Cỡ lớn</a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Áo khoác</a>
+                              <a href="#">Xăng đan</a>
+                              <a href="#">Kính</a>
+                              <a href="#">Dáng nhỏ</a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Đồ mặc trong</a>
+                              <a href="#">Giày cao gót</a>
+                              <a href="#">Mũ</a>
+                              <a href="#">Giày dáng rộng</a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Áo nỉ</a>
+                              <a href="#">Giày lười</a>
+                              <a href="#">Đồng hồ</a>
+                              <a href="#">Giày dáng ôm</a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Váy và đầm</a>
+                              <a href="#">Dép</a>
+                              <a href="#">Trang sức</a>
+                              <a href="#"></a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Đồ bơi</a>
+                              <a href="#">Giày buộc dây</a>
+                              <a href="#">Thắt lưng</a>
+                              <a href="#"></a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Xem tất cả</a>
+                              <a href="#">Xem tất cả</a>
+                              <a href="#">Xem tất cả</a>
+                              <a href="#"></a>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="featured-section">
+                          <div class="featured-image">
+                            <img src="assets/img/product/product-f-1.webp" alt="Bộ sưu tập giày nữ">
+                            <div class="featured-content">
+                              <h3>Dành cho nữ<br>Túi xách<br>Bộ sưu tập</h3>
+                              <a href="#" class="btn-shop">Mua sắm ngay</a>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Men Tab -->
+                    <div class="tab-pane fade" id="mens-content-1883" role="tabpanel" aria-labelledby="mens-tab">
+                      <div class="category-layout">
+                        <div class="categories-section">
+                          <div class="category-headers">
+                            <h4>Quần áo</h4>
+                            <h4>Giày</h4>
+                            <h4>Phụ kiện</h4>
+                            <h4>Kích cỡ đa dạng</h4>
+                          </div>
+
+                          <div class="category-links">
+                            <div class="link-row">
+                              <a href="#">Áo sơ mi và áo polo</a>
+                              <a href="#">Giày thể thao</a>
+                              <a href="#">Đồng hồ</a>
+                              <a href="#">Dáng cao lớn</a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Áo khoác</a>
+                              <a href="#">Giày bốt</a>
+                              <a href="#">Thắt lưng</a>
+                              <a href="#">Dáng ôm</a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Đồ mặc trong</a>
+                              <a href="#">Giày lười</a>
+                              <a href="#">Cà vạt</a>
+                              <a href="#">Giày dáng rộng</a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Áo có mũ</a>
+                              <a href="#">Giày lịch sự</a>
+                              <a href="#">Ví</a>
+                              <a href="#">Nhiều kích cỡ</a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Bộ vest</a>
+                              <a href="#">Xăng đan</a>
+                              <a href="#">Kính râm</a>
+                              <a href="#"></a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Trang phục vận động</a>
+                              <a href="#">Dép</a>
+                              <a href="#">Mũ</a>
+                              <a href="#"></a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Xem tất cả</a>
+                              <a href="#">Xem tất cả</a>
+                              <a href="#">Xem tất cả</a>
+                              <a href="#"></a>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="featured-section">
+                          <div class="featured-image">
+                            <img src="assets/img/product/product-m-4.webp" alt="Bộ sưu tập giày nam">
+                            <div class="featured-content">
+                              <h3>Dành cho nam<br>Giày dép<br>Bộ sưu tập</h3>
+                              <a href="#" class="btn-shop">Mua sắm ngay</a>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Kids Tab -->
+                    <div class="tab-pane fade" id="kids-content-1883" role="tabpanel" aria-labelledby="kids-tab">
+                      <div class="category-layout">
+                        <div class="categories-section">
+                          <div class="category-headers">
+                            <h4>Quần áo</h4>
+                            <h4>Giày</h4>
+                            <h4>Phụ kiện</h4>
+                            <h4>Theo độ tuổi</h4>
+                          </div>
+
+                          <div class="category-links">
+                            <div class="link-row">
+                              <a href="#">Áo thun và áo kiểu</a>
+                              <a href="#">Giày thể thao</a>
+                              <a href="#">Ba lô</a>
+                              <a href="#">Em bé (0–24 tháng)</a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Áo khoác ngoài</a>
+                              <a href="#">Giày bốt</a>
+                              <a href="#">Mũ và nón</a>
+                              <a href="#">Bé nhỏ (2–4 tuổi)</a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Đồ ngủ</a>
+                              <a href="#">Xăng đan</a>
+                              <a href="#">Tất</a>
+                              <a href="#">Trẻ em (4–7 tuổi)</a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Áo nỉ</a>
+                              <a href="#">Dép</a>
+                              <a href="#">Găng tay</a>
+                              <a href="#">Thiếu nhi (8–14 tuổi)</a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Váy và đầm</a>
+                              <a href="#">Giày đi học</a>
+                              <a href="#">Khăn quàng</a>
+                              <a href="#"></a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Đồ bơi</a>
+                              <a href="#">Giày thể thao</a>
+                              <a href="#">Phụ kiện tóc</a>
+                              <a href="#"></a>
+                            </div>
+                            <div class="link-row">
+                              <a href="#">Xem tất cả</a>
+                              <a href="#">Xem tất cả</a>
+                              <a href="#">Xem tất cả</a>
+                              <a href="#"></a>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="featured-section">
+                          <div class="featured-image">
+                            <img src="assets/img/product/product-9.webp" alt="Mẫu mới cho trẻ em">
+                            <div class="featured-content">
+                              <h3>Trẻ em<br>Mới<br>Mẫu mới</h3>
+                              <a href="#" class="btn-shop">Mua sắm ngay</a>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                </div><!-- End Products Mega Menu 2 Desktop View -->
+
+              </li><!-- End Products Mega Menu 2 -->
+
+              <li><a href="contact.html">Liên hệ</a></li>
+
+            </ul>
+          </nav>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Search Form -->
+    <div class="collapse" id="mobileSearch">
+      <div class="container">
+        <form class="search-form">
+          <div class="input-group">
+            <input type="text" class="form-control" placeholder="Tìm kiếm sản phẩm">
+            <button class="btn" type="submit">
+              <i class="bi bi-search"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </header>
+
+  <main class="main">
+
+    <!-- Page Title -->
+    <div class="page-title light-background">
+      <div class="container d-lg-flex justify-content-between align-items-center">
+        <h1 class="mb-2 mb-lg-0">Bảo mật thông tin</h1>
+        <nav class="breadcrumbs">
+          <ol>
+            <li><a href="index.html">Trang chủ</a></li>
+            <li class="current">Bảo mật thông tin</li>
+          </ol>
+        </nav>
+      </div>
+    </div><!-- End Page Title -->
+
+    <!-- Privacy Section -->
+    <section id="privacy" class="privacy section">
+
+      <div class="container" data-aos="fade-up">
+        <!-- Header -->
+        <div class="privacy-header" data-aos="fade-up">
+          <div class="header-content">
+            <div class="last-updated">Thông tin bảo mật dành cho khách hàng</div>
+            <h1>Chính sách bảo mật</h1>
+            <p class="intro-text">Chính sách này giải thích việc tiếp nhận, sử dụng và bảo vệ thông tin cá nhân khi bạn truy cập website và mua sắm tại cửa hàng.</p>
+          </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="privacy-content" data-aos="fade-up">
+          <!-- Introduction -->
+          <div class="content-section">
+            <h2>1. Giới thiệu</h2>
+            <p>Thông tin bạn cung cấp được dùng để phục vụ tài khoản và đơn hàng. Bạn có thể xem, cập nhật hồ sơ và trao đổi với cửa hàng khi cần hỗ trợ về dữ liệu cá nhân.</p>
+            <p>Nội dung này giúp bạn hiểu những thông tin được sử dụng, mục đích xử lý và cách yêu cầu hỗ trợ cập nhật hoặc quản lý thông tin của mình.</p>
+          </div>
+
+          <!-- Information Collection -->
+          <div class="content-section">
+            <h2>2. Thông tin được thu thập</h2>
+            <p>Chúng tôi sử dụng thông tin cần thiết để phục vụ việc mua sắm và quản lý tài khoản, gồm:</p>
+
+            <h3>2.1 Thông tin bạn cung cấp</h3>
+            <p>Khi tạo tài khoản hoặc mua hàng, bạn cung cấp các thông tin như:</p>
+            <ul>
+              <li>Họ tên và thông tin liên hệ</li>
+              <li>Thông tin đăng nhập tài khoản</li>
+              <li>Thông tin thanh toán cần thiết cho đơn hàng</li>
+              <li>Các lựa chọn liên hệ</li>
+            </ul>
+
+            <h3>2.2 Thông tin khi sử dụng website</h3>
+            <p>Website có thể sử dụng thông tin kỹ thuật để duy trì phiên và xử lý yêu cầu:</p>
+            <ul>
+              <li>Thông tin thiết bị và phiên truy cập</li>
+              <li>Nhật ký hoạt động của hệ thống</li>
+              <li>Địa chỉ giao hàng do bạn cung cấp</li>
+              <li>Loại trình duyệt và cài đặt liên quan</li>
+            </ul>
+          </div>
+
+          <!-- Use of Information -->
+          <div class="content-section">
+            <h2>3. Mục đích sử dụng thông tin</h2>
+            <p>Thông tin được dùng để vận hành và cải thiện dịch vụ, cụ thể:</p>
+            <ul>
+              <li>Cung cấp trải nghiệm mua sắm theo tài khoản</li>
+              <li>Xử lý đơn hàng và thông tin giao dịch</li>
+              <li>Liên hệ về các yêu cầu và đơn hàng</li>
+              <li>Bảo vệ tài khoản và xác định người dùng</li>
+              <li>Phân tích và cải thiện hoạt động website</li>
+            </ul>
+          </div>
+
+          <!-- Information Sharing -->
+          <div class="content-section">
+            <h2>4. Chia sẻ thông tin</h2>
+            <p>Thông tin cá nhân chỉ được chia sẻ khi cần xử lý yêu cầu, giao hàng, có sự đồng ý của bạn hoặc theo yêu cầu hợp pháp, gồm các trường hợp sau:</p>
+
+            <h3>4.1 Khi có sự đồng ý của bạn</h3>
+            <p>Khi có sự đồng ý của bạn, cửa hàng có thể chia sẻ thông tin trong phạm vi đã thông báo. Địa chỉ và thông tin kiện hàng được gửi tới đơn vị vận chuyển để tính cước và phục vụ giao hàng.</p>
+
+            <h3>4.2 Theo yêu cầu hợp pháp</h3>
+            <p>Thông tin có thể được sử dụng hoặc cung cấp trong phạm vi cần thiết nhằm:</p>
+            <ul>
+              <li>Đáp ứng quy định và yêu cầu hợp pháp của cơ quan có thẩm quyền</li>
+              <li>Thực hiện điều khoản sử dụng</li>
+              <li>Phát hiện và xử lý vấn đề gian lận, bảo mật hoặc kỹ thuật</li>
+              <li>Bảo vệ quyền lợi và dữ liệu của người dùng</li>
+            </ul>
+          </div>
+
+          <!-- Data Security -->
+          <div class="content-section">
+            <h2>5. Bảo vệ dữ liệu</h2>
+            <p>Cửa hàng áp dụng các biện pháp nhằm hạn chế truy cập, thay đổi hoặc tiết lộ thông tin khi không có quyền, bao gồm:</p>
+            <ul>
+              <li>Sử dụng kết nối được bảo vệ khi triển khai dịch vụ</li>
+              <li>Rà soát việc tiếp nhận, lưu trữ và xử lý thông tin</li>
+              <li>Giới hạn truy cập thông tin theo nhiệm vụ được phân công</li>
+            </ul>
+          </div>
+
+          <!-- Your Rights -->
+          <div class="content-section">
+            <h2>6. Quyền và lựa chọn của bạn</h2>
+            <p>Bạn có thể quản lý thông tin cá nhân hoặc liên hệ cửa hàng để được hỗ trợ:</p>
+            <ul>
+              <li>Xem thông tin cá nhân trong tài khoản</li>
+              <li>Cập nhật thông tin chưa chính xác</li>
+              <li>Yêu cầu hỗ trợ về việc xóa thông tin</li>
+              <li>Trao đổi về phạm vi sử dụng thông tin của bạn</li>
+            </ul>
+          </div>
+
+          <!-- Policy Updates -->
+          <div class="content-section">
+            <h2>7. Cập nhật chính sách</h2>
+            <p>Nội dung chính sách có thể được cập nhật theo cách vận hành của cửa hàng. Thông tin mới được đăng tại trang này để bạn tham khảo.</p>
+            <p>Vui lòng xem nội dung cập nhật khi tiếp tục sử dụng dịch vụ.</p>
+          </div>
+        </div>
+
+        <!-- Contact Section -->
+        <div class="privacy-contact" data-aos="fade-up">
+          <h2>Liên hệ cửa hàng</h2>
+          <p>Nếu cần giải đáp về thông tin cá nhân, vui lòng liên hệ cửa hàng:</p>
+          <div class="contact-details">
+            <p><strong>Email:</strong> privacy@example.com</p>
+            <p><strong>Địa chỉ:</strong> Xem thông tin liên hệ của cửa hàng</p>
+          </div>
+        </div>
+
+      </div>
+
+    </section><!-- /Privacy Section -->
+
+  </main>
+
+  <footer id="footer" class="footer">
+    <div class="footer-newsletter">
+      <div class="container">
+        <div class="row justify-content-center">
+          <div class="col-lg-8 text-center">
+            <h2>Nhận tin từ cửa hàng</h2>
+            <p>Đăng ký để nhận thông tin về sản phẩm và các chương trình của cửa hàng.</p>
+            <form action="forms/newsletter.php" method="post" class="php-email-form">
+              <div class="newsletter-form d-flex">
+                <input type="email" name="email" placeholder="Email của bạn" required="">
+                <button type="submit">Đăng ký nhận tin</button>
+              </div>
+              <div class="loading">Đang xử lý</div>
+              <div class="error-message"></div>
+              <div class="sent-message">Yêu cầu đăng ký nhận tin đã được gửi. Cảm ơn bạn!</div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-main">
+      <div class="container">
+        <div class="row gy-4">
+          <div class="col-lg-3 col-md-6 col-sm-12">
+            <div class="footer-widget footer-about">
+              <a href="index.html" class="logo">
+                <span class="sitename">eStore</span>
+              </a>
+              <p>Khám phá sản phẩm, kiểm tra thông tin trước khi đặt và liên hệ cửa hàng khi bạn cần hỗ trợ.</p>
+              <div class="footer-contact mt-4">
+                <div class="contact-item">
+                  <i class="bi bi-geo-alt"></i>
+                  <span>Địa chỉ cửa hàng đang cập nhật</span>
+                </div>
+                <div class="contact-item">
+                  <i class="bi bi-telephone"></i>
+                  <span>+1 (555) 123-4567</span>
+                </div>
+                <div class="contact-item">
+                  <i class="bi bi-envelope"></i>
+                  <span>hello@example.com</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-2 col-md-6 col-sm-6">
+            <div class="footer-widget">
+              <h4>Mua sắm</h4>
+              <ul class="footer-links">
+                <li><a href="category.html">Sản phẩm mới</a></li>
+                <li><a href="category.html">Sản phẩm nổi bật</a></li>
+                <li><a href="category.html">Quần áo nữ</a></li>
+                <li><a href="category.html">Quần áo nam</a></li>
+                <li><a href="category.html">Phụ kiện</a></li>
+                <li><a href="category.html">Ưu đãi</a></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="col-lg-2 col-md-6 col-sm-6">
+            <div class="footer-widget">
+              <h4>Hỗ trợ</h4>
+              <ul class="footer-links">
+                <li><a href="support.html">Trung tâm hỗ trợ</a></li>
+                <li><a href="account.html">Trạng thái đơn hàng</a></li>
+                <li><a href="shiping-info.html">Thông tin giao hàng</a></li>
+                <li><a href="return-policy.html">Đổi và trả hàng</a></li>
+                <li><a href="#">Hướng dẫn chọn kích cỡ</a></li>
+                <li><a href="contact.html">Liên hệ cửa hàng</a></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="col-lg-2 col-md-6 col-sm-6">
+            <div class="footer-widget">
+              <h4>Cửa hàng</h4>
+              <ul class="footer-links">
+                <li><a href="about.html">Về chúng tôi</a></li>
+                <li><a href="about.html">Tuyển dụng</a></li>
+                <li><a href="about.html">Tin tức</a></li>
+                <li><a href="about.html">Đối tác</a></li>
+                <li><a href="about.html">Trách nhiệm</a></li>
+                <li><a href="about.html">Nhà đầu tư</a></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="col-lg-3 col-md-6 col-sm-6">
+            <div class="footer-widget">
+              <h4>Ứng dụng mua sắm</h4>
+              <p>Khám phá cửa hàng trên thiết bị di động</p>
+              <div class="app-buttons">
+                <a href="#" class="app-btn">
+                  <i class="bi bi-apple"></i>
+                  <span>App Store</span>
+                </a>
+                <a href="#" class="app-btn">
+                  <i class="bi bi-google-play"></i>
+                  <span>Google Play</span>
+                </a>
+              </div>
+              <div class="social-links mt-4">
+                <h5>Theo dõi cửa hàng</h5>
+                <div class="social-icons">
+                  <a href="#" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
+                  <a href="#" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+                  <a href="#" aria-label="Twitter"><i class="bi bi-twitter-x"></i></a>
+                  <a href="#" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>
+                  <a href="#" aria-label="Pinterest"><i class="bi bi-pinterest"></i></a>
+                  <a href="#" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <div class="container">
+
+        <div class="payment-methods d-flex align-items-center justify-content-center">
+          <span>Phương thức thanh toán:</span>
+          <div class="payment-icons">
+            <i class="bi bi-credit-card" aria-label="Thẻ tín dụng"></i>
+            <i class="bi bi-paypal" aria-label="Chuyển khoản"></i>
+            <i class="bi bi-apple" aria-label="Phương thức khác"></i>
+            <i class="bi bi-google" aria-label="Google Pay"></i>
+            <i class="bi bi-shop" aria-label="Shop Pay"></i>
+            <i class="bi bi-cash" aria-label="Thanh toán khi nhận hàng"></i>
+          </div>
+        </div>
+
+        <div class="legal-links">
+          <a href="tos.html">Điều khoản sử dụng</a>
+          <a href="privacy.html">Chính sách bảo mật</a>
+          <a href="tos.html">Cài đặt cookie</a>
+        </div>
+
+        <div class="copyright text-center">
+          <p>© <span>Bản quyền</span> <strong class="sitename">eStore</strong>. Bảo lưu mọi quyền.</p>
+        </div>
+
+        <div class="credits">
+          <!-- All the links in the footer should remain intact. -->
+          <!-- You can delete the links only if you've purchased the pro version. -->
+          <!-- Licensing information: https://bootstrapmade.com/license/ -->
+          <!-- Purchase the pro version with working PHP/AJAX contact form: [buy-url] -->
+          Thiết kế bởi <a href="https://bootstrapmade.com/">BootstrapMade</a>
+        </div>
+
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- Scroll Top -->
   <a href="#" id="scroll-top" class="scroll-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
 
-
+  <!-- Preloader -->
   <div id="preloader"></div>
 
-
+  <!-- Vendor JS Files -->
   <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/vendor/php-email-form/validate.js"></script>
+  <script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
+  <script src="assets/vendor/aos/aos.js"></script>
+  <script src="assets/vendor/imagesloaded/imagesloaded.pkgd.min.js"></script>
+  <script src="assets/vendor/isotope-layout/isotope.pkgd.min.js"></script>
+  <script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
+  <script src="assets/vendor/drift-zoom/Drift.min.js"></script>
+  <script src="assets/vendor/purecounter/purecounter_vanilla.js"></script>
 
-
+  <!-- Main JS File -->
   <script src="assets/js/main.js"></script>
-  <script src="assets/js/storefront.js"></script>
 
+  <script src="assets/js/client-store.js" defer></script>
 </body>
 
 </html>
