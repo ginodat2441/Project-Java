@@ -1,0 +1,13 @@
+const {readAsset}=require('./helpers/frontend-assets.cjs');
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{JSDOM}=require('../.local/dom-tests/node_modules/jsdom');
+const tick=()=>new Promise(r=>setImmediate(r));async function wait(fn){for(let i=0;i<100;i++){if(fn())return;await tick();}throw Error('Expected checkout state');}
+const response=d=>({ok:true,status:200,json:async()=>d});
+test('Checkout quotes on destination changes, invalidates stale fee and submits server service',async()=>{
+ const dom=new JSDOM('<main class="live-shop"></main>',{url:'http://localhost/shop/index.html?view=checkout',runScripts:'outside-only'}),w=dom.window,d=w.document;let submitted,calls=[];
+ w.localStorage.setItem('clothing-cart',JSON.stringify([{id:1,quantity:2,name:'Áo',color:'Đen',size:'M'}]));
+ w.fetch=async(url,options={})=>{if(url==='/api/csrf')return response({token:'t',headerName:'X-XSRF-TOKEN'});if(url==='/api/customer/me')return response({FULL_NAME:'Demo',PHONE:'0900000000'});if(url==='/api/shipping/provinces')return response([{code:'01',name:'Thành phố Hà Nội'}]);if(url==='/api/catalog/quote'){const body=JSON.parse(options.body);calls.push(body);return response({subtotal:400000,discount:0,services:body.address?[{serviceCode:'VCN',serviceName:'Nhanh',fee:36000,deliveryTime:'2 ngày'}]:[],shippingRequired:!body.address});}if(url==='/api/checkout'){submitted=JSON.parse(options.body);return response({billCode:'HD1',totalAmount:436000});}throw Error(url);};
+ w.eval(readAsset('store.js'));await wait(()=>d.querySelector('#order'));assert.equal(d.querySelector('#order button').disabled,true);
+ d.querySelector('[name=province]').value='Thành phố Hà Nội';d.querySelector('[name=ward]').value='Cầu Giấy';d.querySelector('[name=address]').value='12 Demo';d.querySelector('[name=address]').dispatchEvent(new w.Event('change',{bubbles:true}));await wait(()=>!d.querySelector('#order button').disabled);assert.match(d.querySelector('#totals').textContent,/436.000/);
+ d.querySelector('[name=ward]').value='Phường mới';d.querySelector('[name=ward]').dispatchEvent(new w.Event('input',{bubbles:true}));assert.equal(d.querySelector('#order button').disabled,true);d.querySelector('#apply').click();await wait(()=>!d.querySelector('#order button').disabled);
+ d.querySelector('#order').dispatchEvent(new w.Event('submit',{cancelable:true}));await wait(()=>submitted);assert.equal(submitted.shippingService,'VCN');assert.equal(submitted.expectedShippingFee,36000);assert.equal(submitted.province,'Thành phố Hà Nội');assert.ok(calls.at(-1).ward==='Phường mới');await wait(()=>d.querySelector('#shop-content').textContent.includes('Đặt hàng thành công'));dom.window.close();
+});

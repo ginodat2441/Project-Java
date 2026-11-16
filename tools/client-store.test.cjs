@@ -23,25 +23,52 @@ test('checkbox selection recalculates payable subtotal and persists selected IDs
  dom.window.close();
 });
 
-test('checkout uses fixed COD and has no editable amount or payment-method selector',async()=>{
+test('checkout offers COD and SePay without an editable amount',async()=>{
  const dom=await page('checkout.html',true,false,cartFixture()),d=dom.window.document;
- assert.equal(d.querySelector('main select[name="paymentMethod"]'),null);
- assert.equal(d.querySelector('main [name="paymentMethod"]').value,'COD');
- assert.ok(d.querySelector('main input[readonly]'));
+ assert.deepEqual([...d.querySelectorAll('main select[name="paymentMethod"] option')].map((n)=>n.value),['COD','SEPAY']);
  assert.equal(d.querySelector('main [name="totalAmount"]'),null);
  dom.window.close();
 });
-async function page(name, authenticated = true, unavailable = false, cartData = null) {
+test('SePay checkout submits the selected method and displays the returned QR',async()=>{
+ const dom=await page('checkout.html',true,false,cartFixture(),{
+   '/api/catalog/quote':{subtotal:350000,discount:0,services:[{serviceCode:'EXPRESS',serviceName:'Giao nhanh',fee:30000}]},
+   '/api/customer/cart/checkout':{id:123,billCode:'BILL123',totalAmount:380000,paymentQrUrl:'https://example.test/qr.png'},
+   '/api/customer/orders/123':{order:{paymentStatus:1}}
+ }),w=dom.window,d=w.document;
+ const form=d.querySelector('main .checkout-form');
+ for(const [name,value] of Object.entries({name:'Khách mới',phone:'0901234567',province:'Hà Nội',ward:'Ba Đình',address:'Số 1'}))
+   form.elements.namedItem(name).value=value;
+ form.elements.namedItem('paymentMethod').value='SEPAY';
+ d.querySelector('[data-quote]').click();
+ await tick();
+ d.querySelector('.client-shipping-options button').click();
+ form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+ for(let i=0;i<20&&!d.querySelector('main img[alt="Mã QR thanh toán SePay"]');i++) await tick();
+ const checkout=dom.requests.find((r)=>r.url==='/api/customer/cart/checkout');
+ assert.equal(JSON.parse(checkout.options.body).paymentMethod,'SEPAY');
+ assert.equal(d.querySelector('main img[alt="Mã QR thanh toán SePay"]').src,'https://example.test/qr.png');
+ d.querySelector('.client-sepay-payment button').click();
+ await tick();
+ assert.match(d.querySelector('.client-sepay-payment [role="status"]').textContent,/đã được xác nhận/);
+ assert.equal(d.querySelector('.client-sepay-payment img[alt="Mã QR thanh toán SePay"]').hidden,true);
+ dom.window.close();
+});
+async function page(name, authenticated = true, unavailable = false, cartData = null, responses = {}) {
   const dom = new JSDOM(fs.readFileSync(path.join(root, 'giao dien', name), 'utf8'), {
       url: 'http://localhost/store/' + name,
       runScripts: 'outside-only',
     }),
     w = dom.window;
+  dom.requests = [];
   w.localStorage.setItem('clothing-cart', JSON.stringify([{ id: 999, quantity: 3 }]));
-  w.fetch = async (url) => {
+  w.fetch = async (url, options = {}) => {
     let data,
       status = 200;
-    if (url === '/api/customer/me') {
+    dom.requests.push({url,options});
+    if (url === '/api/csrf') data = {token:'test-token',headerName:'X-CSRF-TOKEN'};
+    else if (Object.hasOwn(responses,url)) data=responses[url];
+    else if (url === '/api/catalog/quote') data={subtotal:350000,discount:0,services:[]};
+    else if (url === '/api/customer/me') {
       if (!authenticated) {
         data = { message: 'Đăng nhập' };
         status = 400;
@@ -49,6 +76,7 @@ async function page(name, authenticated = true, unavailable = false, cartData = 
     } else if (url === '/api/customer/cart')
       data = cartData || { items: [], subtotal: 0, totalQuantity: 0, checkoutAllowed: false };
     else if (url === '/api/customer/orders' || url === '/api/customer/addresses') data = [];
+    else if (url.startsWith('/api/customer/orders/')) data={order:{paymentStatus:0}};
     else if (url.startsWith('/api/catalog?')) data = { items: [], total: 0, size: 20 };
     else if (url === '/api/catalog/categories') data = [];
     else if (url === '/api/catalog/filters') data = { brands: [], colors: [] };
