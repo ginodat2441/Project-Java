@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Clothing Shop · Quản trị</title>
+    <link rel="stylesheet" href="/admin/css/admin.css" />
+    <script defer src="/shared/js/password-visibility.js"></script>
+    <script defer src="/admin/js/core/operations-helpers.js"></script>
+    <script defer src="/admin/js/pages/reports/revenue.js"></script>
+    <script defer src="/admin/js/pages/inventory/documents.js"></script>
+    <script defer src="/admin/js/pages/reports/legacy-inventory.js"></script>
+    <script defer src="/admin/js/core/workflow-helpers.js"></script>
+    <script defer src="/admin/js/pages/inventory/stock.js"></script>
+    <script defer src="/admin/js/pages/inventory/history.js"></script>
+    <script defer src="/admin/js/pages/audit/index.js"></script>
+    <script defer src="/admin/js/pages/categories/index.js"></script>
+    <script defer src="/admin/js/pages/vouchers/index.js"></script>
+    <script defer src="/admin/js/pages/dashboard/index.js"></script>
+    <script defer src="/admin/js/pages/orders/refunds.js"></script>
+    <script defer src="/admin/js/pages/reports/inventory.js"></script>
+    <script defer src="/admin/js/pages/shipping/index.js"></script>
+    <script defer src="/admin/js/core/state.js"></script>
+    <script defer src="/admin/js/core/api.js"></script>
+    <script defer src="/admin/js/core/ui.js"></script>
+    <script defer src="/admin/js/pages/products/form.js"></script>
+    <script defer src="/admin/js/pages/categories/picker.js"></script>
+    <script defer src="/admin/js/pages/products/images.js"></script>
+    <script defer src="/admin/js/pages/orders/detail.js"></script>
+    <script defer src="/admin/js/pages/dashboard/editor-list.js"></script>
+    <script defer src="/admin/js/pages/categories/editor-list.js"></script>
+    <script defer src="/admin/js/pages/products/editor-list.js"></script>
+    <script defer src="/admin/js/pages/vouchers/editor-list.js"></script>
+    <script defer src="/admin/js/pages/accounts/editor-list.js"></script>
+    <script defer src="/admin/js/pages/orders/editor-list.js"></script>
+    <script defer src="/admin/js/pages/stock/editor-list.js"></script>
+    <script defer src="/admin/js/pages/history/editor-list.js"></script>
+    <script defer src="/admin/js/pages/audit/editor-list.js"></script>
+    <script defer src="/admin/js/core/router.js"></script>
+    <script defer src="/admin/js/app.js"></script>
+  </head>
+  <body>
+    <aside>
+      <a class="brand" href="/admin">CLOTHING<br /><span>SHOP / ADMIN</span></a>
+      <nav id="nav"></nav>
+      <a href="/store/index.html">↗ Xem cửa hàng</a
+      ><button id="logout" class="secondary">Đăng xuất</button>
+    </aside>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">KHÔNG GIAN QUẢN TRỊ</p>
+          <h1 id="title">Tổng quan</h1>
+        </div>
+        <span id="user"></span>
+      </header>
+      <p id="notice" role="status" aria-live="polite"></p>
+      <section id="content"></section>
+    </main>
+    <dialog id="dialog">
+      <form id="editor">
+        <header>
+          <h2 id="dialog-title"></h2>
+          <button type="button" id="close" class="secondary">Đóng</button>
+        </header>
+        <div id="fields"></div>
+        <p id="form-error" role="alert"></p>
+        <footer><button type="submit">Lưu thay đổi</button></footer>
+      </form>
+    </dialog>
+  </body>
+</html>
