@@ -1,0 +1,55 @@
+{
+  "admin.js": [
+    "admin/js/core/state.js",
+    "admin/js/core/api.js",
+    "admin/js/core/ui.js",
+    "admin/js/pages/products/form.js",
+    "admin/js/pages/categories/picker.js",
+    "admin/js/pages/products/images.js",
+    "admin/js/pages/orders/detail.js",
+    "admin/js/pages/dashboard/editor-list.js",
+    "admin/js/pages/categories/editor-list.js",
+    "admin/js/pages/products/editor-list.js",
+    "admin/js/pages/vouchers/editor-list.js",
+    "admin/js/pages/accounts/editor-list.js",
+    "admin/js/pages/orders/editor-list.js",
+    "admin/js/pages/stock/editor-list.js",
+    "admin/js/pages/history/editor-list.js",
+    "admin/js/pages/audit/editor-list.js",
+    "admin/js/core/router.js",
+    "admin/js/app.js"
+  ],
+  "workflow.js": [
+    "admin/js/core/workflow-helpers.js",
+    "admin/js/pages/inventory/stock.js",
+    "admin/js/pages/inventory/history.js",
+    "admin/js/pages/audit/index.js",
+    "admin/js/pages/categories/index.js",
+    "admin/js/pages/vouchers/index.js",
+    "admin/js/pages/dashboard/index.js",
+    "admin/js/pages/orders/refunds.js",
+    "admin/js/pages/reports/inventory.js",
+    "admin/js/pages/shipping/index.js"
+  ],
+  "operations.js": [
+    "admin/js/core/operations-helpers.js",
+    "admin/js/pages/reports/revenue.js",
+    "admin/js/pages/inventory/documents.js",
+    "admin/js/pages/reports/legacy-inventory.js"
+  ],
+  "admin.css": [
+    "admin/css/admin.css"
+  ],
+  "password-visibility.js": [
+    "shared/js/password-visibility.js"
+  ],
+  "login.js": [
+    "auth/js/login.js"
+  ],
+  "recovery.js": [
+    "auth/js/recovery.js"
+  ],
+  "store.js": [
+    "store/js/store.js"
+  ]
+}
