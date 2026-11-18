@@ -106,7 +106,9 @@ public class BillService {
       subTotal = subTotal.add(price.multiply(BigDecimal.valueOf(item.quantity())));
     }
     BigDecimal ship = shippingFee; // Server-calculated carrier quote; never trust browser totals.
-    BigDecimal discount = discount(req.voucherCode(), subTotal, true);
+    BigDecimal eligibleSubtotal =
+        eligibleSubtotal(req.voucherCode(), sorted, priceMap, subTotal);
+    BigDecimal discount = discount(req.voucherCode(), eligibleSubtotal, true);
 
     // 2. Insert BILL
     Map<String, Object> p = new HashMap<>();
@@ -200,6 +202,8 @@ public class BillService {
 
   public BigDecimal discount(String code, BigDecimal subtotal, boolean consume) {
     if (code == null || code.isBlank()) return BigDecimal.ZERO;
+    if (subtotal.signum() <= 0)
+      throw new BusinessException("Voucher không áp dụng cho sản phẩm nào trong giỏ");
     var rows =
         queries.eligibleVoucher(consume, code.trim().toUpperCase(java.util.Locale.ROOT), subtotal);
     if (rows.isEmpty())
@@ -215,7 +219,36 @@ public class BillService {
               .multiply(value)
               .divide(BigDecimal.valueOf(100), 0, java.math.RoundingMode.HALF_UP)
               .min((BigDecimal) v.get("MAX_DISCOUNT"));
-    return value.min(subtotal).setScale(0, java.math.RoundingMode.HALF_UP);
+    return value.setScale(0, java.math.RoundingMode.HALF_UP).min(subtotal);
+  }
+
+  public java.util.Set<Long> voucherProductIds(String code) {
+    if (code == null || code.isBlank()) return java.util.Set.of();
+    return queries.voucherProductIds(
+            "c", code.trim().toUpperCase(java.util.Locale.ROOT)).stream()
+        .map(row -> number(row, "PRODUCT_ID"))
+        .collect(java.util.stream.Collectors.toSet());
+  }
+
+  private BigDecimal eligibleSubtotal(
+      String code,
+      List<BillRequest.Item> items,
+      Map<Long, BigDecimal> priceMap,
+      BigDecimal subtotal) {
+    if (code == null || code.isBlank()) return BigDecimal.ZERO;
+    var eligibleProducts = voucherProductIds(code);
+    if (eligibleProducts.isEmpty()) return subtotal;
+    BigDecimal eligible = BigDecimal.ZERO;
+    for (var item : items) {
+      var product = queries.productForVariant("i", item.productDetailId());
+      if (eligibleProducts.contains(number(product, "PRODUCT_ID")))
+        eligible =
+            eligible.add(
+                priceMap
+                    .get(item.productDetailId())
+                    .multiply(BigDecimal.valueOf(item.quantity())));
+    }
+    return eligible;
   }
 
   @Transactional

@@ -36,6 +36,20 @@ public class VoucherService {
       if (number(old, "USED_COUNT") > r.usageLimit())
         throw new BusinessException("Giới hạn thấp hơn lượt đã dùng");
     }
+    List<Long> productIds;
+    if (r.productIds() == null && id != null) {
+      productIds =
+          queries.voucherProducts("i", id).stream()
+              .map(product -> number(product, "ID"))
+              .toList();
+    } else {
+      productIds =
+          r.productIds() == null ? List.of() : r.productIds().stream().distinct().toList();
+    }
+    for (Long productId : productIds) {
+      if (queries.findVoucherProduct("i", productId).isEmpty())
+        throw new BusinessException("Có sản phẩm không tồn tại hoặc đã bị xóa");
+    }
     Object[] p = {
       "c",
       r.code().toUpperCase(Locale.ROOT),
@@ -60,6 +74,10 @@ public class VoucherService {
     };
     if (id == null) id = queries.insertVoucher(p);
     else queries.updateVoucher(p);
+    queries.deleteVoucherProducts("i", id);
+    for (Long productId : productIds) {
+      queries.insertVoucherProduct("v", id, "p", productId);
+    }
     db.audit(actor, "SAVE", "VOUCHER", id);
     return id;
   }

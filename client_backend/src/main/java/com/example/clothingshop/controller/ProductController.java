@@ -4,6 +4,7 @@ import com.example.clothingshop.common.ApiResponse;
 import com.example.clothingshop.common.PageResult;
 import com.example.clothingshop.service.ProductService;
 import com.example.clothingshop.view.ProductDetailView;
+import com.example.clothingshop.view.ProductImageView;
 import com.example.clothingshop.view.ProductView;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,5 +35,10 @@ public class ProductController {
     @GetMapping("/{id}/details")
     public ApiResponse<List<ProductDetailView>> details(@PathVariable long id) {
         return ApiResponse.ok(service.details(id));
+    }
+
+    @GetMapping("/{id}/images")
+    public ApiResponse<List<ProductImageView>> images(@PathVariable long id) {
+        return ApiResponse.ok(service.images(id));
     }
 }

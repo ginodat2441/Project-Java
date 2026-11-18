@@ -212,11 +212,18 @@ public class StoreService {
     if (items.stream().map(BillRequest.Item::productDetailId).distinct().count() != items.size())
       throw new BusinessException("Gộp các dòng trùng SKU trước khi tính phí");
     BigDecimal subtotal = BigDecimal.ZERO;
+    BigDecimal eligibleSubtotal = BigDecimal.ZERO;
+    var eligibleProducts = bills.voucherProductIds(code);
     for (var i : items) {
       var p = queries.findProductDetail("i", i.productDetailId(), "q", i.quantity());
-      subtotal =
-          subtotal.add(((BigDecimal) p.get("PRICE")).multiply(BigDecimal.valueOf(i.quantity())));
+      BigDecimal lineTotal =
+          ((BigDecimal) p.get("PRICE")).multiply(BigDecimal.valueOf(i.quantity()));
+      subtotal = subtotal.add(lineTotal);
+      if (code != null && !code.isBlank()
+          && (eligibleProducts.isEmpty()
+              || eligibleProducts.contains(number(p, "PRODUCT_ID"))))
+        eligibleSubtotal = eligibleSubtotal.add(lineTotal);
     }
-    return new BigDecimal[] {subtotal, bills.discount(code, subtotal, false)};
+    return new BigDecimal[] {subtotal, bills.discount(code, eligibleSubtotal, false)};
   }
 }

@@ -68,15 +68,17 @@ public class ProductCommandService {
           v.colorId(), queries.findColor2("i", v.colorId()).get("COLOR_NAME").toString());
     }
     String cover = r.thumbnailUrl();
+    boolean uploadedImage =
+        cover != null
+            && (cover.startsWith("/uploads/")
+                || cover.startsWith("https://res.cloudinary.com/"));
     if (cover != null
         && !cover.isBlank()
-        && !(cover.startsWith("/uploads/")
+        && !(uploadedImage
             || cover.startsWith("/store/assets/img/")
             || cover.startsWith("assets/img/")))
       throw new BusinessException("Chọn ảnh đã tải lên hoặc ảnh cửa hàng");
-    if (cover != null
-        && cover.startsWith("/uploads/")
-        && queries.listProductImage2("u", cover, "i", id).isEmpty())
+    if (uploadedImage && queries.listProductImage2("u", cover, "i", id).isEmpty())
       throw new BusinessException("Ảnh không thuộc sản phẩm");
     if (r.status() == 1 && (!selling || cover == null || cover.isBlank()))
       throw new BusinessException(

@@ -1,6 +1,7 @@
 package com.example.clothingshop.controller;
 
 import com.example.clothingshop.dto.request.BillRequest;
+import com.example.clothingshop.dto.request.VoucherQuoteRequest;
 import com.example.clothingshop.service.BillService;
 import com.example.clothingshop.common.ApiResponse;
 import com.example.clothingshop.common.CustomerIdentity;
@@ -26,6 +27,13 @@ public class BillController {
     public ApiResponse<BillView> create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody BillRequest req) {
         return ApiResponse.ok("Đặt hàng thành công",
                 service.create(CustomerIdentity.customerId(jwt), req));
+    }
+
+    @PostMapping("/quote")
+    public ApiResponse<BillService.VoucherQuote> quote(
+            @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody VoucherQuoteRequest req) {
+        CustomerIdentity.customerId(jwt);
+        return ApiResponse.ok(service.quote(req));
     }
 
     @PostMapping("/{id}/sepay-payment")

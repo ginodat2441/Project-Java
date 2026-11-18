@@ -60,6 +60,7 @@
     if (value.startsWith('/store/assets/')) return value.slice('/store/'.length);
     if (value.startsWith('/uploads/'))
       return new URL(value, new URL(apiBase, location.origin)).href;
+    if (/^https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\//.test(value)) return value;
     return '';
   };
   function image(img, url, name) {
@@ -353,9 +354,10 @@
       '.product-rating,.original-price,.discount-badge,.additional-info,.wishlist-btn',
       host,
     ).forEach((n) => (n.hidden = true));
-    const [product, variants] = await Promise.all([
+    const [product, variants, gallery] = await Promise.all([
       api('/api/products/' + id),
       api('/api/products/' + id + '/details'),
+      api('/api/products/' + id + '/images'),
     ]);
     $('.product-title', info).textContent = product.productName;
     $('.product-category', info).textContent = 'Quần áo';
@@ -369,18 +371,31 @@
     if (reviews) reviews.textContent = 'Chưa có dữ liệu đánh giá của sản phẩm.';
     const reviewTab = $('#reviews-tab');
     if (reviewTab) reviewTab.textContent = 'Đánh giá';
-    const urls = [...new Set([product.thumbnailUrl, ...variants.map((n) => n.imageUrl)].filter(Boolean))];
+    const urls = [
+      ...new Set([
+        product.thumbnailUrl,
+        ...gallery.map((image) => image.imageUrl),
+        ...variants.map((variant) => variant.imageUrl),
+      ].filter(Boolean)),
+    ];
     const mainImage =
       $('.main-product-image img,.product-main-image img,.product-images img', host) ||
       $('img', host);
     image(mainImage, urls[0], product.productName);
-    $$('.thumbnail-item', host).forEach((node, i) => {
-      if (!urls[i]) node.hidden = true;
-      else {
-        image($('img', node), urls[i], product.productName);
-        node.onclick = () => image(mainImage, urls[i], product.productName);
-      }
+    const thumbnailWrapper = $('.product-thumbnails-slider .swiper-wrapper', host);
+    thumbnailWrapper.replaceChildren();
+    urls.forEach((url, index) => {
+      const thumbnail = document.createElement('div');
+      thumbnail.className = 'swiper-slide thumbnail-item' + (index === 0 ? ' active' : '');
+      thumbnail.dataset.image = url;
+      const thumbnailImage = document.createElement('img');
+      thumbnailImage.className = 'img-fluid';
+      image(thumbnailImage, url, product.productName);
+      thumbnail.append(thumbnailImage);
+      thumbnail.onclick = () => image(mainImage, url, product.productName);
+      thumbnailWrapper.append(thumbnail);
     });
+    $('.product-thumbnails-slider', host)?.swiper?.update();
     const colors = $('.color-options', info),
       sizes = $('.size-options', info),
       qty = $('.quantity-input', info),
@@ -894,7 +909,7 @@
     form.innerHTML =
       `<label class="d-block mb-3">Địa chỉ nhận hàng<select class="form-select" name="addressId"><option value="">Chọn địa chỉ</option>${addressOptions}<option value="new" ${addresses.length ? '' : 'selected'}>Nhập địa chỉ mới</option></select></label>` +
       '<div class="client-new-address" hidden><label class="d-block mb-3">Người nhận<input class="form-control" name="receiverName" maxlength="150"></label><label class="d-block mb-3">Điện thoại<input class="form-control" name="receiverPhone" maxlength="20"></label><label class="d-block mb-3">Tỉnh/thành phố<input class="form-control" name="province" maxlength="100"></label><label class="d-block mb-3">Phường/xã<input class="form-control" name="ward" maxlength="100"></label><label class="d-block mb-3">Địa chỉ chi tiết<input class="form-control" name="detailAddress" maxlength="300"></label></div>' +
-      '<fieldset class="mb-3"><legend class="form-label">Phương thức thanh toán</legend><label class="d-block"><input type="radio" name="paymentMethod" value="COD" checked> Thanh toán khi nhận hàng (COD)</label><label class="d-block"><input type="radio" name="paymentMethod" value="SEPAY"> Chuyển khoản qua SePay</label></fieldset><label class="d-block mb-3">Ghi chú<textarea name="note" class="form-control" maxlength="500"></textarea></label><p class="client-checkout-total"></p><button type="submit" class="btn btn-primary">Đặt hàng</button>';
+      '<fieldset class="mb-3"><legend class="form-label">Phương thức thanh toán</legend><label class="d-block"><input type="radio" name="paymentMethod" value="COD" checked> Thanh toán khi nhận hàng (COD)</label><label class="d-block"><input type="radio" name="paymentMethod" value="SEPAY"> Chuyển khoản qua SePay</label></fieldset><div class="client-voucher mb-3"><label class="d-block">Mã giảm giá<input name="voucherCode" class="form-control" maxlength="50" autocomplete="off" placeholder="Nhập mã voucher"></label><button type="button" class="btn btn-outline-primary mt-2" data-voucher-apply>Áp dụng voucher</button><p class="client-voucher-message" role="status"></p></div><label class="d-block mb-3">Ghi chú<textarea name="note" class="form-control" maxlength="500"></textarea></label><p class="client-checkout-total"></p><button type="submit" class="btn btn-primary">Đặt hàng</button>';
     const addressSelect = $('[name="addressId"]', form);
     const newAddress = $('.client-new-address', form);
     addressSelect.onchange = () => {
@@ -909,13 +924,56 @@
         summary.append(p);
       }
     }
-    $('.client-checkout-total', form).textContent =
-      'Tạm tính: ' + money(checkoutItems.reduce((sum, line) => sum + Number(line.price) * line.quantity, 0));
+    let appliedVoucherCode = '',
+      voucherQuote = null,
+      quoteSequence = 0;
+    const voucherInput = $('[name="voucherCode"]', form),
+      voucherMessage = $('.client-voucher-message', form),
+      totals = $('.client-checkout-total', form);
+    const subtotal = checkoutItems.reduce(
+      (sum, line) => sum + Number(line.price) * line.quantity,
+      0,
+    );
+    const renderTotals = () => {
+      totals.textContent = voucherQuote
+        ? `Tiền hàng: ${money(voucherQuote.subtotal)} · Giảm ${money(voucherQuote.discount)} · Phí giao hàng: ${money(voucherQuote.shippingFee)} · Tổng thanh toán: ${money(voucherQuote.total)}`
+        : 'Tạm tính: ' + money(subtotal);
+    };
+    renderTotals();
+    voucherInput.oninput = () => {
+      quoteSequence++;
+      appliedVoucherCode = '';
+      voucherQuote = null;
+      voucherMessage.textContent = '';
+      renderTotals();
+    };
+    $('[data-voucher-apply]', form).onclick = (event) =>
+      action(event.currentTarget, async () => {
+        const code = voucherInput.value.trim().toUpperCase();
+        if (!code) throw Error('Nhập mã voucher trước khi áp dụng.');
+        const sequence = ++quoteSequence;
+        const quote = await api('/api/bills/quote', 'POST', {
+          code,
+          items: checkoutItems.map((item) => ({
+            productDetailId: item.productDetailId,
+            quantity: item.quantity,
+          })),
+        });
+        if (sequence !== quoteSequence) return;
+        voucherQuote = quote;
+        appliedVoucherCode = code;
+        voucherMessage.textContent = `Đã áp dụng ${code}. Giảm ${money(quote.discount)} trên các sản phẩm đủ điều kiện.`;
+        voucherMessage.setAttribute('role', 'status');
+        renderTotals();
+      });
     form.onsubmit = (event) => {
       event.preventDefault();
       if (!form.reportValidity()) return;
       const button = $('[type="submit"]', form);
       action(button, async () => {
+        const enteredCode = voucherInput.value.trim().toUpperCase();
+        if (enteredCode && enteredCode !== appliedVoucherCode)
+          throw Error('Hãy áp dụng lại voucher trước khi đặt hàng.');
         let addressId = Number(addressSelect.value);
         if (addressSelect.value === 'new') {
           const address = Object.fromEntries(new FormData(form));
@@ -938,6 +996,7 @@
           addressId,
           paymentMethod,
           note: $('[name="note"]', form).value.trim(),
+          voucherCode: appliedVoucherCode || null,
           items: checkoutItems.map((item) => ({
             productDetailId: item.productDetailId,
             quantity: item.quantity,

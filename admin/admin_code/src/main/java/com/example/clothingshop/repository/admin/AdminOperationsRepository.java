@@ -44,9 +44,36 @@ public class AdminOperationsRepository {
         "SELECT * FROM (SELECT v.*,USAGE_LIMIT-USED_COUNT REMAINING,CASE WHEN STATUS=0 THEN"
             + " 'DISABLED' WHEN LOCALTIMESTAMP<STARTS_AT THEN 'UPCOMING' WHEN"
             + " LOCALTIMESTAMP>=ENDS_AT THEN 'EXPIRED' WHEN USED_COUNT>=USAGE_LIMIT THEN"
-            + " 'EXHAUSTED' ELSE 'ACTIVE' END EFFECTIVE_STATUS FROM VOUCHER v) WHERE LOWER(CODE)"
+              + " 'EXHAUSTED' ELSE 'ACTIVE' END EFFECTIVE_STATUS,(SELECT COUNT(*) FROM VOUCHER_PRODUCT"
+              + " vp WHERE vp.VOUCHER_ID=v.ID) PRODUCT_COUNT FROM VOUCHER v) WHERE LOWER(CODE)"
             + " LIKE :q AND (:s IS NULL OR EFFECTIVE_STATUS=:s) ORDER BY ID DESC",
         args);
+  }
+
+  public List<Map<String, Object>> listVoucherProducts(Object... args) {
+    return db.rows(
+          "SELECT ID,PRODUCT_CODE,PRODUCT_NAME,STATUS FROM PRODUCT WHERE DELETE_FLAG=0"
+              + " ORDER BY PRODUCT_NAME,ID",
+          args);
+  }
+
+  public List<Map<String, Object>> voucherProducts(Object... args) {
+    return db.rows(
+          "SELECT PRODUCT_ID ID FROM VOUCHER_PRODUCT WHERE VOUCHER_ID=:i ORDER BY PRODUCT_ID", args);
+  }
+
+  public int deleteVoucherProducts(Object... args) {
+    return db.update("DELETE FROM VOUCHER_PRODUCT WHERE VOUCHER_ID=:i", args);
+  }
+
+  public int insertVoucherProduct(Object... args) {
+    return db.update(
+          "INSERT INTO VOUCHER_PRODUCT(VOUCHER_ID,PRODUCT_ID) VALUES(:v,:p)", args);
+  }
+
+  public Map<String, Object> findVoucherProduct(Object... args) {
+    return db.one(
+          "SELECT ID FROM PRODUCT WHERE ID=:i AND DELETE_FLAG=0", args);
   }
 
   public List<Map<String, Object>> listBill(Object... args) {

@@ -4,6 +4,7 @@ import com.example.clothingshop.common.BusinessException;
 import com.example.clothingshop.common.NotFoundException;
 import com.example.clothingshop.dto.request.BillRequest;
 import com.example.clothingshop.dto.request.SePayIpnRequest;
+import com.example.clothingshop.dto.request.VoucherQuoteRequest;
 import com.example.clothingshop.entity.Bill;
 import com.example.clothingshop.entity.SePayPaymentAttempt;
 import com.example.clothingshop.repositories.BillRepository;
@@ -32,6 +33,9 @@ public class BillService {
     private final BillRepository repo;
     private final BigDecimal shippingFee;
     private final SePayService sePayService;
+
+    public record VoucherQuote(BigDecimal subtotal, BigDecimal eligibleSubtotal,
+                               BigDecimal discount, BigDecimal shippingFee, BigDecimal total) {}
 
     public BillService(BillRepository repo, SePayService sePayService,
                        @Value("${app.order.shipping-fee:30000}") BigDecimal shippingFee) {
@@ -65,6 +69,10 @@ public class BillService {
             subTotal = subTotal.add(price.multiply(BigDecimal.valueOf(item.quantity())));
         }
         BigDecimal ship = shippingFee;
+        BigDecimal eligibleSubtotal =
+                eligibleSubtotal(req.voucherCode(), req.items(), priceMap, subTotal);
+        BigDecimal discount = discount(req.voucherCode(), eligibleSubtotal, true);
+        BigDecimal total = subTotal.subtract(discount).add(ship);
 
         // 2. Insert BILL
         Map<String, Object> p = new HashMap<>();
@@ -77,13 +85,14 @@ public class BillService {
         p.put("shippingAddress", addr.fullAddress());
         p.put("subTotal", subTotal);
         p.put("shippingFee", ship);
-        p.put("discount", BigDecimal.ZERO);
-        p.put("total", subTotal.add(ship));
+        p.put("discount", discount);
+        p.put("total", total);
         p.put("paymentMethod", req.paymentMethod());
         p.put("note", req.note());
+        p.put("voucherCode", normalizeVoucher(req.voucherCode()));
         long billId = repo.insertBill(p);
         if ("SEPAY".equals(req.paymentMethod())) {
-            repo.insertSePayPayment(billId, subTotal.add(ship), (String) p.get("code"));
+            repo.insertSePayPayment(billId, total, (String) p.get("code"));
         }
 
         // 3. Insert BILL_DETAIL + BILL_HISTORY
@@ -93,6 +102,67 @@ public class BillService {
         repo.insertHistory(billId, null, 0, "Khách đặt hàng", null);
 
         return get(customerId, billId);
+    }
+
+    public VoucherQuote quote(VoucherQuoteRequest request) {
+        BigDecimal subtotal = BigDecimal.ZERO;
+        Map<Long, BigDecimal> prices = new HashMap<>();
+        for (BillRequest.Item item : request.items()) {
+            BigDecimal price = repo.findPrice(item.productDetailId())
+                    .orElseThrow(() -> new BusinessException(
+                            "Sản phẩm chi tiết không tồn tại hoặc đã ngừng bán: " + item.productDetailId()));
+            prices.put(item.productDetailId(), price);
+            subtotal = subtotal.add(price.multiply(BigDecimal.valueOf(item.quantity())));
+        }
+        BigDecimal eligible = eligibleSubtotal(request.code(), request.items(), prices, subtotal);
+        BigDecimal discount = discount(request.code(), eligible, false);
+        return new VoucherQuote(
+                subtotal, eligible, discount, shippingFee, subtotal.subtract(discount).add(shippingFee));
+    }
+
+    private BigDecimal eligibleSubtotal(String code, List<BillRequest.Item> items,
+                                        Map<Long, BigDecimal> prices, BigDecimal subtotal) {
+        if (code == null || code.isBlank()) return BigDecimal.ZERO;
+        List<Long> productIds = repo.findVoucherProductIds(normalizeVoucher(code));
+        if (productIds.isEmpty()) return subtotal;
+        java.util.Set<Long> eligibleProducts = new java.util.HashSet<>(productIds);
+        BigDecimal eligible = BigDecimal.ZERO;
+        for (BillRequest.Item item : items) {
+            Long productId = repo.findProductId(item.productDetailId())
+                    .orElseThrow(() -> new BusinessException(
+                            "Sản phẩm chi tiết không tồn tại hoặc đã ngừng bán: " + item.productDetailId()));
+            if (eligibleProducts.contains(productId)) {
+                eligible = eligible.add(prices.get(item.productDetailId())
+                        .multiply(BigDecimal.valueOf(item.quantity())));
+            }
+        }
+        return eligible;
+    }
+
+    private BigDecimal discount(String code, BigDecimal eligibleSubtotal, boolean consume) {
+        String normalizedCode = normalizeVoucher(code);
+        if (normalizedCode == null) return BigDecimal.ZERO;
+        if (eligibleSubtotal.signum() <= 0) {
+            throw new BusinessException("Voucher không áp dụng cho sản phẩm nào trong giỏ");
+        }
+        var voucher = repo.findEligibleVoucher(normalizedCode, eligibleSubtotal, consume)
+                .orElseThrow(() -> new BusinessException(
+                        "Voucher không hợp lệ, chưa có hiệu lực, hết hạn, hết lượt, không áp dụng cho sản phẩm trong giỏ hoặc chưa đạt đơn tối thiểu"));
+        BigDecimal value = (BigDecimal) voucher.get("DISCOUNT_VALUE");
+        if ("PERCENT".equals(voucher.get("DISCOUNT_TYPE"))) {
+            value = eligibleSubtotal.multiply(value)
+                    .divide(BigDecimal.valueOf(100), 0, java.math.RoundingMode.HALF_UP)
+                    .min((BigDecimal) voucher.get("MAX_DISCOUNT"));
+        }
+        value = value.setScale(0, java.math.RoundingMode.HALF_UP).min(eligibleSubtotal);
+        if (consume && repo.claimVoucher(((Number) voucher.get("ID")).longValue(), eligibleSubtotal) == 0) {
+            throw new BusinessException("Voucher đã hết lượt hoặc hết hiệu lực");
+        }
+        return value;
+    }
+
+    private String normalizeVoucher(String code) {
+        return code == null || code.isBlank() ? null : code.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     // ---------- đọc: repo trả ENTITY -> service đổi sang VIEW ----------

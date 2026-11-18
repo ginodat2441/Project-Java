@@ -152,4 +152,15 @@ public class OrderOperationsRepository {
         "s",
         subtotal);
   }
+
+  public List<Map<String, Object>> voucherProductIds(Object... args) {
+    return db.rows(
+        "SELECT vp.PRODUCT_ID FROM VOUCHER_PRODUCT vp JOIN VOUCHER v ON v.ID=vp.VOUCHER_ID"
+            + " WHERE v.CODE=:c",
+        args);
+  }
+
+  public Map<String, Object> productForVariant(Object... args) {
+    return db.one("SELECT PRODUCT_ID FROM PRODUCT_DETAIL WHERE ID=:i", args);
+  }
 }

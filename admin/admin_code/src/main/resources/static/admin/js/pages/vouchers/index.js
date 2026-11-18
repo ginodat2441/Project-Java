@@ -37,6 +37,7 @@
             ["MAX_DISCOUNT", "Trần giảm", money],
             ["USED_COUNT", "Đã dùng"],
             ["REMAINING", "Còn lại"],
+            ["PRODUCT_COUNT", "Sản phẩm áp dụng", (v) => (Number(v) ? v + " sản phẩm" : "Tất cả")],
             ["STARTS_AT", "Bắt đầu", date],
             ["ENDS_AT", "Kết thúc", date],
           ],

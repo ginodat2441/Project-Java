@@ -45,6 +45,7 @@ class ShippingCheckoutTest {
     when(db.one(anyString(), any(Object[].class)))
         .thenReturn(Map.of("PRICE", new BigDecimal("200000")));
     when(bills.discount(any(), any(), eq(false))).thenReturn(BigDecimal.ZERO);
+    when(bills.voucherProductIds(anyString())).thenReturn(Set.of());
     when(shipping.quote(
             anyString(), anyString(), anyString(), anyString(), anyList(), any(), any()))
         .thenReturn(

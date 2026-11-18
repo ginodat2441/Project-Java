@@ -59,7 +59,21 @@ public class AdminRequests {
       @NotNull LocalDateTime startsAt,
       @NotNull LocalDateTime endsAt,
       @Min(0) int usageLimit,
-      @Min(0) @Max(1) int status) {}
+      @Min(0) @Max(1) int status,
+      @Size(max = 1000) List<@NotNull @Positive Long> productIds) {
+    public Voucher(
+        String code,
+        String type,
+        BigDecimal value,
+        BigDecimal minOrder,
+        BigDecimal maxDiscount,
+        LocalDateTime startsAt,
+        LocalDateTime endsAt,
+        int usageLimit,
+        int status) {
+      this(code, type, value, minOrder, maxDiscount, startsAt, endsAt, usageLimit, status, List.of());
+    }
+  }
 
   public record OrderStatus(@Min(0) @Max(6) int status, @Size(max = 500) String note) {}
 

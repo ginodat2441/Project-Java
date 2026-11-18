@@ -3,6 +3,7 @@ package com.example.clothingshop.repositories;
 import com.example.clothingshop.common.PageResult;
 import com.example.clothingshop.common.SqlHelper;
 import com.example.clothingshop.view.ProductDetailView;
+import com.example.clothingshop.view.ProductImageView;
 import com.example.clothingshop.view.ProductView;
 import org.springframework.stereotype.Repository;
 
@@ -68,5 +69,15 @@ public class ProductRepository {
                  ORDER BY c.COLOR_NAME, pd.SIZE_NAME
                 """;
         return sql.list(q, Map.of("pid", productId), ProductDetailView.class);
+    }
+
+    public List<ProductImageView> findImageViews(long productId) {
+        String q = """
+                SELECT IMAGE_URL, COLOR_ID, SORT_ORDER
+                  FROM PRODUCT_IMAGE
+                 WHERE PRODUCT_ID = :pid
+                 ORDER BY SORT_ORDER, ID
+                """;
+        return sql.list(q, Map.of("pid", productId), ProductImageView.class);
     }
 }

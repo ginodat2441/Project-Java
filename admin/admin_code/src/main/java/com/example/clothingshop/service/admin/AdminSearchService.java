@@ -57,6 +57,14 @@ public class AdminSearchService {
     return queries.listBill("i", id);
   }
 
+  public Object voucherProducts() {
+    return queries.listVoucherProducts();
+  }
+
+  public Object voucherProducts(long id) {
+    return queries.voucherProducts("i", id);
+  }
+
   public Object orders(Map<String, String> f) {
     return queries.pageBill(
         page(f),

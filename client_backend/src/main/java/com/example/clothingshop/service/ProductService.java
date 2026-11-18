@@ -4,6 +4,7 @@ import com.example.clothingshop.common.NotFoundException;
 import com.example.clothingshop.common.PageResult;
 import com.example.clothingshop.repositories.ProductRepository;
 import com.example.clothingshop.view.ProductDetailView;
+import com.example.clothingshop.view.ProductImageView;
 import com.example.clothingshop.view.ProductView;
 import org.springframework.stereotype.Service;
 
@@ -28,5 +29,10 @@ public class ProductService {
     public List<ProductDetailView> details(long productId) {
         get(productId);                              // 404 nếu sản phẩm không tồn tại
         return repo.findDetailViews(productId);
+    }
+
+    public List<ProductImageView> images(long productId) {
+        get(productId);
+        return repo.findImageViews(productId);
     }
 }
