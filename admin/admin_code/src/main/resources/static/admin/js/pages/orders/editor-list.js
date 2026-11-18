@@ -1,0 +1,38 @@
+"use strict";
+window.AdminPages ??= {};
+window.AdminOrderUI = {
+  groups: [["all","Tất cả"],["payment","Chờ thanh toán"],["processing","Chờ xử lý"],["shipping","Đang vận chuyển"],["history","Lịch sử mua"]],
+  payment(v) { return ({0:"Chưa thanh toán",1:"Đã thanh toán",2:"Đã hoàn tiền"})[Number(v)] || "Chưa xác định"; },
+  state(v) { return `<span class="order-state order-state-${Number(v)}">${esc(statusNames[v] || "Chưa xác định")}</span>`; },
+  note(group) { return ({all:"Theo dõi trạng thái xử lý và thanh toán riêng biệt. COD được thu tiền khi giao hàng.",payment:"Đơn chuyển khoản chưa thanh toán, chưa bàn giao vận chuyển. Đơn COD không nằm trong nhóm này.",processing:"Đơn COD mới hoặc đơn đã thanh toán đang chờ xác nhận / xuất giao.",shipping:"Đơn đã xuất giao và đang vận chuyển. COD có thể vẫn chưa thu tiền.",history:"Các đơn hoàn thành, đã hủy, trả hàng hoặc giao thất bại. Xem chi tiết để xử lý hàng hoàn."})[group]; }
+};
+window.AdminPages.orders = {
+  async render() {
+    const group=filter.orderGroup || "all";
+    const qs=new URLSearchParams({page,q:filter.q || "",orderGroup:group});
+    for(const key of ["status","from","to","paymentMethod","paymentStatus","returnStatus"])
+      if(filter[key]!==undefined && filter[key]!=="")qs.set(key,filter[key]);
+    const data=await api("/api/admin/orders?"+qs);
+    notice("");
+    const advanced=select("status","Trạng thái đơn",statusNames.map((NAME,ID)=>({ID,NAME})),filter.status,true)
+      +select("paymentMethod","Phương thức",[{ID:"COD",NAME:"COD"},{ID:"SEPAY",NAME:"SePay"},{ID:"BANK",NAME:"Chuyển khoản cũ"}],filter.paymentMethod,true)
+      +select("paymentStatus","Thanh toán",[{ID:0,NAME:"Chưa thanh toán"},{ID:1,NAME:"Đã thanh toán"},{ID:2,NAME:"Đã hoàn tiền"}],filter.paymentStatus,true)
+      +select("returnStatus","Hàng hoàn",[{ID:"NONE",NAME:"Chưa nhận hoàn"},{ID:"REQUESTED",NAME:"Yêu cầu trả"},{ID:"PARTIAL",NAME:"Hoàn một phần"},{ID:"FULL",NAME:"Hoàn toàn bộ"}],filter.returnStatus,true)
+      +input("from","Từ ngày",filter.from || "","date",false)+input("to","Đến ngày",filter.to || "","date",false);
+    const open=["status","from","to","paymentMethod","paymentStatus","returnStatus"].some(k=>filter[k]!==undefined&&filter[k]!=="");
+    return `<div class="orders-workspace"><div class="order-group-tabs" role="group" aria-label="Nhóm đơn hàng">${AdminOrderUI.groups.map(([key,label])=>button(label,"order-group-"+key,"",`aria-pressed="${key===group}"`)).join("")}</div><p class="order-explainer">${AdminOrderUI.note(group)}</p>
+      <form id="filter" class="orders-filter"><input type="hidden" name="orderGroup" value="${esc(group)}"><div class="orders-search"><label>Tìm đơn hàng<input name="q" value="${esc(filter.q||"")}" placeholder="Mã đơn hoặc tên người nhận"></label><button type="submit">Tìm kiếm</button>${button("Xóa bộ lọc","clear-order-filter","")}${button("Làm mới","refresh-orders","")}</div><details ${open?"open":""}><summary>Bộ lọc nâng cao</summary><div class="order-advanced-grid">${advanced}</div></details></form>
+      <div class="orders-result-heading"><h2>${AdminOrderUI.groups.find(([key])=>key===group)?.[1] || "Đơn hàng"}</h2><span>${Number(data.total)} đơn phù hợp</span></div>${table(data.items,[
+        ["BILL_CODE","Mã đơn",v=>`<strong>${esc(v)}</strong>`],["RECEIVER_NAME","Người nhận"],
+        ["TOTAL_AMOUNT","Tổng tiền",v=>`<strong class="order-money">${money(v)}</strong>`],
+        ["STATUS","Trạng thái",AdminOrderUI.state],
+        ["PAYMENT_STATUS","Thanh toán",(v,r)=>`<span class="order-payment order-payment-${Number(v)}">${AdminOrderUI.payment(v)}</span><small class="order-method">${esc(r.PAYMENT_METHOD)}</small>`],
+        ["CREATED_AT","Ngày đặt",date]],r=>button("Xử lý đơn","detail",r.ID))}${pager(data)}</div>`;
+  },
+  async action(a,id) {
+    if(a.startsWith("order-group-")) {const group=a.slice(12);if(!AdminOrderUI.groups.some(([key])=>key===group))return;filter={...filter,orderGroup:group};delete filter.status;page=1;return load();}
+    if(a==="clear-order-filter"){filter={orderGroup:filter.orderGroup||"all"};page=1;return load();}
+    if(a==="refresh-orders")return load();
+    if(a==="detail")return orderEditor(id);
+  }
+};

@@ -3,5 +3,9 @@ target/
 *.iml
 .vscode/
 .local/
+.local.zip
+.vscode.zip
 uploads/
+node_modules/
+__pycache__/
 *.log
