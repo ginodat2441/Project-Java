@@ -3,7 +3,9 @@ setlocal
 
 where ngrok >nul 2>nul
 if errorlevel 1 (
-  echo ngrok was not found. Install ngrok and make sure it is available in PATH.
+  echo ngrok was not found. Opening Microsoft Store search for ngrok...
+  start "" "ms-windows-store://search/?query=ngrok"
+  echo Install ngrok, then run this setup file again.
   pause
   exit /b 1
 )

@@ -11,7 +11,10 @@ if /i "%~1"=="ngrok" goto :ngrok
 call :findPython
 if errorlevel 1 goto :failed
 
-call :findMaven
+set "MAVEN_CMD="
+for /f "delims=" %%M in ('where mvn.cmd 2^>nul') do if not defined MAVEN_CMD set "MAVEN_CMD=%%M"
+if not defined MAVEN_CMD if exist "%ROOT%.local\apache-maven-3.9.9\bin\mvn.cmd" set "MAVEN_CMD=%ROOT%.local\apache-maven-3.9.9\bin\mvn.cmd"
+if not defined MAVEN_CMD call :installMaven
 if errorlevel 1 goto :failed
 
 call :findNgrok
@@ -52,8 +55,10 @@ echo Backend startup runs mvn spring-boot:run. Close each window or press Ctrl+C
 exit /b 0
 
 :clientBackend
-call :findMaven
-if errorlevel 1 exit /b 1
+if not defined MAVEN_CMD (
+  echo Maven path was not inherited. Run run-all.bat without arguments first.
+  exit /b 1
+)
 pushd "%ROOT%client_backend" || exit /b 1
 call "%MAVEN_CMD%" spring-boot:run
 set "SERVICE_EXIT=%ERRORLEVEL%"
@@ -61,8 +66,10 @@ popd
 exit /b %SERVICE_EXIT%
 
 :adminBackend
-call :findMaven
-if errorlevel 1 exit /b 1
+if not defined MAVEN_CMD (
+  echo Maven path was not inherited. Run run-all.bat without arguments first.
+  exit /b 1
+)
 pushd "%ROOT%admin\admin_code" || exit /b 1
 call "%MAVEN_CMD%" spring-boot:run
 set "SERVICE_EXIT=%ERRORLEVEL%"
@@ -100,6 +107,7 @@ call "%NGROK_CMD%" start app1
 exit /b %ERRORLEVEL%
 
 :findPython
+if defined PYTHON_CMD exit /b 0
 set "PYTHON_CMD="
 where py >nul 2>nul
 if not errorlevel 1 (
@@ -111,27 +119,52 @@ if not errorlevel 1 (
   set "PYTHON_CMD=python"
   exit /b 0
 )
-echo Python 3 was not found. Install Python 3 and try again.
-exit /b 1
-
-:findMaven
-set "MAVEN_CMD="
-for /f "delims=" %%M in ('where mvn.cmd 2^>nul') do if not defined MAVEN_CMD set "MAVEN_CMD=%%M"
-if defined MAVEN_CMD (
-  exit /b 0
-)
-if exist "%ROOT%.local\apache-maven-3.9.9\bin\mvn.cmd" (
-  set "MAVEN_CMD=%ROOT%.local\apache-maven-3.9.9\bin\mvn.cmd"
-  exit /b 0
-)
-echo Maven was not found. Add Maven to PATH or install it under .local\apache-maven-3.9.9.
-exit /b 1
+call :installPython
+exit /b %ERRORLEVEL%
 
 :findNgrok
+if defined NGROK_CMD exit /b 0
 set "NGROK_CMD="
 for /f "delims=" %%N in ('where ngrok.exe 2^>nul') do if not defined NGROK_CMD set "NGROK_CMD=%%N"
 if defined NGROK_CMD exit /b 0
-echo ngrok was not found in PATH.
+echo ngrok was not found. Opening Microsoft Store search for ngrok...
+start "" "ms-windows-store://search/?query=ngrok"
+exit /b 1
+
+:installPython
+where winget >nul 2>nul
+if errorlevel 1 (
+  echo Python is missing and winget is unavailable. Install Python 3.13 manually from https://www.python.org/downloads/windows/
+  exit /b 1
+)
+echo Python is missing. Installing Python 3.13 for the current user...
+winget install --id Python.Python.3.13 --exact --scope user --silent --accept-package-agreements --accept-source-agreements
+if errorlevel 1 (
+  echo Python installation failed. Install Python 3.13 manually and run this file again.
+  exit /b 1
+)
+if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" (
+  set "PYTHON_CMD="%LOCALAPPDATA%\Programs\Python\Python313\python.exe""
+  exit /b 0
+)
+for /d %%P in ("%LOCALAPPDATA%\Programs\Python\Python*") do if exist "%%~fP\python.exe" set "PYTHON_CMD="%%~fP\python.exe""
+if defined PYTHON_CMD exit /b 0
+echo Python installed, but this window cannot find it. Open a new terminal and run run-all.bat again.
+exit /b 1
+
+:installMaven
+where choco >nul 2>nul
+if not errorlevel 1 (
+  echo Maven is missing. Trying to install it with Chocolatey...
+  choco install maven --yes
+  if not errorlevel 1 (
+    for /f "delims=" %%M in ('where mvn.cmd 2^>nul') do if not defined MAVEN_CMD set "MAVEN_CMD=%%M"
+    if defined MAVEN_CMD exit /b 0
+  )
+)
+echo Maven could not be installed automatically.
+echo Install Apache Maven 3.9.9 or newer, add its bin folder to PATH, then run this file again.
+echo Download: https://maven.apache.org/download.cgi
 exit /b 1
 
 :failed
