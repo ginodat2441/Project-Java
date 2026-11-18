@@ -1,0 +1,7 @@
+com\example\clothingshop\repositories\BillRepositoryTest.class
+com\example\clothingshop\repositories\BillRepositoryTest$RecordingSqlHelper.class
+com\example\clothingshop\service\PurchaseQuoteTest.class
+com\example\clothingshop\service\SePayServiceTest.class
+com\example\clothingshop\repositories\ProductCatalogTest.class
+com\example\clothingshop\PurchaseOracleTest.class
+com\example\clothingshop\repositories\ProductCatalogTest$CaptureSql.class

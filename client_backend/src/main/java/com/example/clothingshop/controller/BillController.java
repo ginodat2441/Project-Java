@@ -28,6 +28,14 @@ public class BillController {
                 service.create(CustomerIdentity.customerId(jwt), req));
     }
 
+    @PostMapping("/quote")
+    public ApiResponse<java.util.Map<String, java.math.BigDecimal>> quote(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody com.example.clothingshop.dto.request.CheckoutQuoteRequest request) {
+        CustomerIdentity.customerId(jwt);
+        return ApiResponse.ok(service.quote(request.items()));
+    }
+
     @PostMapping("/{id}/sepay-payment")
     public ApiResponse<BillView> createSePayPayment(@AuthenticationPrincipal Jwt jwt,
                                                     @PathVariable long id) {

@@ -79,13 +79,13 @@ public class OrderOperationsRepository {
 
   public Map<String, Object> findBill3(Object... args) {
     return db.one(
-        "SELECT STATUS,PAYMENT_STATUS FROM BILL WHERE ID=:i AND DELETE_FLAG=0 FOR UPDATE", args);
+        "SELECT STATUS,PAYMENT_STATUS,PAYMENT_METHOD FROM BILL WHERE ID=:i AND DELETE_FLAG=0 FOR UPDATE", args);
   }
 
   public int updateBill6(Object... args) {
     return db.update(
         "UPDATE BILL SET"
-            + " PAYMENT_METHOD=:p,PAYMENT_STATUS=:s,CARRIER=:c,TRACKING_CODE=:t,HANDLED_BY=:a WHERE"
+            + " CARRIER=:c,TRACKING_CODE=:t,HANDLED_BY=:a WHERE"
             + " ID=:i",
         args);
   }

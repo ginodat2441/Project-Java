@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.Objects;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -170,6 +171,12 @@ public class BillService {
             || (old == 2 && (newStatus == 3 || newStatus == 6))
             || (old == 3 && newStatus == 5);
     if (!valid) throw new BusinessException("Không thể chuyển trạng thái này");
+    if ((newStatus == 1 || newStatus == 2) && !bill.paymentMethod().equals("COD") && bill.paymentStatus() != 1)
+      throw new BusinessException("Đơn chuyển khoản phải thanh toán trước khi xác nhận hoặc xuất giao");
+    if (newStatus == 4 && bill.paymentStatus() == 1)
+      throw new BusinessException("Đơn đã thanh toán cần xử lý hoàn tiền trước khi hủy");
+    if (newStatus == 3 && bill.paymentStatus() == 2)
+      throw new BusinessException("Không thể hoàn thành đơn đã hoàn tiền");
     if (newStatus == 3 && !bill.paymentMethod().equals("COD") && bill.paymentStatus() != 1)
       throw new BusinessException("Ghi nhận đã thanh toán trước khi hoàn thành đơn chuyển khoản");
     if (newStatus == 2) {
@@ -223,8 +230,9 @@ public class BillService {
     var order = queries.findBill3("i", id);
     if (number(order, "STATUS") >= 3)
       throw new BusinessException("Đơn đã kết thúc; không thể sửa thông tin thanh toán/giao hàng");
-    if (number(order, "PAYMENT_STATUS") == 1 && r.paymentStatus() == 0)
-      throw new BusinessException("Không thể bỏ ghi nhận thanh toán đã nhận");
+    if (!Objects.equals(order.get("PAYMENT_METHOD"), r.paymentMethod())
+        || number(order, "PAYMENT_STATUS") != r.paymentStatus())
+      throw new BusinessException("Không được sửa phương thức hoặc trạng thái thanh toán trong thông tin giao hàng");
     queries.updateBill6(
         "p",
         r.paymentMethod(),

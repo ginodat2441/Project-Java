@@ -53,7 +53,8 @@ async function orderEditor(id) {
       "Phương thức",
       [
         { ID: "COD", NAME: "COD" },
-        { ID: "BANK", NAME: "Chuyển khoản" },
+        { ID: "SEPAY", NAME: "SePay" },
+        { ID: "BANK", NAME: "Chuyển khoản cũ" },
       ],
       r.PAYMENT_METHOD,
     )}${select(
@@ -62,6 +63,7 @@ async function orderEditor(id) {
       [
         { ID: 0, NAME: "Chưa nhận tiền" },
         { ID: 1, NAME: "Đã nhận tiền" },
+        { ID: 2, NAME: "Đã hoàn tiền" },
       ],
       r.PAYMENT_STATUS,
     )}${input("carrier", "Đơn vị vận chuyển", r.CARRIER, "text", false)}${input("trackingCode", "Mã theo dõi", r.TRACKING_CODE, "text", false)}</div><div class="toolbar">${button("Lưu giao hàng / thanh toán", "save-shipping", id)}</div>${Number(r.STATUS) === 1 ? `<div class="toolbar">${button("Lập phiếu xuất giao (ADMIN duyệt)", "prepare-dispatch", id)}</div>` : ""}<h3>Chuyển trạng thái</h3><div class="toolbar">${select(
@@ -80,6 +82,31 @@ async function orderEditor(id) {
       ],
     )}`,
   );
+  // Group only order detail content; other administration screens keep their layout.
+  const fields = $("#fields");
+  const overview = fields.firstElementChild;overview.classList.add("order-overview");
+  let panel = null;
+  for (const node of [...fields.children].slice(1)) {
+    if (node.tagName === "H3") {
+      panel = document.createElement("section");panel.className="order-detail-section";
+      fields.insertBefore(panel,node);panel.append(node);
+    } else if (panel) panel.append(node);
+  }
+  const progress=document.createElement("div");progress.className="order-progress";
+  progress.innerHTML = [0,1,2,3].map((state)=>`<span class="${Number(r.STATUS)<=3&&Number(r.STATUS)>=state?'is-reached':''}">${esc(statusNames[state])}</span>`).join("");
+  fields.prepend(progress);
+  if (Number(r.STATUS)>=4) progress.innerHTML=AdminOrderUI.state(r.STATUS);
+  ["paymentMethod","paymentStatus"].forEach(name=>fields.querySelector("[name="+name+"]").disabled=true);
+  const frozen=Number(r.STATUS)>=3;
+  ["carrier","trackingCode"].forEach(name=>fields.querySelector("[name="+name+"]").disabled=frozen);
+  $("[data-action=save-shipping]").hidden=frozen;
+  $("[data-action=save-shipping]").textContent="Lưu thông tin vận chuyển";
+  if (!(transitions[r.STATUS] || []).length) {
+    $("[name=nextStatus]").closest('.toolbar').hidden=true;
+  }
+  const help=document.createElement('p');help.className='order-explainer';
+  help.textContent=r.PAYMENT_METHOD==='COD'?'COD: xác nhận hoàn thành đồng nghĩa đã giao hàng và thu đủ tiền.':'Chuyển khoản: trạng thái thanh toán lấy từ giao dịch được xác nhận, không sửa bằng form giao hàng.';
+  fields.querySelector("[name=paymentMethod]").closest('.grid').before(help);
   $("#fields").onclick = async (e) => {
     const b = e.target.closest("[data-action]");
     if (!b) return;
@@ -109,13 +136,15 @@ async function orderEditor(id) {
       }
       if (b.dataset.action === "save-shipping")
         await api(`/api/admin/orders/${id}/shipping`, "PUT", {
-          paymentMethod: $("[name=paymentMethod]").value,
-          paymentStatus: Number($("[name=paymentStatus]").value),
-          carrier: $("[name=carrier]").value,
-          trackingCode: $("[name=trackingCode]").value,
+          paymentMethod: r.PAYMENT_METHOD,
+          paymentStatus: Number(r.PAYMENT_STATUS),
+          carrier: fields.querySelector("[name=carrier]").value,
+          trackingCode: fields.querySelector("[name=trackingCode]").value,
         });
       else {
         if ($("[name=nextStatus]").value === "") throw Error("Chọn trạng thái mới.");
+        if (Number($("[name=nextStatus]").value)===3 && r.PAYMENT_METHOD==='COD'
+            && !confirm('Xác nhận khách đã nhận hàng và đã thu đủ tiền COD?')) {b.disabled=false;return;}
         await api(`/api/admin/orders/${id}/status`, "PUT", {
           status: Number($("[name=nextStatus]").value),
           note: $("[name=note]").value,

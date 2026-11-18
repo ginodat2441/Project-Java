@@ -64,8 +64,8 @@ public class AdminRequests {
   public record OrderStatus(@Min(0) @Max(6) int status, @Size(max = 500) String note) {}
 
   public record Shipping(
-      @Pattern(regexp = "COD|BANK") @NotNull String paymentMethod,
-      @Min(0) @Max(1) int paymentStatus,
+      @Pattern(regexp = "COD|BANK|SEPAY") @NotNull String paymentMethod,
+      @Min(0) @Max(2) int paymentStatus,
       @Size(max = 150) String carrier,
       @Size(max = 150) String trackingCode) {}
 }

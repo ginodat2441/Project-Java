@@ -10,7 +10,7 @@
     'Hoàn thành',
     'Đã hủy',
     'Trả hàng',
-    'Hoàn hàng',
+    'Giao thất bại',
   ];
   const esc = (value) =>
     String(value ?? '').replace(
@@ -143,7 +143,7 @@
     $$('.header-actions a[href*="wishlist"] .badge').forEach((n) => (n.textContent = '0'));
   }
   function header() {
-    $$('a[href="product-details.html"]').forEach((link) => (link.href = 'category.html'));
+    $$('a[href="product-details.html"]').forEach((link) => (link.href = 'products.html'));
     const menu = $('.account-dropdown .dropdown-menu');
     const guestActions = $('.client-guest-actions');
     if (guestActions) guestActions.hidden = !!customer;
@@ -213,7 +213,34 @@
     });
   }
   async function catalog() {
-    const cataloguePages = ['category.html', 'search-results.html'];
+    if (file === 'category.html' && !query.has('categoryId')) {
+      $$('.product-card,.product-box').forEach((node) => (node.hidden = true));
+      const main = $('main');
+      [...main.children].filter((node) => !node.classList.contains('page-title')).forEach((node) => (node.hidden = true));
+      $('.page-title h1').textContent = 'Danh mục sản phẩm';
+      $('.breadcrumbs .current').textContent = 'Danh mục';
+      const section = document.createElement('section');
+      section.className = 'container client-category-directory';
+      section.innerHTML = '<h2>Chọn danh mục bạn muốn khám phá</h2><p>Các danh mục đang được cửa hàng kinh doanh.</p>';
+      main.append(section);
+      const categories = await api('/api/products/categories');
+      const list = document.createElement('ul');
+      list.className = 'client-category-links';
+      for (const category of categories) {
+        const row = document.createElement('li');
+        const link = document.createElement('a');
+        link.href = 'category.html?categoryId=' + category.id;
+        const parent = categories.find((c) => c.id === category.parentId);
+        link.textContent = (parent ? parent.categoryName + ' / ' : '') + category.categoryName;
+        row.append(link); list.append(row);
+      }
+      section.append(list);
+      if (!categories.length) message(section, 'Cửa hàng chưa có danh mục đang kinh doanh.');
+      const all = document.createElement('a'); all.href = 'products.html';
+      all.className = 'btn btn-primary'; all.textContent = 'Xem tất cả sản phẩm'; section.append(all);
+      return;
+    }
+    const cataloguePages = ['products.html', 'category.html', 'search-results.html'];
     const isListing = cataloguePages.includes(file);
     // Clear template cards before requesting data, so errors never leave fake merchandise.
     const templates = $$('.product-card,.product-box').map((node) => ({
@@ -221,10 +248,10 @@
       clone: node.cloneNode(true),
     }));
     templates.forEach(({ node }) => (node.hidden = true));
-    const qs = new URLSearchParams({ page: query.get('page') || '1', size: '24' });
+    const qs = new URLSearchParams({ page: query.get('page') || '1', size: isListing ? '15' : '24' });
     const keyword = query.get('q') || query.get('keyword');
     if (keyword) qs.set('keyword', keyword);
-    for (const key of ['brandId', 'gender'])
+    for (const key of ['brandId', 'gender', 'categoryId', 'sort'])
       if (query.has(key)) qs.set(key, query.get(key));
     const data = await api('/api/products?' + qs);
     let mainIndex = 0;
@@ -235,7 +262,7 @@
         node.hidden = false;
       }
     });
-    if (!data.items.length && templates.length)
+    if (!data.items.length && templates.length && (isListing || file==='index.html'))
       message($('main'), 'Chưa có sản phẩm phù hợp. Hãy thử điều kiện tìm kiếm khác.');
     if (!isListing) return;
     const first = templates.find(({ node }) => node.closest('main'));
@@ -263,7 +290,7 @@
         parent.append(node);
       }
     }
-    const brandsPage = await api('/api/brands?page=1&size=100');
+    const [brandsPage, categories] = await Promise.all([api('/api/brands?page=1&size=100'), api('/api/products/categories')]);
     const brands = brandsPage.items || [];
     const form = document.createElement('form');
     form.className = 'client-filters';
@@ -277,11 +304,25 @@
         .join('');
     form.innerHTML = `<label>Tìm sản phẩm<input name="q" maxlength="200" value="${esc(keyword || '')}"></label><label>Thương hiệu<select name="brandId"><option value="">Tất cả thương hiệu</option>${options(brands, 'brandId', 'brandName')}</select></label><label>Đối tượng<select name="gender"><option value="">Tất cả</option><option value="0">Nam</option><option value="1">Nữ</option><option value="2">Khác</option></select></label><button class="btn btn-primary">Tìm kiếm và lọc</button><a href="category.html">Xóa bộ lọc</a>`;
     $('[name="gender"]', form).value = query.get('gender') || '';
+    const categoryLabel = document.createElement('label');
+    categoryLabel.innerHTML = `Danh mục<select name="categoryId"><option value="">Tất cả danh mục</option>${options(categories, 'categoryId', 'categoryName')}</select>`;
+    const sortLabel = document.createElement('label');
+    sortLabel.innerHTML = 'Sắp xếp<select name="sort"><option value="newest">Mới nhất</option><option value="price_asc">Giá tăng dần</option><option value="price_desc">Giá giảm dần</option></select>';
+    form.insertBefore(categoryLabel, form.querySelector('button'));
+    form.insertBefore(sortLabel, form.querySelector('button'));
+    $('[name="sort"]', form).value = query.get('sort') || 'newest';
+    const listingPath = file === 'search-results.html' ? file : 'products.html';
+    $('a', form).href = listingPath;
+    if (file === 'category.html') {
+      const selectedCategory = categories.find((c) => String(c.id) === query.get('categoryId'));
+      $('.page-title h1').textContent = selectedCategory?.categoryName || 'Danh mục không tồn tại';
+      $('.breadcrumbs .current').textContent = selectedCategory?.categoryName || 'Danh mục';
+    }
     form.onsubmit = (event) => {
       event.preventDefault();
       const params = new URLSearchParams();
       for (const [key, value] of new FormData(form)) if (value !== '') params.set(key, value);
-      location.assign('category.html?' + params);
+      location.assign(listingPath + '?' + params);
     };
     const filtersHost =
       $('main .widgets-container') ||
@@ -290,9 +331,13 @@
     if (file !== 'search-results.html') {
       if (filtersHost?.classList.contains('widgets-container')) filtersHost.replaceChildren(form);
       else filtersHost?.prepend(form);
-    }
+    } else $('.search-results-header')?.append(form);
     const oldFilters = $('#category-header .filter-container');
-    if (oldFilters && !oldFilters.contains(form)) oldFilters.hidden = true;
+    if (oldFilters && !oldFilters.contains(form)) {
+      oldFilters.hidden = true;
+      const oldHeader = $('#category-header');
+      if (oldHeader && !oldHeader.contains(form)) oldHeader.hidden = true;
+    }
     const searchHeader = $('.search-results-header');
     if (searchHeader) {
       $$('.sort-options,.active-filters', searchHeader).forEach((n) => (n.hidden = true));
@@ -322,14 +367,19 @@
       pages = Math.max(1, data.totalPages || 1);
     for (const [label, target] of [
       ['← Trang trước', page - 1],
+      ...Array.from({length: Math.min(5, pages)}, (_, i) => {
+        const target = Math.min(Math.max(1, page - 2), Math.max(1, pages - 4)) + i;
+        return [String(target), target];
+      }),
       ['Trang sau →', page + 1],
     ])
       if (target >= 1 && target <= pages) {
         const a = document.createElement('a');
         const params = new URLSearchParams(query);
         params.set('page', target);
-        a.href = 'category.html?' + params;
+        a.href = file + '?' + params;
         a.textContent = label;
+        if (target === page) a.setAttribute('aria-current', 'page');
         pagination.append(a);
       }
     pagination.append(document.createTextNode(`Trang ${page}/${pages} · ${data.total} sản phẩm`));
@@ -343,7 +393,7 @@
       host.hidden = true;
       message($('main'), 'Hãy chọn sản phẩm từ danh mục để xem đúng thông tin.');
       const a = document.createElement('a');
-      a.href = 'category.html';
+      a.href = 'products.html';
       a.textContent = 'Xem danh mục sản phẩm';
       $('main').append(a);
       return;
@@ -447,24 +497,40 @@
     };
     const addItem = async (go) => {
       if (!customer) {
-        location.assign('login-register.html');
+        const next = 'product-details.html?id=' + id;
+        location.assign('login-register.html?next=' + encodeURIComponent(next));
         return;
       }
       const quantity = Number(qty.value);
       if (!selected || !Number.isInteger(quantity) || quantity < 1 || quantity > selected.quantity)
         throw Error('Chọn màu, kích cỡ và số lượng còn hàng hợp lệ.');
+      if (quantity > 100) throw Error('Mỗi biến thể được mua tối đa 100 sản phẩm trong một đơn.');
+      if (go) {
+        location.assign(`checkout.html?buyNow=1&productId=${id}&variantId=${selected.id}&quantity=${quantity}`);
+        return;
+      }
       await api(cartPath() + '/items', 'POST', {
         productDetailId: selected.id,
         quantity,
       });
       await refreshCart();
       badges();
-      message(info, 'Đã lưu sản phẩm vào giỏ hàng của bạn.');
-      if (go) location.assign('cart.html');
+      addedToCartDialog(product.productName);
     };
     add.onclick = () => action(add, () => addItem(false));
     buy.onclick = () => action(buy, () => addItem(true));
     sync();
+  }
+  function addedToCartDialog(productName) {
+    document.getElementById('client-added-dialog')?.remove();
+    const dialog = document.createElement('dialog');
+    dialog.id = 'client-added-dialog'; dialog.className = 'client-added-dialog';
+    dialog.setAttribute('aria-labelledby', 'client-added-title');
+    dialog.setAttribute('aria-describedby', 'client-added-description');
+    dialog.innerHTML = `<h2 id="client-added-title">Đã thêm sản phẩm vào giỏ hàng</h2><p id="client-added-description">${esc(productName)} đã được lưu vào giỏ hàng của bạn.</p><div class="client-dialog-actions"><button type="button" class="btn btn-outline-primary" autofocus>Xem tiếp sản phẩm</button><a class="btn btn-primary" href="cart.html">Đi đến trang giỏ hàng</a></div>`;
+    $('button', dialog).onclick = () => dialog.close();
+    dialog.addEventListener('close', () => dialog.remove());
+    document.body.append(dialog); dialog.showModal();
   }
   function selectedCartIds() {
     const allowed = new Set(cart.items.map((line) => line.productDetailId));
@@ -636,7 +702,7 @@
         badges();
         render();
       });
-    $('.continue-shopping a', summary).href = 'category.html';
+    $('.continue-shopping a', summary).href = 'products.html';
     $('.payment-methods', summary).hidden = true;
     message(summary, 'Tạm tính tiền hàng. Phí giao và ưu đãi được tính lại ở bước thanh toán.');
     render();
@@ -663,7 +729,7 @@
     }
     const orders = $('.orders-grid', host);
     orders.replaceChildren();
-    $$('#orders .pagination,#orders .pagination-wrap,#orders .pagination-container', host).forEach(
+    $$('#orders .pagination,#orders .pagination-wrap,#orders .pagination-container,#orders .pagination-wrapper', host).forEach(
       (n) => (n.hidden = true),
     );
     const addressPanel = $('#addresses', host);
@@ -703,20 +769,36 @@
       form.querySelectorAll('input,button').forEach((n) => (n.disabled = true)),
     );
     message($('#settings', host), 'Cập nhật hồ sơ và mật khẩu chưa được hỗ trợ bởi API hiện tại.');
-    const [orderData, addresses] = await Promise.all([
+    let [orderData, addresses] = await Promise.all([
       api('/api/bills'),
       api('/api/addresses'),
     ]);
+    const orderGroups = [['all','Tất cả'],['payment','Chờ thanh toán'],['processing','Chờ xử lý'],['shipping','Đang vận chuyển'],['history','Lịch sử mua']];
+    const groupOf = (order) => {
+      if ([3,4,5,6].includes(Number(order.status))) return 'history';
+      if (Number(order.status) === 2) return 'shipping';
+      if (order.paymentMethod !== 'COD' && Number(order.paymentStatus) === 0) return 'payment';
+      return 'processing';
+    };
+    let currentGroup = orderGroups.some(([key])=>key === query.get('orderGroup')) ? query.get('orderGroup') : 'all';
+    const tabs = document.createElement('div'); tabs.className = 'client-order-tabs';
+    tabs.setAttribute('role','group'); tabs.setAttribute('aria-label','Lọc đơn hàng theo trạng thái');
+    orders.before(tabs);
+    const refresh = document.createElement('button'); refresh.type='button'; refresh.className='btn btn-outline-primary mb-3';refresh.textContent='Làm mới đơn hàng';
+    tabs.before(refresh);
+    refresh.onclick=()=>action(refresh,async()=>{orderData=await api('/api/bills');drawOrders();});
     const drawOrders = () => {
+      tabs.innerHTML = orderGroups.map(([key,label])=>`<button type="button" data-order-group="${key}" aria-pressed="${key===currentGroup}">${label} <span>${orderData.filter(o=>key==='all'||groupOf(o)===key).length}</span></button>`).join('');
+      $('.menu-nav a[href="#orders"] .badge', host).textContent = orderData.length;
       const keyword = $('#orders .search-box input', host)?.value.toLowerCase() || '';
       orders.replaceChildren();
       for (const order of orderData.filter((n) =>
-        String(n.billCode).toLowerCase().includes(keyword),
+        String(n.billCode).toLowerCase().includes(keyword) && (currentGroup==='all'||groupOf(n)===currentGroup),
       )) {
         const node = document.createElement('article');
         node.className = 'order-card';
         const paymentMethod = order.paymentMethod === 'SEPAY' ? 'SePay' : 'COD';
-        node.innerHTML = `<h3>${esc(order.billCode)}</h3><p>${esc(billStatusLabel(order, orderStatuses))}</p><p>Thanh toán: ${paymentMethod} · ${paymentStatusLabel(order.paymentStatus)} · ${money(order.totalAmount)}</p><button class="btn btn-outline-primary" type="button">Xem chi tiết</button>`;
+        node.innerHTML = `<div class="client-order-head"><h3>${esc(order.billCode)}</h3><p class="client-order-state" data-state="${Number(order.status)}">${esc(billStatusLabel(order, orderStatuses))}</p></div><p>Thanh toán: ${paymentMethod} · ${paymentStatusLabel(order.paymentStatus)} · <strong>${money(order.totalAmount)}</strong></p><p class="client-order-date">Ngày đặt: ${esc(order.createdAt ? new Date(order.createdAt).toLocaleString('vi-VN') : 'Đang cập nhật')}</p><button class="btn btn-outline-primary" type="button">Xem chi tiết</button><a class="btn btn-primary ms-2" href="order-confirmation.html?orderId=${order.id}">${groupOf(order)==='payment'?'Tiếp tục thanh toán':'Xem trạng thái đơn'}</a>`;
         $('button', node).onclick = (e) =>
           action(e.currentTarget, async () => {
             const [bill, linesData] = await Promise.all([
@@ -774,7 +856,7 @@
                       paymentStatusLabel(latest.paymentStatus) +
                       ' · ' +
                       money(latest.totalAmount);
-                  if (latest.paymentStatus === 1) checkPayment.remove();
+                  drawOrders();
                 });
               lines.append(checkPayment);
             }
@@ -782,6 +864,12 @@
         orders.append(node);
       }
       if (!orders.children.length) message(orders, 'Bạn chưa có đơn hàng phù hợp.');
+    };
+    tabs.onclick=(event)=>{
+      const button=event.target.closest('[data-order-group]');if(!button)return;
+      currentGroup=button.dataset.orderGroup;
+      const url=new URL(location.href);url.searchParams.set('orderGroup',currentGroup);history.replaceState(null,'',url);
+      drawOrders();
     };
     drawOrders();
     $('#orders .search-box input', host).oninput = drawOrders;
@@ -863,17 +951,30 @@
     form.replaceChildren();
     const summary = $('main .order-summary-content');
     if (summary) summary.replaceChildren();
+    const directPurchase = query.get('buyNow') === '1';
     const requestedIds = query.has('items')
       ? new Set(query.get('items').split(',').filter(Boolean).map(Number))
       : selectedCartIds();
-    const checkoutItems = cart.items.filter((line) => requestedIds.has(line.productDetailId));
+    let checkoutItems = cart.items.filter((line) => requestedIds.has(line.productDetailId));
+    if (directPurchase && customer) {
+      const productId = Number(query.get('productId')), variantId = Number(query.get('variantId')),
+        quantity = Number(query.get('quantity'));
+      if (![productId, variantId, quantity].every((n) => Number.isSafeInteger(n) && n > 0) || quantity > 100)
+        throw Error('Thông tin mua ngay không hợp lệ. Vui lòng chọn lại sản phẩm.');
+      const [product, variants] = await Promise.all([api('/api/products/' + productId), api('/api/products/' + productId + '/details')]);
+      const variant = variants.find((item) => item.id === variantId);
+      if (!variant || quantity > variant.quantity) throw Error('Biến thể không còn đủ hàng. Vui lòng chọn lại.');
+      checkoutItems = [{productDetailId: variant.id, productName: product.productName,
+        colorName: variant.colorName, sizeName: variant.sizeName, quantity,
+        price: variant.price, stock: variant.quantity, available: true}];
+    }
     const itemCount = $('main .order-summary-header .item-count');
     if (itemCount)
       itemCount.textContent =
         checkoutItems.reduce((sum, line) => sum + line.quantity, 0) + ' sản phẩm';
     const selectionValid =
       checkoutItems.length > 0 &&
-      checkoutItems.length === requestedIds.size &&
+      (directPurchase || checkoutItems.length === requestedIds.size) &&
       checkoutItems.every((line) => line.available && line.quantity <= line.stock);
     if (!customer || !selectionValid) {
       message(
@@ -884,6 +985,9 @@
       );
       return;
     }
+    const quote = await api('/api/bills/quote', 'POST', {
+      items: checkoutItems.map((item) => ({productDetailId: item.productDetailId, quantity: item.quantity})),
+    });
     const addresses = await api('/api/addresses');
     const addressOptions = addresses
       .map(
@@ -910,7 +1014,11 @@
       }
     }
     $('.client-checkout-total', form).textContent =
-      'Tạm tính: ' + money(checkoutItems.reduce((sum, line) => sum + Number(line.price) * line.quantity, 0));
+      `Tiền hàng: ${money(quote.subtotal)} · Phí giao hàng: ${money(quote.shippingFee)} · Tổng thanh toán: ${money(quote.totalAmount)}`;
+    if (summary) {
+      const total = document.createElement('p');
+      total.className = 'fw-bold'; total.textContent = 'Tổng thanh toán: ' + money(quote.totalAmount); summary.append(total);
+    }
     form.onsubmit = (event) => {
       event.preventDefault();
       if (!form.reportValidity()) return;
@@ -943,19 +1051,24 @@
             quantity: item.quantity,
           })),
         });
+        // The order is committed: prevent resubmitting even if a later payment/cart request fails.
+        form.onsubmit = (e) => e.preventDefault();
         if (order.paymentMethod !== paymentMethod)
           throw Error(
             `Đơn ${order.billCode} đã được tạo, nhưng backend trả về phương thức ${order.paymentMethod || 'không xác định'} thay vì ${paymentMethod}.`,
           );
-        if (paymentMethod === 'SEPAY')
-          await api('/api/bills/' + order.id + '/sepay-payment', 'POST');
-        saveCartSelection(new Set());
+        let paymentWarning = '';
+        if (paymentMethod === 'SEPAY') {
+          try { await api('/api/bills/' + order.id + '/sepay-payment', 'POST'); }
+          catch { paymentWarning = 'Đơn đã được tạo. Hãy mở chi tiết đơn để tiếp tục thanh toán SePay.'; }
+        }
+        if (!directPurchase) saveCartSelection(new Set());
         const removals = await Promise.allSettled(
-          checkoutItems.map((item) => api(cartPath() + '/items/' + item.id, 'DELETE')),
+          directPurchase ? [] : checkoutItems.map((item) => api(cartPath() + '/items/' + item.id, 'DELETE')),
         );
         const failedRemoval = removals.find((result) => result.status === 'rejected');
-        let cartWarning = failedRemoval ? failedRemoval.reason.message : '';
-        if (!cartWarning) {
+        let cartWarning = failedRemoval ? failedRemoval.reason.message : paymentWarning;
+        if (!cartWarning && !directPurchase) {
           try {
             await refreshCart();
           } catch (error) {
@@ -1100,6 +1213,8 @@
     render(bill);
   }
   async function init() {
+    // API-rendered controls and products must stay visible independently of template scroll effects.
+    $$('main [data-aos]').forEach((node) => node.removeAttribute('data-aos'));
     if (sessionStorage.getItem(tokenKey)) {
       try {
         const user = await api('/api/auth/me');
