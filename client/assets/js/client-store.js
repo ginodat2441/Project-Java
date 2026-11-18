@@ -26,6 +26,14 @@
       return 'Đã thanh toán - Chờ xác nhận';
     return statuses[bill.status] || 'Đang cập nhật';
   }
+  function cancellationNotice(bill) {
+    if (Number(bill.status) !== 4) return '';
+    if (Number(bill.paymentStatus) === 1)
+      return 'Đơn đã hủy. Do đơn đã thanh toán, cửa hàng cần xử lý hoàn tiền thủ công.';
+    if (bill.paymentMethod === 'SEPAY')
+      return 'Đơn đã hủy. Nếu bạn đã chuyển khoản trước khi trạng thái thanh toán được cập nhật, vui lòng liên hệ cửa hàng để đối soát.';
+    return 'Đơn hàng đã được hủy.';
+  }
   const sePayQrBank = 'Vietcombank';
   const sePayQrAccount = 'SBSEPAYGL9TEMZRXDAK';
   function sePayQrUrl(amount, description) {
@@ -51,6 +59,7 @@
   const query = new URLSearchParams(location.search);
   const tokenKey = 'clothingShopToken';
   const userKey = 'clothingShopUser';
+  const pendingVoucherKey = 'clothingShopPendingVoucher';
   let customer = null,
     cart = { items: [], totalQuantity: 0, subtotal: 0 },
     identityError = null;
@@ -108,6 +117,156 @@
     if (!body || body.success !== true)
       throw Error(body?.message || 'Máy chủ trả về dữ liệu không hợp lệ.');
     return body.data;
+  }
+  const addressCatalogBase = 'https://provinces.open-api.vn/api/v2';
+  let provinceCatalogPromise = null;
+  const wardCatalogPromises = new Map();
+  async function addressCatalogRequest(url, failureMessage) {
+    let response;
+    try {
+      response = await fetch(url, { headers: { Accept: 'application/json' } });
+    } catch {
+      throw Error(failureMessage);
+    }
+    if (!response.ok) throw Error(failureMessage);
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      throw Error(failureMessage);
+    }
+    return data;
+  }
+  function getAddressProvinces() {
+    if (!provinceCatalogPromise) {
+      provinceCatalogPromise = addressCatalogRequest(
+        addressCatalogBase + '/',
+        'Không tải được danh sách tỉnh/thành phố. Hãy thử lại.',
+      )
+        .then((provinces) => {
+          if (!Array.isArray(provinces) || provinces.some((item) => !item?.name || !item?.code))
+            throw Error('Danh sách tỉnh/thành phố không hợp lệ.');
+          return provinces;
+        })
+        .catch((error) => {
+          provinceCatalogPromise = null;
+          throw error;
+        });
+    }
+    return provinceCatalogPromise;
+  }
+  function getAddressWards(provinceCode) {
+    if (!wardCatalogPromises.has(provinceCode)) {
+      wardCatalogPromises.set(
+        provinceCode,
+        addressCatalogRequest(
+          addressCatalogBase + '/p/' + encodeURIComponent(provinceCode) + '?depth=2',
+          'Không tải được danh sách phường/xã. Hãy chọn lại tỉnh/thành phố.',
+        )
+          .then((province) => {
+            if (!Array.isArray(province?.wards))
+              throw Error('Danh sách phường/xã không hợp lệ.');
+            return province.wards;
+          })
+          .catch((error) => {
+            wardCatalogPromises.delete(provinceCode);
+            throw error;
+          }),
+      );
+    }
+    return wardCatalogPromises.get(provinceCode);
+  }
+  function addressOption(select, label, value, code) {
+    const option = document.createElement('option');
+    option.textContent = label;
+    option.value = value;
+    if (code) option.dataset.code = code;
+    select.append(option);
+    return option;
+  }
+  function normalizeProvinceName(value) {
+    return String(value || '')
+      .trim()
+      .replace(/^(tỉnh|thành phố|tp\.?)\s+/i, '')
+      .toLocaleLowerCase('vi');
+  }
+  async function populateAddressSelects(container, currentProvince = '', currentWard = '') {
+    const provinceSelect = $('[name="province"]', container);
+    const wardSelect = $('[name="ward"]', container);
+    if (!provinceSelect || !wardSelect) throw Error('Không tìm thấy trường chọn địa chỉ.');
+
+    provinceSelect.replaceChildren();
+    addressOption(provinceSelect, 'Đang tải tỉnh/thành phố…', '');
+    wardSelect.replaceChildren();
+    addressOption(wardSelect, 'Chọn tỉnh/thành phố trước', '');
+    provinceSelect.required = wardSelect.required = true;
+    provinceSelect.disabled = wardSelect.disabled = true;
+    const provinces = await getAddressProvinces();
+    provinceSelect.replaceChildren();
+    addressOption(provinceSelect, 'Chọn tỉnh/thành phố', '');
+    provinces.forEach((province) =>
+      addressOption(provinceSelect, province.name, province.name, province.code),
+    );
+    let selectedProvince = provinces.find((province) => province.name === currentProvince);
+    if (!selectedProvince && currentProvince) {
+      selectedProvince = provinces.find(
+        (province) =>
+          normalizeProvinceName(province.name) === normalizeProvinceName(currentProvince),
+      );
+    }
+    if (selectedProvince) {
+      provinceSelect.value = selectedProvince.name;
+    } else if (currentProvince) {
+      addressOption(provinceSelect, currentProvince, currentProvince);
+      provinceSelect.value = currentProvince;
+    }
+    provinceSelect.disabled = false;
+
+    let wardRequest = 0;
+    const loadWards = async (selectedWard = '') => {
+      const request = ++wardRequest;
+      const selectedOption = $('option:checked', provinceSelect);
+      const provinceCode = selectedOption?.dataset.code;
+      wardSelect.replaceChildren();
+      addressOption(
+        wardSelect,
+        provinceCode ? 'Đang tải phường/xã…' : 'Chọn tỉnh/thành phố trước',
+        '',
+      );
+      wardSelect.disabled = true;
+      if (!provinceSelect.value) return;
+      if (!provinceCode) {
+        if (selectedWard) {
+          addressOption(wardSelect, selectedWard, selectedWard);
+          wardSelect.value = selectedWard;
+        }
+        wardSelect.disabled = false;
+        return;
+      }
+      try {
+        const wards = await getAddressWards(provinceCode);
+        if (request !== wardRequest) return;
+        wardSelect.replaceChildren();
+        addressOption(wardSelect, 'Chọn phường/xã', '');
+        wards.forEach((ward) => addressOption(wardSelect, ward.name, ward.name, ward.code));
+        if (selectedWard && !wards.some((ward) => ward.name === selectedWard)) {
+          addressOption(wardSelect, selectedWard, selectedWard);
+        }
+        wardSelect.value = selectedWard || '';
+        wardSelect.disabled = false;
+      } catch (error) {
+        if (request !== wardRequest) return;
+        wardSelect.replaceChildren();
+        addressOption(wardSelect, 'Chọn phường/xã', '');
+        wardSelect.disabled = false;
+        throw error;
+      }
+    };
+    provinceSelect.onchange = () => {
+      loadWards().catch((error) => message(container, error.message, true));
+    };
+    if (provinceSelect.value) await loadWards(currentWard);
+    else wardSelect.disabled = true;
   }
   function message(root, text, error = false) {
     if (!root) return;
@@ -813,7 +972,7 @@
         const node = document.createElement('article');
         node.className = 'order-card';
         const paymentMethod = order.paymentMethod === 'SEPAY' ? 'SePay' : 'COD';
-        node.innerHTML = `<div class="client-order-head"><h3>${esc(order.billCode)}</h3><p class="client-order-state" data-state="${Number(order.status)}">${esc(billStatusLabel(order, orderStatuses))}</p></div><p>Thanh toán: ${paymentMethod} · ${paymentStatusLabel(order.paymentStatus)} · <strong>${money(order.totalAmount)}</strong></p><p class="client-order-date">Ngày đặt: ${esc(order.createdAt ? new Date(order.createdAt).toLocaleString('vi-VN') : 'Đang cập nhật')}</p><button class="btn btn-outline-primary" type="button">Xem chi tiết</button><a class="btn btn-primary ms-2" href="order-confirmation.html?orderId=${order.id}">${groupOf(order)==='payment'?'Tiếp tục thanh toán':'Xem trạng thái đơn'}</a>`;
+        node.innerHTML = `<div class="client-order-head"><h3>${esc(order.billCode)}</h3><p class="client-order-state" data-state="${Number(order.status)}">${esc(billStatusLabel(order, orderStatuses))}</p></div><p>Thanh toán: ${paymentMethod} · ${paymentStatusLabel(order.paymentStatus)} · <strong>${money(order.totalAmount)}</strong></p><p class="client-order-date">Ngày đặt: ${esc(order.createdAt ? new Date(order.createdAt).toLocaleString('vi-VN') : 'Đang cập nhật')}</p>${cancellationNotice(order) ? `<p class="alert alert-warning">${esc(cancellationNotice(order))}</p>` : ''}<button class="btn btn-outline-primary" type="button">Xem chi tiết</button><a class="btn btn-primary ms-2" href="order-confirmation.html?orderId=${order.id}">${groupOf(order)==='payment'?'Tiếp tục thanh toán':'Xem trạng thái đơn'}</a>${Number(order.status) === 0 ? '<button class="btn btn-outline-danger ms-2" type="button" data-cancel-order>Hủy đơn</button>' : ''}`;
         $('button', node).onclick = (e) =>
           action(e.currentTarget, async () => {
             const [bill, linesData] = await Promise.all([
@@ -876,6 +1035,18 @@
               lines.append(checkPayment);
             }
           });
+        const cancelButton = $('[data-cancel-order]', node);
+        if (cancelButton) {
+          cancelButton.onclick = (event) =>
+            action(event.currentTarget, async () => {
+              if (!window.confirm('Bạn có chắc muốn hủy đơn hàng này?')) return;
+              const cancelled = await api('/api/bills/' + order.id + '/cancel', 'PATCH');
+              Object.assign(order, cancelled);
+              if (currentGroup !== 'all') currentGroup = 'history';
+              drawOrders();
+              message($('#orders', host), cancellationNotice(cancelled));
+            });
+        }
         orders.append(node);
       }
       if (!orders.children.length) message(orders, 'Bạn chưa có đơn hàng phù hợp.');
@@ -923,14 +1094,12 @@
       }
       $('[data-add-address]', addressPanel).onclick = () => editAddress(null);
     };
-    const editAddress = (a) => {
+    const editAddress = async (a) => {
       const form = document.createElement('form');
       form.className = 'client-address-card';
       const fields = [
         ['receiverName', 'Người nhận', 'receiverName', 150],
         ['receiverPhone', 'Điện thoại', 'receiverPhone', 20],
-        ['province', 'Tỉnh/thành phố', 'province', 100],
-        ['ward', 'Phường/xã', 'ward', 100],
         ['detailAddress', 'Địa chỉ chi tiết', 'detailAddress', 300],
       ];
       form.innerHTML =
@@ -940,19 +1109,27 @@
               `<label class="d-block mb-3">${label}<input class="form-control" name="${name}" required maxlength="${max}" value="${esc(a?.[key] || '')}"></label>`,
           )
           .join('') +
+        '<label class="d-block mb-3">Tỉnh/thành phố<select class="form-select" name="province" required></select></label><label class="d-block mb-3">Phường/xã<select class="form-select" name="ward" required></select></label>' +
         '<label><input type="checkbox" name="isDefault"> Đặt làm mặc định</label><p><button class="btn btn-primary" type="submit">Lưu địa chỉ</button> <button class="btn btn-link" type="button">Hủy</button></p>';
       $('[name="isDefault"]', form).checked = a?.isDefault === true;
       $('[type="button"]', form).onclick = () => form.remove();
+      addressPanel.append(form);
+      try {
+        await populateAddressSelects(form, a?.province, a?.ward);
+      } catch (error) {
+        message(form, error.message, true);
+      }
       form.onsubmit = (e) => {
         e.preventDefault();
         action($('[type="submit"]', form), async () => {
+          if (!$('[name="province"]', form).value || !$('[name="ward"]', form).value)
+            throw Error('Vui lòng chọn tỉnh/thành phố và phường/xã.');
           const data = Object.fromEntries(new FormData(form));
           data.isDefault = $('[name="isDefault"]', form).checked;
           await api('/api/addresses' + (a ? '/' + a.id : ''), a ? 'PUT' : 'POST', data);
           drawAddresses(await api('/api/addresses'));
         });
       };
-      addressPanel.append(form);
     };
     drawAddresses(addresses);
     if (location.hash) {
@@ -1003,22 +1180,44 @@
     const quote = await api('/api/bills/checkout-quote', 'POST', {
       items: checkoutItems.map((item) => ({productDetailId: item.productDetailId, quantity: item.quantity})),
     });
-    const addresses = await api('/api/addresses');
+    const [addresses, availableVouchers] = await Promise.all([
+      api('/api/addresses'),
+      api('/api/vouchers'),
+    ]);
     const addressOptions = addresses
       .map(
         (address) =>
           `<option value="${address.id}" ${address.isDefault ? 'selected' : ''}>${esc(address.receiverName)} · ${esc(address.receiverPhone)} · ${esc(address.detailAddress)}, ${esc(address.ward)}, ${esc(address.province)}</option>`,
       )
       .join('');
+    const voucherCode = sessionStorage.getItem(pendingVoucherKey);
+    sessionStorage.removeItem(pendingVoucherKey);
+    const voucherOptions = availableVouchers
+      .map((voucher) => {
+        const discount =
+          voucher.discountType === 'PERCENT'
+            ? `${Number(voucher.discountValue)}% (tối đa ${money(voucher.maxDiscount)})`
+            : money(voucher.discountValue);
+        return `<option value="${esc(voucher.code)}" ${voucher.code === voucherCode ? 'selected' : ''}>${esc(voucher.code)} · giảm ${esc(discount)} · đơn từ ${money(voucher.minOrder)}</option>`;
+      })
+      .join('');
     form.innerHTML =
       `<label class="d-block mb-3">Địa chỉ nhận hàng<select class="form-select" name="addressId"><option value="">Chọn địa chỉ</option>${addressOptions}<option value="new" ${addresses.length ? '' : 'selected'}>Nhập địa chỉ mới</option></select></label>` +
-      '<div class="client-new-address" hidden><label class="d-block mb-3">Người nhận<input class="form-control" name="receiverName" maxlength="150"></label><label class="d-block mb-3">Điện thoại<input class="form-control" name="receiverPhone" maxlength="20"></label><label class="d-block mb-3">Tỉnh/thành phố<input class="form-control" name="province" maxlength="100"></label><label class="d-block mb-3">Phường/xã<input class="form-control" name="ward" maxlength="100"></label><label class="d-block mb-3">Địa chỉ chi tiết<input class="form-control" name="detailAddress" maxlength="300"></label></div>' +
-      '<fieldset class="mb-3"><legend class="form-label">Phương thức thanh toán</legend><label class="d-block"><input type="radio" name="paymentMethod" value="COD" checked> Thanh toán khi nhận hàng (COD)</label><label class="d-block"><input type="radio" name="paymentMethod" value="SEPAY"> Chuyển khoản qua SePay</label></fieldset><div class="client-voucher mb-3"><label class="d-block">Mã giảm giá<input name="voucherCode" class="form-control" maxlength="50" autocomplete="off" placeholder="Nhập mã voucher"></label><button type="button" class="btn btn-outline-primary mt-2" data-voucher-apply>Áp dụng voucher</button><p class="client-voucher-message" role="status"></p></div><label class="d-block mb-3">Ghi chú<textarea name="note" class="form-control" maxlength="500"></textarea></label><p class="client-checkout-total"></p><button type="submit" class="btn btn-primary">Đặt hàng</button>';
+      '<div class="client-new-address" hidden><label class="d-block mb-3">Người nhận<input class="form-control" name="receiverName" maxlength="150"></label><label class="d-block mb-3">Điện thoại<input class="form-control" name="receiverPhone" maxlength="20"></label><label class="d-block mb-3">Tỉnh/thành phố<select class="form-select" name="province"></select></label><label class="d-block mb-3">Phường/xã<select class="form-select" name="ward"></select></label><label class="d-block mb-3">Địa chỉ chi tiết<input class="form-control" name="detailAddress" maxlength="300"></label></div>' +
+      `<fieldset class="mb-3"><legend class="form-label">Phương thức thanh toán</legend><label class="d-block"><input type="radio" name="paymentMethod" value="COD" checked> Thanh toán khi nhận hàng (COD)</label><label class="d-block"><input type="radio" name="paymentMethod" value="SEPAY"> Chuyển khoản qua SePay</label></fieldset><div class="client-voucher mb-3"><label class="d-block">Voucher dành cho tài khoản<select name="voucherCode" class="form-select"><option value="">Không sử dụng voucher</option>${voucherOptions}</select></label>${availableVouchers.length ? '' : '<p>Hiện chưa có voucher phù hợp với tài khoản của bạn.</p>'}<button type="button" class="btn btn-outline-primary mt-2" data-voucher-apply ${availableVouchers.length ? '' : 'disabled'}>Áp dụng voucher</button><p class="client-voucher-message" role="status"></p></div><label class="d-block mb-3">Ghi chú<textarea name="note" class="form-control" maxlength="500"></textarea></label><p class="client-checkout-total"></p><button type="submit" class="btn btn-primary">Đặt hàng</button>`;
     const addressSelect = $('[name="addressId"]', form);
     const newAddress = $('.client-new-address', form);
+    let addressSelectsLoaded = false;
     addressSelect.onchange = () => {
       newAddress.hidden = addressSelect.value !== 'new';
-      $$('input', newAddress).forEach((input) => (input.required = !newAddress.hidden));
+      $$('input,select', newAddress).forEach((input) => (input.required = !newAddress.hidden));
+      if (!newAddress.hidden && !addressSelectsLoaded) {
+        addressSelectsLoaded = true;
+        populateAddressSelects(newAddress).catch((error) => {
+          addressSelectsLoaded = false;
+          message(form, error.message, true);
+        });
+      }
     };
     addressSelect.dispatchEvent(new Event('change'));
     if (summary) {
@@ -1054,6 +1253,7 @@
       voucherMessage.textContent = '';
       renderTotals();
     };
+    voucherInput.onchange = voucherInput.oninput;
     $('[data-voucher-apply]', form).onclick = (event) =>
       action(event.currentTarget, async () => {
         const code = voucherInput.value.trim().toUpperCase();
@@ -1083,6 +1283,8 @@
           throw Error('Hãy áp dụng lại voucher trước khi đặt hàng.');
         let addressId = Number(addressSelect.value);
         if (addressSelect.value === 'new') {
+          if (!addressSelectsLoaded || !$('[name="province"]', newAddress).value || !$('[name="ward"]', newAddress).value)
+            throw Error('Vui lòng chọn tỉnh/thành phố và phường/xã.');
           const address = Object.fromEntries(new FormData(form));
           const created = await api('/api/addresses', 'POST', {
             receiverName: address.receiverName,
@@ -1203,7 +1405,7 @@
       message(host, 'Không tìm thấy mã đơn hàng cần kiểm tra.', true);
       return;
     }
-    const [bill, lines, history] = await Promise.all([
+    let [bill, lines, history] = await Promise.all([
       api('/api/bills/' + encodeURIComponent(orderId)),
       api('/api/bills/' + encodeURIComponent(orderId) + '/lines'),
       api('/api/bills/' + encodeURIComponent(orderId) + '/history'),
@@ -1211,7 +1413,7 @@
     const render = (current) => {
       host.hidden = false;
       host.innerHTML =
-        `<div class="container"><div class="alert alert-info"><h2 class="h4">Đơn ${esc(current.billCode)}</h2><p class="mb-1">Trạng thái đơn: ${esc(billStatusLabel(current, orderStatuses))}</p><p class="mb-0">Thanh toán: ${current.paymentMethod === 'SEPAY' ? 'SePay' : 'COD'} · ${paymentStatusLabel(current.paymentStatus)}</p></div>` +
+        `<div class="container"><div class="alert alert-info"><h2 class="h4">Đơn ${esc(current.billCode)}</h2><p class="mb-1">Trạng thái đơn: ${esc(billStatusLabel(current, orderStatuses))}</p><p class="mb-0">Thanh toán: ${current.paymentMethod === 'SEPAY' ? 'SePay' : 'COD'} · ${paymentStatusLabel(current.paymentStatus)}</p>${cancellationNotice(current) ? `<p class="mt-2 mb-0">${esc(cancellationNotice(current))}</p>` : ''}</div>` +
         '<div class="row g-4"><div class="col-lg-7"><h3 class="h5">Sản phẩm</h3><ul class="list-group mb-4">' +
         lines
           .map(
@@ -1267,8 +1469,56 @@
               '.';
         paymentPanel.append(paid);
       }
+      if (Number(current.status) === 0) {
+        const cancel = document.createElement('button');
+        cancel.className = 'btn btn-outline-danger mt-3';
+        cancel.type = 'button';
+        cancel.textContent = 'Hủy đơn hàng';
+        cancel.onclick = (event) =>
+          action(event.currentTarget, async () => {
+            if (!window.confirm('Bạn có chắc muốn hủy đơn hàng này?')) return;
+            bill = await api('/api/bills/' + encodeURIComponent(orderId) + '/cancel', 'PATCH');
+            history = await api('/api/bills/' + encodeURIComponent(orderId) + '/history');
+            render(bill);
+          });
+        paymentPanel.append(cancel);
+      }
     };
     render(bill);
+  }
+  async function customerVouchersPage() {
+    const section = $('#customer-vouchers');
+    if (!section) return;
+    const list = $('[data-voucher-list]', section);
+    section.hidden = false;
+    if (!customer) {
+      list.innerHTML =
+        '<p>Đăng nhập để xem voucher đủ điều kiện dành riêng cho tài khoản của bạn. <a href="login-register.html">Đăng nhập</a></p>';
+      return;
+    }
+    const vouchers = await api('/api/vouchers');
+    if (!vouchers.length) {
+      list.innerHTML = '<p>Hiện chưa có voucher phù hợp với tài khoản của bạn.</p>';
+      return;
+    }
+    list.innerHTML = vouchers
+      .map((voucher) => {
+        const discount =
+          voucher.discountType === 'PERCENT'
+            ? `${Number(voucher.discountValue)}% · tối đa ${money(voucher.maxDiscount)}`
+            : money(voucher.discountValue);
+        const expiry = voucher.endsAt
+          ? `Hạn đến ${new Date(voucher.endsAt).toLocaleDateString('vi-VN')}`
+          : 'Không giới hạn thời gian';
+        return `<article class="client-voucher-card"><strong>${esc(voucher.code)}</strong><p>Giảm ${esc(discount)}</p><p>Đơn tối thiểu ${money(voucher.minOrder)} · ${esc(expiry)}</p><button class="btn btn-outline-primary" type="button" data-select-voucher="${esc(voucher.code)}">Chọn voucher</button></article>`;
+      })
+      .join('');
+    list.onclick = (event) => {
+      const button = event.target.closest('[data-select-voucher]');
+      if (!button) return;
+      sessionStorage.setItem(pendingVoucherKey, button.dataset.selectVoucher);
+      location.assign('cart.html');
+    };
   }
   async function init() {
     // API-rendered controls and products must stay visible independently of template scroll effects.
@@ -1314,6 +1564,7 @@
         }),
       );
     if (file === 'checkout.html') jobs.push(checkoutPage());
+    if (file === 'index.html' || file === '') jobs.push(customerVouchersPage());
     if (file === 'order-confirmation.html') jobs.push(orderConfirmationPage());
     for (const result of await Promise.allSettled(jobs))
       if (result.status === 'rejected') message($('main'), result.reason.message, true);

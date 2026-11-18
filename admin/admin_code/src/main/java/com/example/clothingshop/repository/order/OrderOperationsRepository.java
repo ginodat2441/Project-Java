@@ -69,14 +69,6 @@ public class OrderOperationsRepository {
     return db.update("UPDATE BILL SET PAYMENT_STATUS=1 WHERE ID=:i", args);
   }
 
-  public int updateVoucher(Object... args) {
-    return db.update(
-        "UPDATE VOUCHER SET USED_COUNT=USED_COUNT+1 WHERE ID=:i AND USED_COUNT<USAGE_LIMIT AND"
-            + " STATUS=1 AND STARTS_AT<=LOCALTIMESTAMP AND ENDS_AT>LOCALTIMESTAMP AND"
-            + " MIN_ORDER<=:s",
-        args);
-  }
-
   public Map<String, Object> findBill3(Object... args) {
     return db.one(
         "SELECT STATUS,PAYMENT_STATUS,PAYMENT_METHOD FROM BILL WHERE ID=:i AND DELETE_FLAG=0 FOR UPDATE", args);
@@ -141,16 +133,45 @@ public class OrderOperationsRepository {
   }
 
   public List<Map<String, Object>> eligibleVoucher(
-      boolean consume, String code, java.math.BigDecimal subtotal) {
+      boolean consume, String code, java.math.BigDecimal subtotal, long customerId) {
     return db.rows(
-        "SELECT ID,DISCOUNT_TYPE,DISCOUNT_VALUE,MAX_DISCOUNT FROM VOUCHER WHERE CODE=:c AND"
-            + " STATUS=1 AND STARTS_AT<=LOCALTIMESTAMP AND ENDS_AT>LOCALTIMESTAMP AND"
-            + " USED_COUNT<USAGE_LIMIT AND MIN_ORDER<=:s"
+        "SELECT v.ID,v.DISCOUNT_TYPE,v.DISCOUNT_VALUE,v.MAX_DISCOUNT FROM VOUCHER v WHERE"
+            + " v.CODE=:c AND v.STATUS=1 AND v.STARTS_AT<=LOCALTIMESTAMP AND"
+            + " (v.ENDS_AT IS NULL OR v.ENDS_AT>LOCALTIMESTAMP) AND"
+            + " v.USED_COUNT<v.USAGE_LIMIT AND v.MIN_ORDER<=:s AND EXISTS (SELECT 1 FROM CUSTOMER c"
+            + " WHERE c.ID=:customerId AND c.DELETE_FLAG=0 AND (v.NEW_ACCOUNT_DAYS IS NULL OR"
+            + " c.CREATED_AT>=LOCALTIMESTAMP-NUMTODSINTERVAL(v.NEW_ACCOUNT_DAYS,'DAY')) AND"
+            + " (v.NO_PREVIOUS_ORDERS=0 OR NOT EXISTS (SELECT 1 FROM BILL b WHERE"
+            + " b.CUSTOMER_ID=c.ID AND b.DELETE_FLAG=0 AND b.STATUS NOT IN (4,6))) AND"
+            + " (v.MINIMUM_ORDERS IS NULL OR (SELECT COUNT(*) FROM BILL b WHERE"
+            + " b.CUSTOMER_ID=c.ID AND b.DELETE_FLAG=0 AND b.STATUS NOT IN (4,6))>=v.MINIMUM_ORDERS))"
             + (consume ? " FOR UPDATE" : ""),
         "c",
         code,
         "s",
-        subtotal);
+        subtotal,
+        "customerId",
+        customerId);
+  }
+
+  public int claimVoucher(long customerId, long voucherId, java.math.BigDecimal subtotal) {
+    return db.update(
+        "UPDATE VOUCHER v SET USED_COUNT=USED_COUNT+1 WHERE v.ID=:i AND v.STATUS=1 AND"
+            + " v.STARTS_AT<=LOCALTIMESTAMP AND (v.ENDS_AT IS NULL OR v.ENDS_AT>LOCALTIMESTAMP)"
+            + " AND v.USED_COUNT<v.USAGE_LIMIT AND v.MIN_ORDER<=:s AND EXISTS (SELECT 1 FROM"
+            + " CUSTOMER c WHERE c.ID=:customerId AND c.DELETE_FLAG=0 AND"
+            + " (v.NEW_ACCOUNT_DAYS IS NULL OR"
+            + " c.CREATED_AT>=LOCALTIMESTAMP-NUMTODSINTERVAL(v.NEW_ACCOUNT_DAYS,'DAY')) AND"
+            + " (v.NO_PREVIOUS_ORDERS=0 OR NOT EXISTS (SELECT 1 FROM BILL b WHERE"
+            + " b.CUSTOMER_ID=c.ID AND b.DELETE_FLAG=0 AND b.STATUS NOT IN (4,6))) AND"
+            + " (v.MINIMUM_ORDERS IS NULL OR (SELECT COUNT(*) FROM BILL b WHERE"
+            + " b.CUSTOMER_ID=c.ID AND b.DELETE_FLAG=0 AND b.STATUS NOT IN (4,6))>=v.MINIMUM_ORDERS))",
+        "i",
+        voucherId,
+        "s",
+        subtotal,
+        "customerId",
+        customerId);
   }
 
   public List<Map<String, Object>> voucherProductIds(Object... args) {

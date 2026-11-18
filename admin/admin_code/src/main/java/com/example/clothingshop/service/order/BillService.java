@@ -109,7 +109,7 @@ public class BillService {
     BigDecimal ship = shippingFee; // Server-calculated carrier quote; never trust browser totals.
     BigDecimal eligibleSubtotal =
         eligibleSubtotal(req.voucherCode(), sorted, priceMap, subTotal);
-    BigDecimal discount = discount(req.voucherCode(), eligibleSubtotal, true);
+    BigDecimal discount = discount(req.voucherCode(), eligibleSubtotal, true, req.customerId());
 
     // 2. Insert BILL
     Map<String, Object> p = new HashMap<>();
@@ -208,16 +208,23 @@ public class BillService {
   }
 
   public BigDecimal discount(String code, BigDecimal subtotal, boolean consume) {
+    return discount(code, subtotal, consume, null);
+  }
+
+  public BigDecimal discount(String code, BigDecimal subtotal, boolean consume, Long customerId) {
     if (code == null || code.isBlank()) return BigDecimal.ZERO;
+    if (customerId == null)
+      throw new BusinessException("Đăng nhập tài khoản khách hàng để sử dụng voucher");
     if (subtotal.signum() <= 0)
       throw new BusinessException("Voucher không áp dụng cho sản phẩm nào trong giỏ");
     var rows =
-        queries.eligibleVoucher(consume, code.trim().toUpperCase(java.util.Locale.ROOT), subtotal);
+        queries.eligibleVoucher(
+            consume, code.trim().toUpperCase(java.util.Locale.ROOT), subtotal, customerId);
     if (rows.isEmpty())
       throw new BusinessException(
-          "Voucher không hợp lệ, chưa có hiệu lực, hết hạn, hết lượt hoặc đơn chưa đạt tối thiểu");
+          "Voucher không hợp lệ, không đúng nhóm khách hàng, chưa có hiệu lực, hết hạn, hết lượt hoặc đơn chưa đạt tối thiểu");
     var v = rows.get(0);
-    if (consume && queries.updateVoucher("i", number(v, "ID"), "s", subtotal) == 0)
+    if (consume && queries.claimVoucher(customerId, number(v, "ID"), subtotal) == 0)
       throw new BusinessException("Voucher đã hết lượt hoặc hết hiệu lực");
     BigDecimal value = (BigDecimal) v.get("DISCOUNT_VALUE");
     if (v.get("DISCOUNT_TYPE").equals("PERCENT"))

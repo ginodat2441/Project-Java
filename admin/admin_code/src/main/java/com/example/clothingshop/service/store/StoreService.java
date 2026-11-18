@@ -117,7 +117,7 @@ public class StoreService {
   @Transactional
   public Object checkout(Checkout r, HttpSession session) {
     long customer = customer(session);
-    var amounts = amounts(r.voucherCode(), r.items());
+    var amounts = amounts(r.voucherCode(), r.items(), customer);
     var offers =
         shipping.quote(
             r.province(),
@@ -182,8 +182,10 @@ public class StoreService {
         queries.listProductImage("i", id));
   }
 
-  public Object quote(Quote r) {
-    var a = amounts(r.code(), r.items());
+  public Object quote(Quote r, HttpSession session) {
+    Long customerId =
+        r.code() == null || r.code().isBlank() ? null : customer(session);
+    var a = amounts(r.code(), r.items(), customerId);
     var result = new LinkedHashMap<String, Object>();
     result.put("subtotal", a[0]);
     result.put("discount", a[1]);
@@ -208,7 +210,7 @@ public class StoreService {
     return result;
   }
 
-  private BigDecimal[] amounts(String code, List<BillRequest.Item> items) {
+  private BigDecimal[] amounts(String code, List<BillRequest.Item> items, Long customerId) {
     if (items.stream().map(BillRequest.Item::productDetailId).distinct().count() != items.size())
       throw new BusinessException("Gộp các dòng trùng SKU trước khi tính phí");
     BigDecimal subtotal = BigDecimal.ZERO;
@@ -224,6 +226,8 @@ public class StoreService {
               || eligibleProducts.contains(number(p, "PRODUCT_ID"))))
         eligibleSubtotal = eligibleSubtotal.add(lineTotal);
     }
-    return new BigDecimal[] {subtotal, bills.discount(code, eligibleSubtotal, false)};
+    return new BigDecimal[] {
+      subtotal, bills.discount(code, eligibleSubtotal, false, customerId)
+    };
   }
 }

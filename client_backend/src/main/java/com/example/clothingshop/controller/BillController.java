@@ -35,8 +35,7 @@ public class BillController {
     @PostMapping("/quote")
     public ApiResponse<BillService.VoucherQuote> quote(
             @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody VoucherQuoteRequest req) {
-        CustomerIdentity.customerId(jwt);
-        return ApiResponse.ok(service.quote(req));
+        return ApiResponse.ok(service.quote(CustomerIdentity.customerId(jwt), req));
     }
 
     @PostMapping("/checkout-quote")
@@ -77,7 +76,11 @@ public class BillController {
 
     @PatchMapping("/{id}/cancel")
     public ApiResponse<BillView> cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable long id) {
-        return ApiResponse.ok("Đã hủy đơn hàng",
-                service.cancel(CustomerIdentity.customerId(jwt), id));
+        BillView bill = service.cancel(CustomerIdentity.customerId(jwt), id);
+        String message =
+                bill.paymentStatus() != null && bill.paymentStatus() == 1
+                        ? "Đã hủy đơn. Cửa hàng cần xử lý hoàn tiền thủ công."
+                        : "Đã hủy đơn hàng";
+        return ApiResponse.ok(message, bill);
     }
 }

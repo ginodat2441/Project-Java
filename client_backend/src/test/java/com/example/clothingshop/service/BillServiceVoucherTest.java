@@ -18,7 +18,7 @@ class BillServiceVoucherTest {
     void quoteDiscountsOnlySelectedProductsAndAddsShippingToTheServerTotal() {
         var repo = new VoucherRepository();
         var service = new BillService(repo, new SePayService(""), BigDecimal.valueOf(30000));
-        var quote = service.quote(new VoucherQuoteRequest("sale10", List.of(
+        var quote = service.quote(7L, new VoucherQuoteRequest("sale10", List.of(
                 new BillRequest.Item(11L, 1),
                 new BillRequest.Item(22L, 1))));
 
@@ -36,12 +36,25 @@ class BillServiceVoucherTest {
 
         assertThrows(
                 BusinessException.class,
-                () -> service.quote(new VoucherQuoteRequest(
+                () -> service.quote(7L, new VoucherQuoteRequest(
                         "SALE10", List.of(new BillRequest.Item(22L, 1)))));
+    }
+
+    @Test
+    void quoteRejectsVoucherForAnotherCustomerAudience() {
+        var repo = new VoucherRepository();
+        var service = new BillService(repo, new SePayService(""), BigDecimal.valueOf(30000));
+
+        assertThrows(
+                BusinessException.class,
+                () -> service.quote(8L, new VoucherQuoteRequest(
+                        "SALE10", List.of(new BillRequest.Item(11L, 1)))));
+        assertEquals(8L, repo.checkedCustomerId);
     }
 
     private static final class VoucherRepository extends BillRepository {
         private int claimCount;
+        private long checkedCustomerId;
 
         private VoucherRepository() {
             super(null);
@@ -64,8 +77,9 @@ class BillServiceVoucherTest {
 
         @Override
         public Optional<Map<String, Object>> findEligibleVoucher(
-                String code, BigDecimal eligibleSubtotal, boolean lock) {
-            if (eligibleSubtotal.signum() == 0) return Optional.empty();
+                String code, long customerId, BigDecimal eligibleSubtotal, boolean lock) {
+            checkedCustomerId = customerId;
+            if (eligibleSubtotal.signum() == 0 || customerId != 7L) return Optional.empty();
             return Optional.of(Map.of(
                     "ID", 9L,
                     "DISCOUNT_TYPE", "PERCENT",
@@ -74,7 +88,7 @@ class BillServiceVoucherTest {
         }
 
         @Override
-        public int claimVoucher(long voucherId, BigDecimal eligibleSubtotal) {
+        public int claimVoucher(long voucherId, long customerId, BigDecimal eligibleSubtotal) {
             claimCount++;
             return 1;
         }

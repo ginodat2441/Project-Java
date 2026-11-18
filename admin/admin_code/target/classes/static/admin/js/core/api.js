@@ -1,5 +1,6 @@
 async function api(path, method = "GET", body) {
   const options = { method, headers: {} };
+  if (path === "/logout") options.headers.Accept = "application/json";
   if (method !== "GET") {
     if (!csrf) csrf = await fetch("/api/csrf").then((r) => r.json());
     options.headers[csrf.headerName] = csrf.token;

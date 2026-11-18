@@ -66,7 +66,7 @@ public class StoreController {
   }
 
   @PostMapping("/api/catalog/quote")
-  public Object quote(@Valid @RequestBody Quote r) {
-    return service.quote(r);
+  public Object quote(@Valid @RequestBody Quote r, HttpSession session) {
+    return service.quote(r, session);
   }
 }

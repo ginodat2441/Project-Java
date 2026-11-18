@@ -2,7 +2,7 @@
 
 Xem [ADMIN_README.md](../ADMIN_README.md) để chạy bản có quản trị, tạo admin và kiểm thử. Với database hiện tại **không chạy lại schema.sql/sample_data.sql**; V001 và V002 đã được áp dụng. Hướng dẫn tạo schema bên dưới chỉ dành cho database trống. API ghi đã yêu cầu đăng nhập/CSRF, API SQL tùy ý luôn bị khóa và cấu hình password phải dùng biến môi trường.
 
-Trước khi dùng voucher theo sản phẩm, chạy migration `src/main/resources/db/migrations/V010__voucher_product_scope.sql` một lần trên database hiện tại. Migration giữ hiệu lực các voucher cũ bằng cách gắn chúng với toàn bộ sản phẩm đang tồn tại. Voucher mới có thể áp dụng cho các sản phẩm được chọn hoặc toàn bộ sản phẩm; mức đơn tối thiểu và tiền giảm chỉ tính trên các sản phẩm đủ điều kiện.
+Trên database hiện tại, chạy tuần tự các migration voucher chưa áp dụng bằng SQLcl/SQL Developer: `V010__voucher_product_scope.sql`, sau đó `V011__voucher_audience_and_unlimited_expiry.sql`. Voucher có thể đặt điều kiện kết hợp cho tài khoản mới, khách chưa có đơn đủ điều kiện và số đơn tối thiểu; các điều kiện được áp dụng đồng thời. Đơn đã hủy hoặc giao thất bại không được tính. Voucher không giới hạn thời gian bắt đầu có hiệu lực khi lưu và không có ngày kết thúc.
 
 Java 17 · Spring Boot 3.3 · Maven · Oracle 12c+ (ojdbc11) · `NamedParameterJdbcTemplate` (KHÔNG dùng JPA/Hibernate)
 
