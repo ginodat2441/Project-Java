@@ -25,18 +25,25 @@ public class ProductRepository {
                    b.BRAND_NAME, m.MATERIAL_NAME,
                    p.TARGET_GENDER, p.THUMBNAIL_URL, p.STATUS,
                    (SELECT MIN(pd.PRICE) FROM PRODUCT_DETAIL pd
-                     WHERE pd.PRODUCT_ID = p.ID AND pd.DELETE_FLAG = 0)          AS MIN_PRICE,
+                     WHERE pd.PRODUCT_ID = p.ID AND pd.DELETE_FLAG = 0 AND pd.STATUS = 1) AS MIN_PRICE,
                    (SELECT NVL(SUM(pd.QUANTITY), 0) FROM PRODUCT_DETAIL pd
-                     WHERE pd.PRODUCT_ID = p.ID AND pd.DELETE_FLAG = 0)          AS TOTAL_STOCK
+                     WHERE pd.PRODUCT_ID = p.ID AND pd.DELETE_FLAG = 0 AND pd.STATUS = 1) AS TOTAL_STOCK
               FROM PRODUCT p
               JOIN BRAND b    ON b.ID = p.BRAND_ID
               JOIN MATERIAL m ON m.ID = p.MATERIAL_ID
-             WHERE p.DELETE_FLAG = 0
+             WHERE p.DELETE_FLAG = 0 AND p.STATUS = 1
+               AND (p.CATEGORY_ID IS NULL OR p.CATEGORY_ID NOT IN
+                 (SELECT ID FROM CATEGORY START WITH STATUS=0 CONNECT BY NOCYCLE PRIOR ID=PARENT_ID))
             """;
 
     /** Tìm kiếm động: chỉ nối điều kiện khi tham số có giá trị. */
     public PageResult<ProductView> searchViews(String keyword, Long brandId, Integer gender,
                                           int page, int size) {
+        return searchViews(keyword, brandId, gender, null, "newest", page, size);
+    }
+
+    public PageResult<ProductView> searchViews(String keyword, Long brandId, Integer gender,
+                                          Long categoryId, String sort, int page, int size) {
         StringBuilder q = new StringBuilder(SELECT_PRODUCT);
         Map<String, Object> p = new HashMap<>();
         if (keyword != null && !keyword.isBlank()) {
@@ -51,7 +58,15 @@ public class ProductRepository {
             q.append(" AND p.TARGET_GENDER = :gender ");
             p.put("gender", gender);
         }
-        q.append(" ORDER BY p.ID DESC");
+        if (categoryId != null) {
+            q.append(" AND p.CATEGORY_ID IN (SELECT ID FROM CATEGORY START WITH ID=:categoryId CONNECT BY NOCYCLE PRIOR ID=PARENT_ID) ");
+            p.put("categoryId", categoryId);
+        }
+        q.append(switch (sort) {
+            case "price_asc" -> " ORDER BY MIN_PRICE ASC NULLS LAST, p.ID DESC";
+            case "price_desc" -> " ORDER BY MIN_PRICE DESC NULLS LAST, p.ID DESC";
+            default -> " ORDER BY p.CREATED_AT DESC, p.ID DESC";
+        });
         return sql.page(q.toString(), p, page, size, ProductView.class);
     }
 
@@ -65,7 +80,7 @@ public class ProductRepository {
                        pd.SIZE_NAME, pd.SKU, pd.PRICE, pd.QUANTITY, pd.IMAGE_URL
                   FROM PRODUCT_DETAIL pd
                   JOIN COLOR c ON c.ID = pd.COLOR_ID
-                 WHERE pd.PRODUCT_ID = :pid AND pd.DELETE_FLAG = 0
+                 WHERE pd.PRODUCT_ID = :pid AND pd.DELETE_FLAG = 0 AND pd.STATUS = 1
                  ORDER BY c.COLOR_NAME, pd.SIZE_NAME
                 """;
         return sql.list(q, Map.of("pid", productId), ProductDetailView.class);
@@ -79,5 +94,11 @@ public class ProductRepository {
                  ORDER BY SORT_ORDER, ID
                 """;
         return sql.list(q, Map.of("pid", productId), ProductImageView.class);
+    }
+
+    public List<com.example.clothingshop.view.CategoryView> categories() {
+        return sql.list("SELECT ID,CATEGORY_NAME,PARENT_ID FROM CATEGORY WHERE STATUS=1 AND ID NOT IN "
+            + "(SELECT ID FROM CATEGORY START WITH STATUS=0 CONNECT BY NOCYCLE PRIOR ID=PARENT_ID) ORDER BY CATEGORY_NAME",
+            Map.of(), com.example.clothingshop.view.CategoryView.class);
     }
 }

@@ -22,9 +22,16 @@ public class ProductController {
     public ApiResponse<PageResult<ProductView>> search(@RequestParam(required = false) String keyword,
                                                        @RequestParam(required = false) Long brandId,
                                                        @RequestParam(required = false) Integer gender,
+                                                       @RequestParam(required = false) Long categoryId,
+                                                       @RequestParam(defaultValue = "newest") String sort,
                                                        @RequestParam(defaultValue = "1") int page,
                                                        @RequestParam(defaultValue = "10") int size) {
-        return ApiResponse.ok(service.search(keyword, brandId, gender, page, size));
+        return ApiResponse.ok(service.search(keyword, brandId, gender, categoryId, sort, page, size));
+    }
+
+    @GetMapping("/categories")
+    public ApiResponse<List<com.example.clothingshop.view.CategoryView>> categories() {
+        return ApiResponse.ok(service.categories());
     }
 
     @GetMapping("/{id}")

@@ -66,9 +66,13 @@ public class AdminSearchService {
   }
 
   public Object orders(Map<String, String> f) {
+    String group=f.getOrDefault("orderGroup","all");
+    if (!Set.of("all","payment","processing","shipping","history").contains(group))
+      throw new com.example.clothingshop.common.BusinessException("Nhóm đơn hàng không hợp lệ");
     return queries.pageBill(
         page(f),
         20,
+        "og", group,
         "q",
         like(f, "q"),
         "s",
