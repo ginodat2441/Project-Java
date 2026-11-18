@@ -43,7 +43,7 @@ public class AdminOperationsRepository {
     return db.rows(
         "SELECT * FROM (SELECT v.*,USAGE_LIMIT-USED_COUNT REMAINING,CASE WHEN STATUS=0 THEN"
             + " 'DISABLED' WHEN LOCALTIMESTAMP<STARTS_AT THEN 'UPCOMING' WHEN"
-            + " LOCALTIMESTAMP>=ENDS_AT THEN 'EXPIRED' WHEN USED_COUNT>=USAGE_LIMIT THEN"
+            + " (ENDS_AT IS NOT NULL AND LOCALTIMESTAMP>=ENDS_AT) THEN 'EXPIRED' WHEN USED_COUNT>=USAGE_LIMIT THEN"
               + " 'EXHAUSTED' ELSE 'ACTIVE' END EFFECTIVE_STATUS,(SELECT COUNT(*) FROM VOUCHER_PRODUCT"
               + " vp WHERE vp.VOUCHER_ID=v.ID) PRODUCT_COUNT FROM VOUCHER v) WHERE LOWER(CODE)"
             + " LIKE :q AND (:s IS NULL OR EFFECTIVE_STATUS=:s) ORDER BY ID DESC",
@@ -86,7 +86,7 @@ public class AdminOperationsRepository {
   public Map<String, Object> pageBill(int page, int size, Object... args) {
     return db.page(
         "SELECT"
-            + " ID,BILL_CODE,RECEIVER_NAME,TOTAL_AMOUNT,STATUS,PAYMENT_METHOD,PAYMENT_STATUS,RETURN_STATUS,CREATED_AT,DISPATCHED"
+            + " ID,BILL_CODE,RECEIVER_NAME,RECEIVER_PHONE,TOTAL_AMOUNT,STATUS,PAYMENT_METHOD,PAYMENT_STATUS,RETURN_STATUS,CREATED_AT,DISPATCHED"
             + " FROM BILL WHERE DELETE_FLAG=0 AND (LOWER(BILL_CODE) LIKE :q OR LOWER(RECEIVER_NAME)"
             + " LIKE :q) AND (:s IS NULL OR STATUS=:s) AND (:pm IS NULL OR PAYMENT_METHOD=:pm) AND"
             + " (:ps IS NULL OR PAYMENT_STATUS=:ps) AND (:rs IS NULL OR RETURN_STATUS=:rs) AND (:f"
@@ -307,21 +307,21 @@ public class AdminOperationsRepository {
   }
 
   public Map<String, Object> findVoucher(Object... args) {
-    return db.one("SELECT USED_COUNT FROM VOUCHER WHERE ID=:i FOR UPDATE", args);
+    return db.one("SELECT USED_COUNT,STARTS_AT FROM VOUCHER WHERE ID=:i FOR UPDATE", args);
   }
 
   public long insertVoucher(Object... args) {
     return db.insert(
         "INSERT INTO"
-            + " VOUCHER(CODE,DISCOUNT_TYPE,DISCOUNT_VALUE,MIN_ORDER,MAX_DISCOUNT,STARTS_AT,ENDS_AT,USAGE_LIMIT,STATUS)"
-            + " VALUES(:c,:t,:v,:min,:max,:start,:end,:lim,:s)",
+            + " VOUCHER(CODE,DISCOUNT_TYPE,DISCOUNT_VALUE,MIN_ORDER,MAX_DISCOUNT,STARTS_AT,ENDS_AT,USAGE_LIMIT,STATUS,NEW_ACCOUNT_DAYS,NO_PREVIOUS_ORDERS,MINIMUM_ORDERS)"
+            + " VALUES(:c,:t,:v,:min,:max,:start,:end,:lim,:s,:newAccountDays,:noPreviousOrders,:minimumOrders)",
         args);
   }
 
   public int updateVoucher(Object... args) {
     return db.update(
         "UPDATE VOUCHER SET"
-            + " CODE=:c,DISCOUNT_TYPE=:t,DISCOUNT_VALUE=:v,MIN_ORDER=:min,MAX_DISCOUNT=:max,STARTS_AT=:start,ENDS_AT=:end,USAGE_LIMIT=:lim,STATUS=:s"
+            + " CODE=:c,DISCOUNT_TYPE=:t,DISCOUNT_VALUE=:v,MIN_ORDER=:min,MAX_DISCOUNT=:max,STARTS_AT=:start,ENDS_AT=:end,USAGE_LIMIT=:lim,STATUS=:s,NEW_ACCOUNT_DAYS=:newAccountDays,NO_PREVIOUS_ORDERS=:noPreviousOrders,MINIMUM_ORDERS=:minimumOrders"
             + " WHERE ID=:i",
         args);
   }

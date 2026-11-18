@@ -19,8 +19,8 @@ $("#close").onclick = () => $("#dialog").close();
 
 $("#logout").onclick = async () => {
   try {
-    await api("/logout", "POST");
-    location.href = "/login";
+    const result = await api("/logout", "POST");
+    location.href = result.redirect;
   } catch (e) {
     notice(e.message, true);
   }

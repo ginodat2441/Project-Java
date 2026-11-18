@@ -11,6 +11,7 @@ import com.example.clothingshop.repositories.BillRepository;
 import com.example.clothingshop.view.BillLineView;
 import com.example.clothingshop.view.BillHistoryView;
 import com.example.clothingshop.view.BillView;
+import com.example.clothingshop.view.CustomerVoucherView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -72,7 +73,7 @@ public class BillService {
         BigDecimal ship = shippingFee;
         BigDecimal eligibleSubtotal =
                 eligibleSubtotal(req.voucherCode(), req.items(), priceMap, subTotal);
-        BigDecimal discount = discount(req.voucherCode(), eligibleSubtotal, true);
+        BigDecimal discount = discount(req.voucherCode(), eligibleSubtotal, true, customerId);
         BigDecimal total = subTotal.subtract(discount).add(ship);
 
         // 2. Insert BILL
@@ -137,7 +138,7 @@ public class BillService {
                 "totalAmount", subtotal.add(shippingFee));
     }
 
-    public VoucherQuote quote(VoucherQuoteRequest request) {
+    public VoucherQuote quote(long customerId, VoucherQuoteRequest request) {
         BigDecimal subtotal = BigDecimal.ZERO;
         Map<Long, BigDecimal> prices = new HashMap<>();
         for (BillRequest.Item item : request.items()) {
@@ -148,9 +149,14 @@ public class BillService {
             subtotal = subtotal.add(price.multiply(BigDecimal.valueOf(item.quantity())));
         }
         BigDecimal eligible = eligibleSubtotal(request.code(), request.items(), prices, subtotal);
-        BigDecimal discount = discount(request.code(), eligible, false);
+        BigDecimal discount = discount(request.code(), eligible, false, customerId);
         return new VoucherQuote(
                 subtotal, eligible, discount, shippingFee, subtotal.subtract(discount).add(shippingFee));
+    }
+
+    @Transactional(readOnly = true)
+    public List<CustomerVoucherView> availableVouchers(long customerId) {
+        return repo.findAvailableVouchers(customerId);
     }
 
     private BigDecimal eligibleSubtotal(String code, List<BillRequest.Item> items,
@@ -172,15 +178,16 @@ public class BillService {
         return eligible;
     }
 
-    private BigDecimal discount(String code, BigDecimal eligibleSubtotal, boolean consume) {
+    private BigDecimal discount(
+            String code, BigDecimal eligibleSubtotal, boolean consume, long customerId) {
         String normalizedCode = normalizeVoucher(code);
         if (normalizedCode == null) return BigDecimal.ZERO;
         if (eligibleSubtotal.signum() <= 0) {
             throw new BusinessException("Voucher không áp dụng cho sản phẩm nào trong giỏ");
         }
-        var voucher = repo.findEligibleVoucher(normalizedCode, eligibleSubtotal, consume)
+        var voucher = repo.findEligibleVoucher(normalizedCode, customerId, eligibleSubtotal, consume)
                 .orElseThrow(() -> new BusinessException(
-                        "Voucher không hợp lệ, chưa có hiệu lực, hết hạn, hết lượt, không áp dụng cho sản phẩm trong giỏ hoặc chưa đạt đơn tối thiểu"));
+                        "Voucher không hợp lệ, không đúng nhóm khách hàng, chưa có hiệu lực, hết hạn, hết lượt, không áp dụng cho sản phẩm trong giỏ hoặc chưa đạt đơn tối thiểu"));
         BigDecimal value = (BigDecimal) voucher.get("DISCOUNT_VALUE");
         if ("PERCENT".equals(voucher.get("DISCOUNT_TYPE"))) {
             value = eligibleSubtotal.multiply(value)
@@ -188,7 +195,8 @@ public class BillService {
                     .min((BigDecimal) voucher.get("MAX_DISCOUNT"));
         }
         value = value.setScale(0, java.math.RoundingMode.HALF_UP).min(eligibleSubtotal);
-        if (consume && repo.claimVoucher(((Number) voucher.get("ID")).longValue(), eligibleSubtotal) == 0) {
+        if (consume && repo.claimVoucher(
+                ((Number) voucher.get("ID")).longValue(), customerId, eligibleSubtotal) == 0) {
             throw new BusinessException("Voucher đã hết lượt hoặc hết hiệu lực");
         }
         return value;
@@ -239,14 +247,19 @@ public class BillService {
         if (bill.status() == null || bill.status() != 0) {
             throw new BusinessException("Chỉ có thể hủy đơn đang chờ xác nhận");
         }
-        if (bill.paymentStatus() != null && bill.paymentStatus() == 1) {
-            throw new BusinessException("Đơn hàng đã thanh toán; vui lòng liên hệ cửa hàng để được hỗ trợ");
-        }
         if (repo.updateStatus(billId, bill.status(), 4, null) == 0) {
             throw new BusinessException("Trạng thái đơn đã bị thay đổi, vui lòng tải lại");
         }
         repo.releaseReservedStockForBill(billId);
-        repo.insertHistory(billId, bill.status(), 4, "Khách hàng hủy đơn", null);
+        boolean paid = bill.paymentStatus() != null && bill.paymentStatus() == 1;
+        String historyNote =
+                paid
+                        ? "Khách hàng hủy đơn trước khi admin xác nhận; cần hoàn tiền thủ công"
+                        : "Khách hàng hủy đơn";
+        repo.insertHistory(billId, bill.status(), 4, historyNote, null);
+        if (paid) {
+            logger.warn("Customer cancelled paid bill {}; manual refund required", billId);
+        }
         return get(customerId, billId);
     }
 

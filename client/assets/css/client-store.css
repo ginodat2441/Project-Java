@@ -61,6 +61,18 @@ body[data-client-store]:not(.client-ready) :is(.product-card, .product-box) {
   color: #842029;
   background: #f8e8eb;
 }
+.client-voucher-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 1rem;
+}
+.client-voucher-card {
+  padding: 1.25rem;
+  border: 1px dashed #174476;
+  border-radius: 0.75rem;
+  background: #fff;
+}
+.client-voucher-card strong { color: #174476; }
 .client-filters {
   display: grid;
   gap: 0.8rem;

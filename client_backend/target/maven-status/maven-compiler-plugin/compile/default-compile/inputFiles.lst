@@ -18,6 +18,7 @@ D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\con
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\controller\MaterialController.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\controller\ProductController.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\controller\SePayController.java
+D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\controller\VoucherController.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\dto\request\AddressRequest.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\dto\request\BillRequest.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\dto\request\BillStatusRequest.java
@@ -25,6 +26,7 @@ D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\dto
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\dto\request\CartCheckoutRequest.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\dto\request\CartItemRequest.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\dto\request\CartItemUpdateRequest.java
+D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\dto\request\CheckoutQuoteRequest.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\dto\request\ColorRequest.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\dto\request\LoginRequest.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\dto\request\ManagerCreateRequest.java
@@ -75,7 +77,9 @@ D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\vie
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\view\BrandView.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\view\CartItemView.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\view\CartView.java
+D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\view\CategoryView.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\view\ColorView.java
+D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\view\CustomerVoucherView.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\view\ManagerView.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\view\MaterialView.java
 D:\IT\JP1\Project-Java\client_backend\src\main\java\com\example\clothingshop\view\ProductDetailView.java

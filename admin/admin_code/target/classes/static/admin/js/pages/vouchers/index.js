@@ -10,6 +10,14 @@
     EXHAUSTED: "Hết lượt",
     DISABLED: "Đã tắt",
   };
+  const audience = (row) => {
+    const rules = [];
+    if (row.NEW_ACCOUNT_DAYS != null)
+      rules.push(`Tài khoản trong ${row.NEW_ACCOUNT_DAYS} ngày`);
+    if (Number(row.NO_PREVIOUS_ORDERS) === 1) rules.push("Chưa có đơn");
+    if (row.MINIMUM_ORDERS != null) rules.push(`Từ ${row.MINIMUM_ORDERS} đơn`);
+    return rules.length ? rules.join(" · ") : "Tất cả khách hàng";
+  };
 
   const vouchers = {
     async render() {
@@ -37,8 +45,10 @@
             ["MAX_DISCOUNT", "Trần giảm", money],
             ["USED_COUNT", "Đã dùng"],
             ["REMAINING", "Còn lại"],
+            ["PRODUCT_COUNT", "Sản phẩm áp dụng", (v) => (Number(v) ? v + " sản phẩm" : "Tất cả")],
+            ["ID", "Đối tượng", (_, r) => esc(audience(r))],
             ["STARTS_AT", "Bắt đầu", date],
-            ["ENDS_AT", "Kết thúc", date],
+            ["ENDS_AT", "Kết thúc", (v) => (v == null ? "Không hết hạn" : date(v))],
           ],
           (r) => button("Sửa", "edit", r.ID) + button("Đơn đã dùng", "voucher-orders", r.ID),
         )
