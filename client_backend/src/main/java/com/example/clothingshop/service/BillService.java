@@ -53,6 +53,7 @@ public class BillService {
      */
     @Transactional
     public BillView create(long customerId, BillRequest req) {
+        validateItems(req.items());
         var addr = repo.findAddress(req.addressId(), customerId)
                 .orElseThrow(() -> new BusinessException("Địa chỉ không hợp lệ"));
 
@@ -102,6 +103,38 @@ public class BillService {
         repo.insertHistory(billId, null, 0, "Khách đặt hàng", null);
 
         return get(customerId, billId);
+    }
+
+    private void validateItems(List<BillRequest.Item> items) {
+        var seen = new java.util.HashSet<Long>();
+        if (items == null || items.isEmpty() || items.size() > 100) {
+            throw new BusinessException("Chọn từ 1 đến 100 sản phẩm để đặt hàng");
+        }
+        for (var item : items) {
+            if (item == null || item.productDetailId() == null || item.productDetailId() < 1
+                    || item.quantity() == null || item.quantity() < 1 || item.quantity() > 100
+                    || !seen.add(item.productDetailId())) {
+                throw new BusinessException("Sản phẩm hoặc số lượng không hợp lệ, không gửi trùng biến thể");
+            }
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, BigDecimal> quote(List<BillRequest.Item> items) {
+        validateItems(items);
+        BigDecimal subtotal = BigDecimal.ZERO;
+        for (var item : items) {
+            BigDecimal price = repo.findPrice(item.productDetailId())
+                    .orElseThrow(() -> new BusinessException("Sản phẩm không còn được bán"));
+            if (repo.availableStock(item.productDetailId()) < item.quantity()) {
+                throw new BusinessException("Sản phẩm không đủ tồn kho. Vui lòng chọn lại số lượng");
+            }
+            subtotal = subtotal.add(price.multiply(BigDecimal.valueOf(item.quantity())));
+        }
+        return Map.of(
+                "subtotal", subtotal,
+                "shippingFee", shippingFee,
+                "totalAmount", subtotal.add(shippingFee));
     }
 
     public VoucherQuote quote(VoucherQuoteRequest request) {

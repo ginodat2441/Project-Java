@@ -1,4 +1,50 @@
 /* Only state and controls for the customer integration; main.css is unchanged. */
+.client-order-tabs { display:flex;flex-wrap:wrap;gap:.5rem;margin-block:1rem 1.5rem; }
+.client-order-tabs button { padding:.65rem .9rem;border:1px solid #dce0e5;background:#fff;border-radius:8px;color:#243d56; }
+.client-order-tabs button[aria-pressed='true'] { background:#0a4db8;color:#fff;border-color:#0a4db8; }
+.client-order-tabs span { margin-left:.35rem;font-weight:700; }
+.client-order-head { display:flex;justify-content:space-between;align-items:start;gap:1rem;flex-wrap:wrap; }
+.client-order-head h3 { font-size:1.05rem;overflow-wrap:anywhere; }
+.client-order-state { padding:.3rem .7rem;background:#fff2d8;color:#714b00;border-radius:8px;font-size:.9rem; }
+.client-order-state[data-state='2'] { background:#e5efff;color:#12458a; }
+.client-order-state[data-state='3'] { background:#e3f3e9;color:#1b603d; }
+.client-order-state:is([data-state='4'],[data-state='5'],[data-state='6']) { background:#f5e7e7;color:#883333; }
+.client-order-date { color:#526174;font-size:.9rem; }
+#orders .order-card { padding:1.5rem;margin-bottom:1rem; }
+.client-order-tabs button:focus-visible { outline:3px solid #174476;outline-offset:3px; }
+.client-category-directory { padding-block: 2.5rem; }
+.client-category-links {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 1rem;
+  margin-block: 1.5rem 2rem;
+}
+.client-category-links a {
+  display: block;
+  padding: 1.25rem;
+  border: 1px solid #dce0e5;
+  border-radius: 12px;
+  color: #174476;
+  background: #fff;
+}
+.client-category-links a:hover { background: #f3f7fc; }
+.client-added-dialog {
+  width: min(32rem, calc(100% - 2rem));
+  padding: 2rem;
+  border: 0;
+  border-radius: 16px;
+  color: #243d56;
+  background: #fff;
+  box-shadow: 0 16px 48px rgb(20 40 70 / 20%);
+}
+.client-added-dialog::backdrop { background: rgb(15 30 50 / 45%); }
+.client-added-dialog h2 { font-size: 1.4rem; line-height: 1.4; }
+.client-dialog-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem; }
+.client-dialog-actions > * { flex: 1 1 12rem; }
+.client-added-dialog :focus-visible,
+.client-category-links a:focus-visible { outline: 3px solid #174476; outline-offset: 4px; }
 body[data-client-store]:not(.client-ready) :is(#account, #cart, #product-details) {
   visibility: hidden;
 }

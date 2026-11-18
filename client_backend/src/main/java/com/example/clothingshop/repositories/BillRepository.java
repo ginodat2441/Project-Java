@@ -35,7 +35,10 @@ public class BillRepository {
     }
 
     public Optional<BigDecimal> findPrice(long productDetailId) {
-        return sql.scalar("SELECT PRICE FROM PRODUCT_DETAIL WHERE ID = :id AND DELETE_FLAG = 0 AND STATUS = 1",
+        return sql.scalar("SELECT pd.PRICE FROM PRODUCT_DETAIL pd JOIN PRODUCT p ON p.ID=pd.PRODUCT_ID "
+                + "WHERE pd.ID=:id AND pd.DELETE_FLAG=0 AND pd.STATUS=1 AND p.DELETE_FLAG=0 AND p.STATUS=1 "
+                + "AND (p.CATEGORY_ID IS NULL OR p.CATEGORY_ID NOT IN "
+                + "(SELECT ID FROM CATEGORY START WITH STATUS=0 CONNECT BY NOCYCLE PRIOR ID=PARENT_ID))",
                 Map.of("id", productDetailId), BigDecimal.class);
     }
 
@@ -80,6 +83,11 @@ public class BillRepository {
                    AND STARTS_AT <= LOCALTIMESTAMP AND ENDS_AT > LOCALTIMESTAMP
                    AND USED_COUNT < USAGE_LIMIT AND MIN_ORDER <= :subtotal
                 """, Map.of("id", voucherId, "subtotal", eligibleSubtotal));
+    }
+
+    public int availableStock(long productDetailId) {
+        return sql.scalar("SELECT QUANTITY FROM PRODUCT_DETAIL WHERE ID=:id AND DELETE_FLAG=0 AND STATUS=1",
+                Map.of("id", productDetailId), Integer.class).orElse(0);
     }
 
     /** Giữ chỗ nguyên tử; QUANTITY vẫn là số lượng còn bán được trên website. */

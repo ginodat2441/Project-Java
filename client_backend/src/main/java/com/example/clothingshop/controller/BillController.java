@@ -1,6 +1,7 @@
 package com.example.clothingshop.controller;
 
 import com.example.clothingshop.dto.request.BillRequest;
+import com.example.clothingshop.dto.request.CheckoutQuoteRequest;
 import com.example.clothingshop.dto.request.VoucherQuoteRequest;
 import com.example.clothingshop.service.BillService;
 import com.example.clothingshop.common.ApiResponse;
@@ -13,7 +14,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/bills")
@@ -34,6 +37,13 @@ public class BillController {
             @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody VoucherQuoteRequest req) {
         CustomerIdentity.customerId(jwt);
         return ApiResponse.ok(service.quote(req));
+    }
+
+    @PostMapping("/checkout-quote")
+    public ApiResponse<Map<String, BigDecimal>> checkoutQuote(
+            @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CheckoutQuoteRequest request) {
+        CustomerIdentity.customerId(jwt);
+        return ApiResponse.ok(service.quote(request.items()));
     }
 
     @PostMapping("/{id}/sepay-payment")

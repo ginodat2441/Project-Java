@@ -15,6 +15,9 @@
     window.CLOTHING_SHOP_API_BASE ||
     (useSameOriginApi ? '/api' : 'http://localhost:8080/api')
   ).replace(/\/+$/, '');
+  // Keep cookies on the same host as Live Server (localhost and 127.0.0.1 differ).
+  const adminBase = (window.CLOTHING_SHOP_ADMIN_BASE ||
+    (isLoopbackHost ? `${location.protocol}//${location.hostname}:8888` : location.origin)).replace(/\/+$/, '');
   const notice = document.createElement('div');
   notice.className = 'alert alert-danger';
   notice.setAttribute('role', 'alert');
@@ -35,12 +38,37 @@
     }
 
     const body = await response.json().catch(() => null);
+    if (endpoint === 'login' && response.status === 401) {
+      return loginManager(payload);
+    }
     if (!response.ok || body?.success !== true || !body.data?.accessToken || !body.data?.user) {
       if (response.status >= 500)
         throw Error('Máy chủ chưa xử lý được yêu cầu. Vui lòng thử lại sau.');
       throw Error(body?.message || 'Email hoặc mật khẩu không chính xác.');
     }
     return body.data;
+  }
+
+  async function loginManager(payload) {
+    let csrfResponse, response;
+    try {
+      csrfResponse = await fetch(adminBase + '/api/csrf', { credentials: 'include', headers: { Accept: 'application/json' } });
+      if (!csrfResponse.ok) throw Error('csrf');
+      const csrf = await csrfResponse.json();
+      if (!csrf.token || !csrf.headerName) throw Error('csrf');
+      response = await fetch(adminBase + '/login', {
+        method: 'POST', credentials: 'include',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded', [csrf.headerName]: csrf.token },
+        body: new URLSearchParams({ username: payload.email, password: payload.password }),
+      });
+    } catch {
+      throw Error('Không kết nối được máy chủ quản trị. Hãy chạy backend Admin và thử lại.');
+    }
+    const result = await response.json().catch(() => null);
+    if (!response.ok || result?.success !== true || result.redirect !== '/admin') {
+      throw Error('Email hoặc mật khẩu không chính xác, tài khoản bị khóa hoặc tạm giới hạn đăng nhập.');
+    }
+    return { managerRedirect: adminBase + '/admin' };
   }
 
   async function handleSubmit(form, endpoint, getPayload) {
@@ -51,6 +79,13 @@
     notice.hidden = true;
     try {
       const auth = await submit(endpoint, getPayload());
+      if (auth.managerRedirect) {
+        sessionStorage.removeItem(tokenKey);
+        sessionStorage.removeItem(userKey);
+        form.reset();
+        location.assign(auth.managerRedirect);
+        return;
+      }
       sessionStorage.setItem(tokenKey, auth.accessToken);
       sessionStorage.setItem(userKey, JSON.stringify(auth.user));
       form.reset();

@@ -90,7 +90,10 @@ public class AdminOperationsRepository {
             + " FROM BILL WHERE DELETE_FLAG=0 AND (LOWER(BILL_CODE) LIKE :q OR LOWER(RECEIVER_NAME)"
             + " LIKE :q) AND (:s IS NULL OR STATUS=:s) AND (:pm IS NULL OR PAYMENT_METHOD=:pm) AND"
             + " (:ps IS NULL OR PAYMENT_STATUS=:ps) AND (:rs IS NULL OR RETURN_STATUS=:rs) AND (:f"
-            + " IS NULL OR CREATED_AT>=:f) AND (:t IS NULL OR CREATED_AT<:t) ORDER BY ID DESC",
+            + " IS NULL OR CREATED_AT>=:f) AND (:t IS NULL OR CREATED_AT<:t)"
+            + " AND (:og='all' OR (:og='payment' AND STATUS IN (0,1) AND PAYMENT_METHOD<>'COD' AND PAYMENT_STATUS=0)"
+            + " OR (:og='processing' AND STATUS IN (0,1) AND (PAYMENT_METHOD='COD' OR PAYMENT_STATUS<>0))"
+            + " OR (:og='shipping' AND STATUS=2) OR (:og='history' AND STATUS IN (3,4,5,6))) ORDER BY ID DESC",
         page,
         size,
         args);

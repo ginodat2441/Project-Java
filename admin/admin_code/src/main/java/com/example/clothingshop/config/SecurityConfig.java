@@ -32,11 +32,11 @@ public class SecurityConfig {
       var found =
           db.rows(
               "SELECT m.ID,m.USERNAME,m.PASSWORD_HASH,m.STATUS,r.ROLE_CODE FROM MANAGER m JOIN"
-                  + " MANAGER_ROLE r ON r.ID=m.MANAGER_ROLE_ID WHERE m.USERNAME=:u AND"
+                  + " MANAGER_ROLE r ON r.ID=m.MANAGER_ROLE_ID WHERE (m.USERNAME=:u OR LOWER(m.EMAIL)=LOWER(:u)) AND"
                   + " m.DELETE_FLAG=0 AND r.DELETE_FLAG=0",
               "u",
               username);
-      if (found.isEmpty()) throw new UsernameNotFoundException("Sai thông tin đăng nhập");
+      if (found.size() != 1) throw new UsernameNotFoundException("Sai thông tin đăng nhập");
       var m = found.get(0);
       String role = m.get("ROLE_CODE").toString();
       if (!Set.of("ADMIN", "STAFF").contains(role))
@@ -51,10 +51,22 @@ public class SecurityConfig {
 
   @Bean
   @org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
-  SecurityFilterChain security(HttpSecurity http, UserDetailsService users, AdminRepository db)
+  SecurityFilterChain security(HttpSecurity http, UserDetailsService users, AdminRepository db,
+      @org.springframework.beans.factory.annotation.Value("${shop.client-home-url:http://127.0.0.1:5500/client/index.html}") String clientHome)
       throws Exception {
     var attempts = new ConcurrentHashMap<String, Attempt>();
-    http.authorizeHttpRequests(
+    http.cors(c -> {
+          var config = new org.springframework.web.cors.CorsConfiguration();
+          config.setAllowedOrigins(List.of("http://localhost:5500", "http://127.0.0.1:5500", "http://localhost:3000", "http://127.0.0.1:3000"));
+          config.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+          config.setAllowedHeaders(List.of("Accept", "Content-Type", "X-XSRF-TOKEN", "X-CSRF-TOKEN"));
+          config.setAllowCredentials(true);
+          var source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+          source.registerCorsConfiguration("/api/csrf", config);
+          source.registerCorsConfiguration("/login", config);
+          c.configurationSource(source);
+        })
+        .authorizeHttpRequests(
             a ->
                 a.requestMatchers("/api/dev/**")
                     .denyAll()
@@ -138,7 +150,10 @@ public class SecurityConfig {
                               "UPDATE MANAGER SET LAST_LOGIN_AT=SYSTIMESTAMP WHERE USERNAME=:u",
                               "u",
                               auth.getName());
-                          res.sendRedirect("/admin");
+                          if (wantsJson(req)) {
+                            res.setContentType("application/json");
+                            res.getWriter().write("{\"success\":true,\"redirect\":\"/admin\"}");
+                          } else res.sendRedirect("/admin");
                         })
                     .failureHandler(
                         (req, res, e) -> {
@@ -148,12 +163,21 @@ public class SecurityConfig {
                                   v == null || v.until < System.currentTimeMillis()
                                       ? new Attempt(1, System.currentTimeMillis() + 600000)
                                       : new Attempt(v.count + 1, v.until));
-                          res.sendRedirect("/login?error");
+                          if (wantsJson(req)) {
+                            res.setStatus(401);
+                            res.setContentType("application/json");
+                            res.getWriter().write("{\"success\":false}");
+                          } else res.sendRedirect("/login?error");
                         })
                     .permitAll())
         .logout(
             l ->
-                l.logoutSuccessUrl("/login?logout")
+                l.logoutSuccessHandler((req, res, auth) -> {
+                      if (wantsJson(req)) {
+                        res.setContentType("application/json");
+                        new com.fasterxml.jackson.databind.ObjectMapper().writeValue(res.getWriter(), Map.of("redirect", clientHome));
+                      } else res.sendRedirect(clientHome);
+                    })
                     .invalidateHttpSession(true)
                     .deleteCookies("JSESSIONID"))
         .exceptionHandling(
@@ -227,4 +251,8 @@ public class SecurityConfig {
   }
 
   private record Attempt(int count, long until) {}
+
+  private static boolean wantsJson(HttpServletRequest request) {
+    return Optional.ofNullable(request.getHeader("Accept")).orElse("").contains("application/json");
+  }
 }
