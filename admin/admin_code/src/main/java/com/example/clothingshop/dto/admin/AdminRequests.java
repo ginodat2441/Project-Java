@@ -56,10 +56,44 @@ public class AdminRequests {
       @NotNull @DecimalMin("0.01") BigDecimal value,
       @NotNull @DecimalMin("0") BigDecimal minOrder,
       @NotNull @DecimalMin("0") BigDecimal maxDiscount,
-      @NotNull LocalDateTime startsAt,
-      @NotNull LocalDateTime endsAt,
+      LocalDateTime startsAt,
+      LocalDateTime endsAt,
       @Min(0) int usageLimit,
-      @Min(0) @Max(1) int status) {}
+      @Min(0) @Max(1) int status,
+      @Size(max = 1000) List<@NotNull @Positive Long> productIds,
+      boolean noExpiry,
+      @Min(1) @Max(36500) Integer newAccountDays,
+      boolean noPreviousOrders,
+      @Min(1) Integer minimumOrders) {
+    public Voucher(
+        String code,
+        String type,
+        BigDecimal value,
+        BigDecimal minOrder,
+        BigDecimal maxDiscount,
+        LocalDateTime startsAt,
+        LocalDateTime endsAt,
+        int usageLimit,
+        int status,
+        List<Long> productIds) {
+      this(code, type, value, minOrder, maxDiscount, startsAt, endsAt, usageLimit, status,
+          productIds, false, null, false, null);
+    }
+
+    public Voucher(
+        String code,
+        String type,
+        BigDecimal value,
+        BigDecimal minOrder,
+        BigDecimal maxDiscount,
+        LocalDateTime startsAt,
+        LocalDateTime endsAt,
+        int usageLimit,
+        int status) {
+      this(code, type, value, minOrder, maxDiscount, startsAt, endsAt, usageLimit, status,
+          List.of(), false, null, false, null);
+    }
+  }
 
   public record OrderStatus(@Min(0) @Max(6) int status, @Size(max = 500) String note) {}
 

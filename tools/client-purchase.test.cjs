@@ -13,14 +13,23 @@ async function page(url,{badQuote=false}={}){
  w.sessionStorage.setItem('clothingShopToken','test-token');
  w.fetch=async(url,options={})=>{
   calls.push({url,options});const u=new URL(url),route=u.pathname;let data;
+  if(u.hostname==='provinces.open-api.vn'){
+   data=route==='/api/v2/'
+    ?[{name:'Thành phố Hà Nội',code:1}]
+    :{wards:[{name:'Phường Ba Đình',code:4}]};
+   return{ok:true,status:200,json:async()=>data};
+  }
   if(route==='/api/auth/me')data={customerId:1,fullName:'Khách thử',email:'test@example.test'};
   else if(route==='/api/products/categories')data=[{id:5,categoryName:'Áo',parentId:null},{id:6,categoryName:'Áo sơ mi',parentId:5}];
   else if(route==='/api/products/1/details')data=[variant];
+  else if(route==='/api/products/1/images')data=[];
   else if(route==='/api/products/1')data=product;
   else if(route==='/api/products')data={items:Array.from({length:15},(_,i)=>({...product,id:i+1,minPrice:200000+i})),page:Number(u.searchParams.get('page')||1),totalPages:2,total:17};
   else if(route==='/api/brands')data={items:[]};
+  else if(route==='/api/addresses'&&options.method==='POST')data={id:3};
   else if(route==='/api/addresses')data=[{id:3,receiverName:'Khách thử',receiverPhone:'0900000000',province:'Hà Nội',ward:'Phường A',detailAddress:'Số 1',isDefault:true}];
-  else if(route==='/api/bills/quote'){
+  else if(route==='/api/bills'&&(!options.method||options.method==='GET'))data=[];
+  else if(route==='/api/bills/checkout-quote'){
    if(badQuote)return{ok:false,status:400,json:async()=>({success:false,message:'Không đủ tồn kho'})};
    data={subtotal:200000,shippingFee:30000,totalAmount:230000};
   } else if(route==='/api/bills')data={id:99,billCode:'TEST99',paymentMethod:'COD',totalAmount:230000};
@@ -60,6 +69,36 @@ test('direct checkout quotes real item then creates one order without removing e
   assert.deepEqual(JSON.parse(orders[0].options.body).items,[{productDetailId:12,quantity:1}]);
   assert.equal(p.calls.some(x=>x.url.includes('/api/carts/')&&['POST','PUT','DELETE'].includes(x.options.method)),false);
   assert.match(p.doc.querySelector('main').textContent,/TEST99/);
+ }finally{p.close();}
+});
+test('checkout address uses dependent province and ward selects and saves their names',async()=>{
+ const p=await page('checkout.html?buyNow=1&productId=1&variantId=12&quantity=1');try{
+  const form=p.doc.querySelector('.checkout-form'),addressSelect=form.querySelector('[name=addressId]');
+  addressSelect.value='new';addressSelect.dispatchEvent(new p.w.Event('change'));await tick();
+  const province=form.querySelector('[name=province]'),ward=form.querySelector('[name=ward]');
+  assert.equal(province.tagName,'SELECT');assert.equal(ward.tagName,'SELECT');
+  province.value='Thành phố Hà Nội';province.dispatchEvent(new p.w.Event('change'));await tick();
+  assert.equal([...ward.options].some(option=>option.value==='Phường Ba Đình'),true);
+  form.querySelector('[name=receiverName]').value='Khách thử';
+  form.querySelector('[name=receiverPhone]').value='0900000000';
+  form.querySelector('[name=detailAddress]').value='Số 1';
+  ward.value='Phường Ba Đình';
+  form.reportValidity=()=>true;form.dispatchEvent(new p.w.Event('submit',{bubbles:true,cancelable:true}));await tick();
+  const saved=p.calls.find(call=>new URL(call.url).pathname==='/api/addresses'&&call.options.method==='POST');
+  assert.deepEqual(JSON.parse(saved.options.body),{
+   receiverName:'Khách thử',receiverPhone:'0900000000',province:'Thành phố Hà Nội',
+   ward:'Phường Ba Đình',detailAddress:'Số 1',isDefault:false,
+  });
+ }finally{p.close();}
+});
+test('saved address editor uses province and ward select boxes',async()=>{
+ const p=await page('account.html?tab=addresses#addresses');try{
+  p.doc.querySelector('#addresses [data-edit]').click();await tick();
+  const form=p.doc.querySelector('#addresses form');
+  assert.equal(form.querySelector('[name=province]').tagName,'SELECT');
+  assert.equal(form.querySelector('[name=ward]').tagName,'SELECT');
+  assert.equal(form.querySelector('[name=province]').value,'Thành phố Hà Nội');
+  assert.equal(form.querySelector('[name=ward]').value,'Phường A');
  }finally{p.close();}
 });
 test('invalid or unavailable buy-now selection cannot create order',async()=>{

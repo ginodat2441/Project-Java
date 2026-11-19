@@ -1,5 +1,7 @@
-G:\code\Project-Java\Project-Java-anh-hieu\client_backend\src\test\java\com\example\clothingshop\PurchaseOracleTest.java
-G:\code\Project-Java\Project-Java-anh-hieu\client_backend\src\test\java\com\example\clothingshop\repositories\BillRepositoryTest.java
-G:\code\Project-Java\Project-Java-anh-hieu\client_backend\src\test\java\com\example\clothingshop\repositories\ProductCatalogTest.java
-G:\code\Project-Java\Project-Java-anh-hieu\client_backend\src\test\java\com\example\clothingshop\service\PurchaseQuoteTest.java
-G:\code\Project-Java\Project-Java-anh-hieu\client_backend\src\test\java\com\example\clothingshop\service\SePayServiceTest.java
+D:\IT\JP1\Project-Java\client_backend\src\test\java\com\example\clothingshop\PurchaseOracleTest.java
+D:\IT\JP1\Project-Java\client_backend\src\test\java\com\example\clothingshop\repositories\BillRepositoryTest.java
+D:\IT\JP1\Project-Java\client_backend\src\test\java\com\example\clothingshop\repositories\ProductCatalogTest.java
+D:\IT\JP1\Project-Java\client_backend\src\test\java\com\example\clothingshop\service\BillServiceCancellationTest.java
+D:\IT\JP1\Project-Java\client_backend\src\test\java\com\example\clothingshop\service\BillServiceVoucherTest.java
+D:\IT\JP1\Project-Java\client_backend\src\test\java\com\example\clothingshop\service\PurchaseQuoteTest.java
+D:\IT\JP1\Project-Java\client_backend\src\test\java\com\example\clothingshop\service\SePayServiceTest.java

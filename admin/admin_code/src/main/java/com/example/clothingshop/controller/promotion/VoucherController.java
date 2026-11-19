@@ -29,6 +29,16 @@ public class VoucherController {
     return search.vouchers(filters);
   }
 
+  @GetMapping("/api/admin/vouchers/products")
+  public Object voucherProducts() {
+    return search.voucherProducts();
+  }
+
+  @GetMapping("/api/admin/vouchers/{id}/products")
+  public Object voucherProducts(@PathVariable long id) {
+    return search.voucherProducts(id);
+  }
+
   @PostMapping("/api/admin/vouchers")
   public long createVoucher(@Valid @RequestBody Voucher r, Authentication a) {
     return service.voucher(null, r, service.actor(a.getName()));

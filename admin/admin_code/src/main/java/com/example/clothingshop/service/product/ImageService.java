@@ -2,30 +2,46 @@ package com.example.clothingshop.service.product;
 
 import static com.example.clothingshop.repository.admin.AdminRepository.number;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.example.clothingshop.common.BusinessException;
 import com.example.clothingshop.repository.admin.AdminRepository;
 import com.example.clothingshop.repository.product.ProductOperationsRepository;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class ImageService {
+  private static final Logger log = LoggerFactory.getLogger(ImageService.class);
   private final ProductOperationsRepository queries;
   final AdminRepository db;
   final Path root;
+  private final String cloudName;
+  private final String apiKey;
+  private final String apiSecret;
 
   public ImageService(
       AdminRepository db,
       @Value("${shop.upload-dir}") String root,
-      ProductOperationsRepository queries) {
+      ProductOperationsRepository queries,
+      @Value("${shop.cloudinary.cloud-name:}") String cloudName,
+      @Value("${shop.cloudinary.api-key:}") String apiKey,
+      @Value("${shop.cloudinary.api-secret:}") String apiSecret) {
     this.queries = queries;
     this.db = db;
     this.root = Path.of(root).toAbsolutePath().normalize();
+    this.cloudName = cloudName;
+    this.apiKey = apiKey;
+    this.apiSecret = apiSecret;
   }
 
   public Path uploadRoot() {
@@ -39,7 +55,7 @@ public class ImageService {
     if (file.isEmpty() || file.getSize() > 5 * 1024 * 1024)
       throw new BusinessException("Mỗi ảnh phải từ 1 byte đến 5 MB");
     byte[] bytes = file.getBytes();
-    String ext = extension(bytes);
+    extension(bytes);
     try (var stream =
         javax.imageio.ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
       var readers = javax.imageio.ImageIO.getImageReaders(stream);
@@ -57,10 +73,34 @@ public class ImageService {
     } catch (javax.imageio.IIOException e) {
       throw new BusinessException("Nội dung ảnh bị lỗi");
     }
-    Files.createDirectories(root);
-    String name = UUID.randomUUID() + "." + ext;
-    Path path = root.resolve(name);
-    Files.write(path, bytes, StandardOpenOption.CREATE_NEW);
+    if (cloudName.isBlank() || apiKey.isBlank() || apiSecret.isBlank())
+      throw new ResponseStatusException(
+          HttpStatus.SERVICE_UNAVAILABLE, "Cloudinary chưa được cấu hình trên máy chủ");
+    Cloudinary cloudinary =
+        new Cloudinary(
+            ObjectUtils.asMap(
+                "cloud_name", cloudName, "api_key", apiKey, "api_secret", apiSecret));
+    Map<?, ?> uploaded;
+    try {
+      uploaded =
+          cloudinary
+              .uploader()
+              .upload(
+                  bytes,
+                  ObjectUtils.asMap(
+                      "folder", "clothing-shop/products", "resource_type", "image"));
+    } catch (IOException e) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_GATEWAY, "Không thể tải ảnh lên Cloudinary", e);
+    }
+    Object publicIdValue = uploaded.get("public_id");
+    Object secureUrl = uploaded.get("secure_url");
+    if (!(publicIdValue instanceof String publicId)
+        || publicId.isBlank()
+        || !(secureUrl instanceof String url)
+        || !url.startsWith("https://res.cloudinary.com/"))
+      throw new ResponseStatusException(
+          HttpStatus.BAD_GATEWAY, "Cloudinary không trả về thông tin ảnh hợp lệ");
     org.springframework.transaction.support.TransactionSynchronizationManager
         .registerSynchronization(
             new org.springframework.transaction.support.TransactionSynchronization() {
@@ -68,12 +108,18 @@ public class ImageService {
               public void afterCompletion(int status) {
                 if (status != STATUS_COMMITTED)
                   try {
-                    Files.deleteIfExists(path);
-                  } catch (IOException ignored) {
+                    cloudinary
+                        .uploader()
+                        .destroy(publicId, ObjectUtils.asMap("resource_type", "image"));
+                  } catch (IOException e) {
+                    log.error(
+                        "Không thể xóa ảnh Cloudinary {} sau khi transaction rollback",
+                        publicId,
+                        e);
                   }
               }
             });
-    long id = queries.insertProductImage("p", product, "c", color, "u", "/uploads/" + name);
+    long id = queries.insertProductImage("p", product, "c", color, "u", url);
     db.audit(actor, "UPLOAD", "PRODUCT_IMAGE", id);
     return id;
   }
@@ -124,7 +170,7 @@ public class ImageService {
     }
     queries.deleteProductImage("i", id);
     db.audit(actor, "REMOVE", "PRODUCT_IMAGE", id);
-    // Retain physical files for safe recovery; cleanup only unreferenced server-generated files.
+    // Keep uploaded objects for recovery; legacy local files are cleaned separately.
   }
 
   public Path path(String name) {

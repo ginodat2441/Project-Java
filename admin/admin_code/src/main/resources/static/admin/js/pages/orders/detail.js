@@ -28,10 +28,14 @@ async function orderEditor(id) {
   const d = await api("/api/admin/orders/" + id),
     r = d.order,
     refundHtml = window.AdminV8 ? await window.AdminV8.refundPanel(id) : "";
+  const refundAlert =
+    Number(r.STATUS) === 4 && Number(r.PAYMENT_STATUS) === 1
+      ? '<section class="refund-critical-alert" role="alert" aria-live="assertive"><span class="refund-critical-alert__label">MỨC ĐỘ KHẨN CẤP</span><div><strong>Đơn đã hủy nhưng chưa hoàn tiền</strong><p>Đơn này đã thu tiền. Cần đối soát và xử lý hoàn tiền thủ công ngay.</p></div></section>'
+      : "";
   const transitions = { 0: [1, 4], 1: [4], 2: [3, 6], 3: [5], 4: [], 5: [], 6: [] };
   modal(
     "Đơn " + r.BILL_CODE,
-    `<div class="grid"><section><h3>${esc(r.RECEIVER_NAME)}</h3><p>${esc(r.RECEIVER_PHONE)}<br>${esc(r.SHIPPING_ADDRESS)}</p><p>Trạng thái: <b>${esc(statusNames[r.STATUS])}</b></p><p>Ghi chú: ${esc(r.NOTE)}</p></section><section><p>Tiền hàng: ${money(r.SUB_TOTAL)}<br>Voucher: ${esc(r.VOUCHER_CODE || "—")}<br>Giảm giá: ${money(r.DISCOUNT_AMOUNT)}<br>Phí giao: ${money(r.SHIPPING_FEE)}<br>${r.SHIPPING_SERVICE_NAME ? `Dịch vụ: ${esc(r.SHIPPING_SERVICE_NAME)} (${esc(r.SHIPPING_SERVICE)})<br>Báo giá lúc: ${date(r.SHIPPING_QUOTED_AT)}<br>` : ""}<b>Phải trả: ${money(r.TOTAL_AMOUNT)}</b></p></section></div>${table(
+    `${refundAlert}<div class="grid"><section><h3>${esc(r.RECEIVER_NAME)}</h3><p>${esc(r.RECEIVER_PHONE)}<br>${esc(r.SHIPPING_ADDRESS)}</p><p>Trạng thái: <b>${esc(statusNames[r.STATUS])}</b></p><p>Ghi chú: ${esc(r.NOTE)}</p></section><section><p>Tiền hàng: ${money(r.SUB_TOTAL)}<br>Voucher: ${esc(r.VOUCHER_CODE || "—")}<br>Giảm giá: ${money(r.DISCOUNT_AMOUNT)}<br>Phí giao: ${money(r.SHIPPING_FEE)}<br>${r.SHIPPING_SERVICE_NAME ? `Dịch vụ: ${esc(r.SHIPPING_SERVICE_NAME)} (${esc(r.SHIPPING_SERVICE)})<br>Báo giá lúc: ${date(r.SHIPPING_QUOTED_AT)}<br>` : ""}<b>Phải trả: ${money(r.TOTAL_AMOUNT)}</b></p></section></div>${table(
       d.lines.map((x) => ({
         NAME: x.productName,
         COLOR: x.colorName,
@@ -84,9 +88,11 @@ async function orderEditor(id) {
   );
   // Group only order detail content; other administration screens keep their layout.
   const fields = $("#fields");
-  const overview = fields.firstElementChild;overview.classList.add("order-overview");
+  const children = [...fields.children];
+  const overview = fields.querySelector(".grid");
+  overview.classList.add("order-overview");
   let panel = null;
-  for (const node of [...fields.children].slice(1)) {
+  for (const node of children.slice(children.indexOf(overview) + 1)) {
     if (node.tagName === "H3") {
       panel = document.createElement("section");panel.className="order-detail-section";
       fields.insertBefore(panel,node);panel.append(node);

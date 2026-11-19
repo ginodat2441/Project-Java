@@ -12,7 +12,12 @@ window.AdminPages.orders = {
     const qs=new URLSearchParams({page,q:filter.q || "",orderGroup:group});
     for(const key of ["status","from","to","paymentMethod","paymentStatus","returnStatus"])
       if(filter[key]!==undefined && filter[key]!=="")qs.set(key,filter[key]);
-    const data=await api("/api/admin/orders?"+qs);
+    const refundQuery=new URLSearchParams({page:"1",orderGroup:"history",status:"4",paymentStatus:"1"});
+    const [data,refundData]=await Promise.all([
+      api("/api/admin/orders?"+qs),
+      api("/api/admin/orders?"+refundQuery)
+    ]);
+    const needsRefund=Number(refundData.total || 0);
     notice("");
     const advanced=select("status","Trạng thái đơn",statusNames.map((NAME,ID)=>({ID,NAME})),filter.status,true)
       +select("paymentMethod","Phương thức",[{ID:"COD",NAME:"COD"},{ID:"SEPAY",NAME:"SePay"},{ID:"BANK",NAME:"Chuyển khoản cũ"}],filter.paymentMethod,true)
@@ -20,16 +25,21 @@ window.AdminPages.orders = {
       +select("returnStatus","Hàng hoàn",[{ID:"NONE",NAME:"Chưa nhận hoàn"},{ID:"REQUESTED",NAME:"Yêu cầu trả"},{ID:"PARTIAL",NAME:"Hoàn một phần"},{ID:"FULL",NAME:"Hoàn toàn bộ"}],filter.returnStatus,true)
       +input("from","Từ ngày",filter.from || "","date",false)+input("to","Đến ngày",filter.to || "","date",false);
     const open=["status","from","to","paymentMethod","paymentStatus","returnStatus"].some(k=>filter[k]!==undefined&&filter[k]!=="");
-    return `<div class="orders-workspace"><div class="order-group-tabs" role="group" aria-label="Nhóm đơn hàng">${AdminOrderUI.groups.map(([key,label])=>button(label,"order-group-"+key,"",`aria-pressed="${key===group}"`)).join("")}</div><p class="order-explainer">${AdminOrderUI.note(group)}</p>
+    const refundAlert=needsRefund>0
+      ? `<section class="refund-critical-alert" role="alert" aria-live="assertive"><span class="refund-critical-alert__label">MỨC ĐỘ KHẨN CẤP</span><div><strong>Cần xử lý hoàn tiền ngay</strong><p>Có ${esc(needsRefund)} đơn đã hủy nhưng đã thanh toán, đang cần hoàn tiền thủ công.</p></div>${button("Xem danh sách đơn", "refund-alert-orders", "")}</section>`
+      : "";
+    return `<div class="orders-workspace"><div class="order-group-tabs" role="group" aria-label="Nhóm đơn hàng">${AdminOrderUI.groups.map(([key,label])=>button(label,"order-group-"+key,"",`aria-pressed="${key===group}"`)).join("")}</div>${refundAlert}<p class="order-explainer">${AdminOrderUI.note(group)}</p>
       <form id="filter" class="orders-filter"><input type="hidden" name="orderGroup" value="${esc(group)}"><div class="orders-search"><label>Tìm đơn hàng<input name="q" value="${esc(filter.q||"")}" placeholder="Mã đơn hoặc tên người nhận"></label><button type="submit">Tìm kiếm</button>${button("Xóa bộ lọc","clear-order-filter","")}${button("Làm mới","refresh-orders","")}</div><details ${open?"open":""}><summary>Bộ lọc nâng cao</summary><div class="order-advanced-grid">${advanced}</div></details></form>
       <div class="orders-result-heading"><h2>${AdminOrderUI.groups.find(([key])=>key===group)?.[1] || "Đơn hàng"}</h2><span>${Number(data.total)} đơn phù hợp</span></div>${table(data.items,[
         ["BILL_CODE","Mã đơn",v=>`<strong>${esc(v)}</strong>`],["RECEIVER_NAME","Người nhận"],
+        ["RECEIVER_PHONE","Điện thoại liên hệ"],
         ["TOTAL_AMOUNT","Tổng tiền",v=>`<strong class="order-money">${money(v)}</strong>`],
         ["STATUS","Trạng thái",AdminOrderUI.state],
         ["PAYMENT_STATUS","Thanh toán",(v,r)=>`<span class="order-payment order-payment-${Number(v)}">${AdminOrderUI.payment(v)}</span><small class="order-method">${esc(r.PAYMENT_METHOD)}</small>`],
         ["CREATED_AT","Ngày đặt",date]],r=>button("Xử lý đơn","detail",r.ID))}${pager(data)}</div>`;
   },
   async action(a,id) {
+    if(a==="refund-alert-orders"){filter={status:4,paymentStatus:1,orderGroup:"history"};page=1;return load();}
     if(a.startsWith("order-group-")) {const group=a.slice(12);if(!AdminOrderUI.groups.some(([key])=>key===group))return;filter={...filter,orderGroup:group};delete filter.status;page=1;return load();}
     if(a==="clear-order-filter"){filter={orderGroup:filter.orderGroup||"all"};page=1;return load();}
     if(a==="refresh-orders")return load();

@@ -482,8 +482,14 @@ class OracleAcceptanceTest {
         null);
     var imageRow = db.one("SELECT IMAGE_URL FROM PRODUCT_IMAGE WHERE ID=:i", "i", image);
     String imageUrl = imageRow.get("IMAGE_URL").toString();
-    assertTrue(imageUrl.matches("/uploads/[0-9a-f-]{36}\\.png"));
-    assertEquals(200, anonymous.request(imageUrl, "GET", null).statusCode());
+    assertTrue(imageUrl.matches("https://res\\.cloudinary\\.com/[^/]+/image/upload/.+"));
+    assertEquals(
+        200,
+        HttpClient.newHttpClient()
+            .send(
+                HttpRequest.newBuilder(URI.create(imageUrl)).GET().build(),
+                HttpResponse.BodyHandlers.discarding())
+            .statusCode());
     assertEquals(
         400,
         admin
@@ -760,7 +766,8 @@ class OracleAcceptanceTest {
             "i",
             formId);
     assertEquals(1, num(formSaved, "STATUS"));
-    assertTrue(formSaved.get("THUMBNAIL_URL").toString().startsWith("/uploads/"));
+    assertTrue(
+        formSaved.get("THUMBNAIL_URL").toString().startsWith("https://res.cloudinary.com/"));
     assertEquals(prefix + " Brand", formSaved.get("BRAND_NAME"));
     assertEquals(prefix + " Linen", formSaved.get("MATERIAL_NAME"));
     var invalidForm = new HashMap<String, Object>(formProduct);

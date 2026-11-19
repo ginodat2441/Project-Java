@@ -109,7 +109,7 @@ public class StoreOperationsRepository {
 
   public Map<String, Object> findProductDetail(Object... args) {
     return db.one(
-        "SELECT pd.PRICE FROM PRODUCT_DETAIL pd JOIN PRODUCT p ON p.ID=pd.PRODUCT_ID WHERE pd.ID=:i"
+        "SELECT pd.PRICE,pd.PRODUCT_ID FROM PRODUCT_DETAIL pd JOIN PRODUCT p ON p.ID=pd.PRODUCT_ID WHERE pd.ID=:i"
             + " AND pd.STATUS=1 AND pd.DELETE_FLAG=0 AND p.STATUS=1 AND p.DELETE_FLAG=0 AND"
             + " pd.QUANTITY>=:q"
             + CategoryVisibility.SQL,

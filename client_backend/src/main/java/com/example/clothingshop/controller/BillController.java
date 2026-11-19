@@ -1,6 +1,8 @@
 package com.example.clothingshop.controller;
 
 import com.example.clothingshop.dto.request.BillRequest;
+import com.example.clothingshop.dto.request.CheckoutQuoteRequest;
+import com.example.clothingshop.dto.request.VoucherQuoteRequest;
 import com.example.clothingshop.service.BillService;
 import com.example.clothingshop.common.ApiResponse;
 import com.example.clothingshop.common.CustomerIdentity;
@@ -12,7 +14,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/bills")
@@ -29,9 +33,14 @@ public class BillController {
     }
 
     @PostMapping("/quote")
-    public ApiResponse<java.util.Map<String, java.math.BigDecimal>> quote(
-            @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody com.example.clothingshop.dto.request.CheckoutQuoteRequest request) {
+    public ApiResponse<BillService.VoucherQuote> quote(
+            @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody VoucherQuoteRequest req) {
+        return ApiResponse.ok(service.quote(CustomerIdentity.customerId(jwt), req));
+    }
+
+    @PostMapping("/checkout-quote")
+    public ApiResponse<Map<String, BigDecimal>> checkoutQuote(
+            @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CheckoutQuoteRequest request) {
         CustomerIdentity.customerId(jwt);
         return ApiResponse.ok(service.quote(request.items()));
     }
@@ -67,7 +76,11 @@ public class BillController {
 
     @PatchMapping("/{id}/cancel")
     public ApiResponse<BillView> cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable long id) {
-        return ApiResponse.ok("Đã hủy đơn hàng",
-                service.cancel(CustomerIdentity.customerId(jwt), id));
+        BillView bill = service.cancel(CustomerIdentity.customerId(jwt), id);
+        String message =
+                bill.paymentStatus() != null && bill.paymentStatus() == 1
+                        ? "Đã hủy đơn. Cửa hàng cần xử lý hoàn tiền thủ công."
+                        : "Đã hủy đơn hàng";
+        return ApiResponse.ok(message, bill);
     }
 }

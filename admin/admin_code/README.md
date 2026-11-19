@@ -2,6 +2,8 @@
 
 Xem [ADMIN_README.md](../ADMIN_README.md) để chạy bản có quản trị, tạo admin và kiểm thử. Với database hiện tại **không chạy lại schema.sql/sample_data.sql**; V001 và V002 đã được áp dụng. Hướng dẫn tạo schema bên dưới chỉ dành cho database trống. API ghi đã yêu cầu đăng nhập/CSRF, API SQL tùy ý luôn bị khóa và cấu hình password phải dùng biến môi trường.
 
+Trên database hiện tại, chạy tuần tự các migration voucher chưa áp dụng bằng SQLcl/SQL Developer: `V010__voucher_product_scope.sql`, sau đó `V011__voucher_audience_and_unlimited_expiry.sql`. Voucher có thể đặt điều kiện kết hợp cho tài khoản mới, khách chưa có đơn đủ điều kiện và số đơn tối thiểu; các điều kiện được áp dụng đồng thời. Đơn đã hủy hoặc giao thất bại không được tính. Voucher không giới hạn thời gian bắt đầu có hiệu lực khi lưu và không có ngày kết thúc.
+
 Java 17 · Spring Boot 3.3 · Maven · Oracle 12c+ (ojdbc11) · `NamedParameterJdbcTemplate` (KHÔNG dùng JPA/Hibernate)
 
 ## Chạy dự án
@@ -9,7 +11,16 @@ Java 17 · Spring Boot 3.3 · Maven · Oracle 12c+ (ojdbc11) · `NamedParameterJ
    - `src/main/resources/db/schema.sql` (bảng, index, trigger)
    - `src/main/resources/db/sample_data.sql` (dữ liệu mẫu)
 2. Sửa `application.properties`: url / username / password.
-3. `mvn spring-boot:run`
+3. Thiết lập `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` và `CLOUDINARY_API_SECRET` trong môi trường chạy backend admin (lấy tại Cloudinary Dashboard → API Keys). Ví dụ PowerShell:
+   ```powershell
+   $env:CLOUDINARY_CLOUD_NAME = "<cloud-name>"
+   $env:CLOUDINARY_API_KEY = "<api-key>"
+   $env:CLOUDINARY_API_SECRET = "<api-secret>"
+   ```
+   Không đưa API secret vào frontend hoặc commit vào repository.
+4. `mvn spring-boot:run`
+
+Ảnh sản phẩm mới được kiểm tra ở backend, tải lên Cloudinary và lưu bằng `secure_url` trong database. Nếu Cloudinary chưa được cấu hình hoặc không khả dụng, thao tác upload sẽ báo lỗi thay vì lưu ảnh cục bộ.
 
 ## Cấu trúc (mỗi module: controller → service → repository)
 ```

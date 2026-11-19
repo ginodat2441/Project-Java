@@ -6,6 +6,7 @@ import com.example.clothingshop.entity.BillDetail;
 import com.example.clothingshop.entity.SePayPaymentAttempt;
 import com.example.clothingshop.view.BillLineView;
 import com.example.clothingshop.view.BillHistoryView;
+import com.example.clothingshop.view.CustomerVoucherView;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
@@ -42,6 +43,111 @@ public class BillRepository {
                 Map.of("id", productDetailId), BigDecimal.class);
     }
 
+    public Optional<Long> findProductId(long productDetailId) {
+        return sql.scalar("""
+                SELECT pd.PRODUCT_ID
+                  FROM PRODUCT_DETAIL pd JOIN PRODUCT p ON p.ID = pd.PRODUCT_ID
+                 WHERE pd.ID = :id AND pd.DELETE_FLAG = 0 AND pd.STATUS = 1
+                   AND p.DELETE_FLAG = 0 AND p.STATUS = 1
+                """, Map.of("id", productDetailId), Long.class);
+    }
+
+    public List<Long> findVoucherProductIds(String code) {
+        Long id = sql.scalar("""
+                SELECT v.ID FROM VOUCHER v WHERE v.CODE = :code
+                """, Map.of("code", code), Long.class).orElse(null);
+        if (id == null) return List.of();
+        return sql.maps("SELECT PRODUCT_ID FROM VOUCHER_PRODUCT WHERE VOUCHER_ID = :id",
+                        Map.of("id", id)).stream()
+                .map(row -> ((Number) row.get("PRODUCT_ID")).longValue())
+                .toList();
+    }
+
+    public List<CustomerVoucherView> findAvailableVouchers(long customerId) {
+        return sql.list("""
+                SELECT v.ID, v.CODE, v.DISCOUNT_TYPE, v.DISCOUNT_VALUE, v.MIN_ORDER,
+                       v.MAX_DISCOUNT, v.STARTS_AT, v.ENDS_AT
+                  FROM VOUCHER v
+                 WHERE v.STATUS = 1
+                   AND v.STARTS_AT <= LOCALTIMESTAMP
+                   AND (v.ENDS_AT IS NULL OR v.ENDS_AT > LOCALTIMESTAMP)
+                   AND v.USED_COUNT < v.USAGE_LIMIT
+                   AND EXISTS (
+                       SELECT 1
+                         FROM CUSTOMER c
+                        WHERE c.ID = :customerId AND c.DELETE_FLAG = 0
+                          AND (v.NEW_ACCOUNT_DAYS IS NULL OR
+                               c.CREATED_AT >= LOCALTIMESTAMP - NUMTODSINTERVAL(v.NEW_ACCOUNT_DAYS, 'DAY'))
+                          AND (v.NO_PREVIOUS_ORDERS = 0 OR NOT EXISTS (
+                               SELECT 1 FROM BILL b
+                                WHERE b.CUSTOMER_ID = c.ID AND b.DELETE_FLAG = 0
+                                  AND b.STATUS NOT IN (4, 6)))
+                          AND (v.MINIMUM_ORDERS IS NULL OR (
+                               SELECT COUNT(*) FROM BILL b
+                                WHERE b.CUSTOMER_ID = c.ID AND b.DELETE_FLAG = 0
+                                  AND b.STATUS NOT IN (4, 6)) >= v.MINIMUM_ORDERS)
+                   )
+                 ORDER BY v.STARTS_AT DESC, v.ID DESC
+                """, Map.of("customerId", customerId), CustomerVoucherView.class);
+    }
+
+    public Optional<Map<String, Object>> findEligibleVoucher(
+            String code, long customerId, BigDecimal eligibleSubtotal, boolean lock) {
+        String query = """
+                SELECT v.ID, v.DISCOUNT_TYPE, v.DISCOUNT_VALUE, v.MIN_ORDER, v.MAX_DISCOUNT
+                  FROM VOUCHER v
+                 WHERE v.CODE = :code AND v.STATUS = 1
+                   AND v.STARTS_AT <= LOCALTIMESTAMP
+                   AND (v.ENDS_AT IS NULL OR v.ENDS_AT > LOCALTIMESTAMP)
+                   AND v.USED_COUNT < v.USAGE_LIMIT AND v.MIN_ORDER <= :subtotal
+                   AND EXISTS (
+                       SELECT 1
+                         FROM CUSTOMER c
+                        WHERE c.ID = :customerId AND c.DELETE_FLAG = 0
+                          AND (v.NEW_ACCOUNT_DAYS IS NULL OR
+                               c.CREATED_AT >= LOCALTIMESTAMP - NUMTODSINTERVAL(v.NEW_ACCOUNT_DAYS, 'DAY'))
+                          AND (v.NO_PREVIOUS_ORDERS = 0 OR NOT EXISTS (
+                               SELECT 1 FROM BILL b
+                                WHERE b.CUSTOMER_ID = c.ID AND b.DELETE_FLAG = 0
+                                  AND b.STATUS NOT IN (4, 6)))
+                          AND (v.MINIMUM_ORDERS IS NULL OR (
+                               SELECT COUNT(*) FROM BILL b
+                                WHERE b.CUSTOMER_ID = c.ID AND b.DELETE_FLAG = 0
+                                  AND b.STATUS NOT IN (4, 6)) >= v.MINIMUM_ORDERS)
+                   )
+                """ + (lock ? " FOR UPDATE" : "");
+        return sql.maps(query, Map.of(
+                        "code", code, "customerId", customerId, "subtotal", eligibleSubtotal))
+                .stream().findFirst();
+    }
+
+    public int claimVoucher(long voucherId, long customerId, BigDecimal eligibleSubtotal) {
+        return sql.update("""
+                UPDATE VOUCHER v
+                   SET USED_COUNT = USED_COUNT + 1
+                 WHERE v.ID = :id AND v.STATUS = 1
+                   AND v.STARTS_AT <= LOCALTIMESTAMP
+                   AND (v.ENDS_AT IS NULL OR v.ENDS_AT > LOCALTIMESTAMP)
+                   AND v.USED_COUNT < v.USAGE_LIMIT AND v.MIN_ORDER <= :subtotal
+                   AND EXISTS (
+                       SELECT 1
+                         FROM CUSTOMER c
+                        WHERE c.ID = :customerId AND c.DELETE_FLAG = 0
+                          AND (v.NEW_ACCOUNT_DAYS IS NULL OR
+                               c.CREATED_AT >= LOCALTIMESTAMP - NUMTODSINTERVAL(v.NEW_ACCOUNT_DAYS, 'DAY'))
+                          AND (v.NO_PREVIOUS_ORDERS = 0 OR NOT EXISTS (
+                               SELECT 1 FROM BILL b
+                                WHERE b.CUSTOMER_ID = c.ID AND b.DELETE_FLAG = 0
+                                  AND b.STATUS NOT IN (4, 6)))
+                          AND (v.MINIMUM_ORDERS IS NULL OR (
+                               SELECT COUNT(*) FROM BILL b
+                                WHERE b.CUSTOMER_ID = c.ID AND b.DELETE_FLAG = 0
+                                  AND b.STATUS NOT IN (4, 6)) >= v.MINIMUM_ORDERS)
+                   )
+                """, Map.of(
+                "id", voucherId, "customerId", customerId, "subtotal", eligibleSubtotal));
+    }
+
     public int availableStock(long productDetailId) {
         return sql.scalar("SELECT QUANTITY FROM PRODUCT_DETAIL WHERE ID=:id AND DELETE_FLAG=0 AND STATUS=1",
                 Map.of("id", productDetailId), Integer.class).orElse(0);
@@ -63,10 +169,10 @@ public class BillRepository {
         String q = """
                 INSERT INTO BILL (BILL_CODE, CUSTOMER_ID, ADDRESS_ID, RECEIVER_NAME, RECEIVER_PHONE,
                                   SHIPPING_ADDRESS, SUB_TOTAL, SHIPPING_FEE, DISCOUNT_AMOUNT,
-                                  TOTAL_AMOUNT, PAYMENT_METHOD, NOTE, STOCK_RESERVED)
+                                  TOTAL_AMOUNT, PAYMENT_METHOD, NOTE, VOUCHER_CODE, STOCK_RESERVED)
                 VALUES (:code, :customerId, :addressId, :receiverName, :receiverPhone,
                         :shippingAddress, :subTotal, :shippingFee, :discount,
-                        :total, :paymentMethod, :note, 1)
+                        :total, :paymentMethod, :note, :voucherCode, 1)
                 """;
         return sql.insert(q, p);
     }

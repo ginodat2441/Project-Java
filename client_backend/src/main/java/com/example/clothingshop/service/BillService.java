@@ -4,12 +4,14 @@ import com.example.clothingshop.common.BusinessException;
 import com.example.clothingshop.common.NotFoundException;
 import com.example.clothingshop.dto.request.BillRequest;
 import com.example.clothingshop.dto.request.SePayIpnRequest;
+import com.example.clothingshop.dto.request.VoucherQuoteRequest;
 import com.example.clothingshop.entity.Bill;
 import com.example.clothingshop.entity.SePayPaymentAttempt;
 import com.example.clothingshop.repositories.BillRepository;
 import com.example.clothingshop.view.BillLineView;
 import com.example.clothingshop.view.BillHistoryView;
 import com.example.clothingshop.view.BillView;
+import com.example.clothingshop.view.CustomerVoucherView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,9 @@ public class BillService {
     private final BillRepository repo;
     private final BigDecimal shippingFee;
     private final SePayService sePayService;
+
+    public record VoucherQuote(BigDecimal subtotal, BigDecimal eligibleSubtotal,
+                               BigDecimal discount, BigDecimal shippingFee, BigDecimal total) {}
 
     public BillService(BillRepository repo, SePayService sePayService,
                        @Value("${app.order.shipping-fee:30000}") BigDecimal shippingFee) {
@@ -66,6 +71,10 @@ public class BillService {
             subTotal = subTotal.add(price.multiply(BigDecimal.valueOf(item.quantity())));
         }
         BigDecimal ship = shippingFee;
+        BigDecimal eligibleSubtotal =
+                eligibleSubtotal(req.voucherCode(), req.items(), priceMap, subTotal);
+        BigDecimal discount = discount(req.voucherCode(), eligibleSubtotal, true, customerId);
+        BigDecimal total = subTotal.subtract(discount).add(ship);
 
         // 2. Insert BILL
         Map<String, Object> p = new HashMap<>();
@@ -78,13 +87,14 @@ public class BillService {
         p.put("shippingAddress", addr.fullAddress());
         p.put("subTotal", subTotal);
         p.put("shippingFee", ship);
-        p.put("discount", BigDecimal.ZERO);
-        p.put("total", subTotal.add(ship));
+        p.put("discount", discount);
+        p.put("total", total);
         p.put("paymentMethod", req.paymentMethod());
         p.put("note", req.note());
+        p.put("voucherCode", normalizeVoucher(req.voucherCode()));
         long billId = repo.insertBill(p);
         if ("SEPAY".equals(req.paymentMethod())) {
-            repo.insertSePayPayment(billId, subTotal.add(ship), (String) p.get("code"));
+            repo.insertSePayPayment(billId, total, (String) p.get("code"));
         }
 
         // 3. Insert BILL_DETAIL + BILL_HISTORY
@@ -96,30 +106,104 @@ public class BillService {
         return get(customerId, billId);
     }
 
-    private void validateItems(java.util.List<BillRequest.Item> items) {
+    private void validateItems(List<BillRequest.Item> items) {
         var seen = new java.util.HashSet<Long>();
-        if (items == null || items.isEmpty() || items.size() > 100)
+        if (items == null || items.isEmpty() || items.size() > 100) {
             throw new BusinessException("Chọn từ 1 đến 100 sản phẩm để đặt hàng");
+        }
         for (var item : items) {
             if (item == null || item.productDetailId() == null || item.productDetailId() < 1
                     || item.quantity() == null || item.quantity() < 1 || item.quantity() > 100
-                    || !seen.add(item.productDetailId()))
+                    || !seen.add(item.productDetailId())) {
                 throw new BusinessException("Sản phẩm hoặc số lượng không hợp lệ, không gửi trùng biến thể");
+            }
         }
     }
 
-    @Transactional(readOnly=true)
-    public java.util.Map<String, BigDecimal> quote(java.util.List<BillRequest.Item> items) {
+    @Transactional(readOnly = true)
+    public Map<String, BigDecimal> quote(List<BillRequest.Item> items) {
         validateItems(items);
         BigDecimal subtotal = BigDecimal.ZERO;
         for (var item : items) {
-            var price = repo.findPrice(item.productDetailId())
-                .orElseThrow(() -> new BusinessException("Sản phẩm không còn được bán"));
-            if (repo.availableStock(item.productDetailId()) < item.quantity())
+            BigDecimal price = repo.findPrice(item.productDetailId())
+                    .orElseThrow(() -> new BusinessException("Sản phẩm không còn được bán"));
+            if (repo.availableStock(item.productDetailId()) < item.quantity()) {
                 throw new BusinessException("Sản phẩm không đủ tồn kho. Vui lòng chọn lại số lượng");
+            }
             subtotal = subtotal.add(price.multiply(BigDecimal.valueOf(item.quantity())));
         }
-        return java.util.Map.of("subtotal",subtotal,"shippingFee",shippingFee,"totalAmount",subtotal.add(shippingFee));
+        return Map.of(
+                "subtotal", subtotal,
+                "shippingFee", shippingFee,
+                "totalAmount", subtotal.add(shippingFee));
+    }
+
+    public VoucherQuote quote(long customerId, VoucherQuoteRequest request) {
+        BigDecimal subtotal = BigDecimal.ZERO;
+        Map<Long, BigDecimal> prices = new HashMap<>();
+        for (BillRequest.Item item : request.items()) {
+            BigDecimal price = repo.findPrice(item.productDetailId())
+                    .orElseThrow(() -> new BusinessException(
+                            "Sản phẩm chi tiết không tồn tại hoặc đã ngừng bán: " + item.productDetailId()));
+            prices.put(item.productDetailId(), price);
+            subtotal = subtotal.add(price.multiply(BigDecimal.valueOf(item.quantity())));
+        }
+        BigDecimal eligible = eligibleSubtotal(request.code(), request.items(), prices, subtotal);
+        BigDecimal discount = discount(request.code(), eligible, false, customerId);
+        return new VoucherQuote(
+                subtotal, eligible, discount, shippingFee, subtotal.subtract(discount).add(shippingFee));
+    }
+
+    @Transactional(readOnly = true)
+    public List<CustomerVoucherView> availableVouchers(long customerId) {
+        return repo.findAvailableVouchers(customerId);
+    }
+
+    private BigDecimal eligibleSubtotal(String code, List<BillRequest.Item> items,
+                                        Map<Long, BigDecimal> prices, BigDecimal subtotal) {
+        if (code == null || code.isBlank()) return BigDecimal.ZERO;
+        List<Long> productIds = repo.findVoucherProductIds(normalizeVoucher(code));
+        if (productIds.isEmpty()) return subtotal;
+        java.util.Set<Long> eligibleProducts = new java.util.HashSet<>(productIds);
+        BigDecimal eligible = BigDecimal.ZERO;
+        for (BillRequest.Item item : items) {
+            Long productId = repo.findProductId(item.productDetailId())
+                    .orElseThrow(() -> new BusinessException(
+                            "Sản phẩm chi tiết không tồn tại hoặc đã ngừng bán: " + item.productDetailId()));
+            if (eligibleProducts.contains(productId)) {
+                eligible = eligible.add(prices.get(item.productDetailId())
+                        .multiply(BigDecimal.valueOf(item.quantity())));
+            }
+        }
+        return eligible;
+    }
+
+    private BigDecimal discount(
+            String code, BigDecimal eligibleSubtotal, boolean consume, long customerId) {
+        String normalizedCode = normalizeVoucher(code);
+        if (normalizedCode == null) return BigDecimal.ZERO;
+        if (eligibleSubtotal.signum() <= 0) {
+            throw new BusinessException("Voucher không áp dụng cho sản phẩm nào trong giỏ");
+        }
+        var voucher = repo.findEligibleVoucher(normalizedCode, customerId, eligibleSubtotal, consume)
+                .orElseThrow(() -> new BusinessException(
+                        "Voucher không hợp lệ, không đúng nhóm khách hàng, chưa có hiệu lực, hết hạn, hết lượt, không áp dụng cho sản phẩm trong giỏ hoặc chưa đạt đơn tối thiểu"));
+        BigDecimal value = (BigDecimal) voucher.get("DISCOUNT_VALUE");
+        if ("PERCENT".equals(voucher.get("DISCOUNT_TYPE"))) {
+            value = eligibleSubtotal.multiply(value)
+                    .divide(BigDecimal.valueOf(100), 0, java.math.RoundingMode.HALF_UP)
+                    .min((BigDecimal) voucher.get("MAX_DISCOUNT"));
+        }
+        value = value.setScale(0, java.math.RoundingMode.HALF_UP).min(eligibleSubtotal);
+        if (consume && repo.claimVoucher(
+                ((Number) voucher.get("ID")).longValue(), customerId, eligibleSubtotal) == 0) {
+            throw new BusinessException("Voucher đã hết lượt hoặc hết hiệu lực");
+        }
+        return value;
+    }
+
+    private String normalizeVoucher(String code) {
+        return code == null || code.isBlank() ? null : code.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     // ---------- đọc: repo trả ENTITY -> service đổi sang VIEW ----------
@@ -163,14 +247,19 @@ public class BillService {
         if (bill.status() == null || bill.status() != 0) {
             throw new BusinessException("Chỉ có thể hủy đơn đang chờ xác nhận");
         }
-        if (bill.paymentStatus() != null && bill.paymentStatus() == 1) {
-            throw new BusinessException("Đơn hàng đã thanh toán; vui lòng liên hệ cửa hàng để được hỗ trợ");
-        }
         if (repo.updateStatus(billId, bill.status(), 4, null) == 0) {
             throw new BusinessException("Trạng thái đơn đã bị thay đổi, vui lòng tải lại");
         }
         repo.releaseReservedStockForBill(billId);
-        repo.insertHistory(billId, bill.status(), 4, "Khách hàng hủy đơn", null);
+        boolean paid = bill.paymentStatus() != null && bill.paymentStatus() == 1;
+        String historyNote =
+                paid
+                        ? "Khách hàng hủy đơn trước khi admin xác nhận; cần hoàn tiền thủ công"
+                        : "Khách hàng hủy đơn";
+        repo.insertHistory(billId, bill.status(), 4, historyNote, null);
+        if (paid) {
+            logger.warn("Customer cancelled paid bill {}; manual refund required", billId);
+        }
         return get(customerId, billId);
     }
 
