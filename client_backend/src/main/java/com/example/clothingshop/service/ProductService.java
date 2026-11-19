@@ -25,7 +25,7 @@ public class ProductService {
                                          String sort, int page, int size) {
         if (!List.of("newest", "price_asc", "price_desc").contains(sort))
             throw new com.example.clothingshop.common.BusinessException("Thứ tự sắp xếp không hợp lệ");
-        return repo.searchViews(keyword, brandId, gender, categoryId, sort, page, size);
+        return repo.searchViews(com.example.clothingshop.common.ProductSearchText.normalize(keyword), brandId, gender, categoryId, sort, page, size);
     }
 
     public List<com.example.clothingshop.view.CategoryView> categories() { return repo.categories(); }

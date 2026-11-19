@@ -1,0 +1,41 @@
+.header .clothing-search-form { position:relative;overflow:visible; }
+.header .clothing-search-form input { padding-right:7rem!important; }
+.header .clothing-search-form input::placeholder { color:#596b7c;opacity:1; }
+.header .clothing-search-form .clothing-search-clear { position:absolute;right:4rem;top:50%;transform:translateY(-50%);z-index:5;width:2rem;height:2rem;padding:0;background:transparent;border:0;box-shadow:none;color:#536579;border-radius:50%; }
+.clothing-search-panel { position:absolute;left:0;right:0;top:calc(100% + .65rem);z-index:1100;background:#fff;border:1px solid #dce3eb;border-radius:14px;box-shadow:0 14px 36px rgb(20 40 65 / 14%);overflow:hidden;text-align:left; }
+.clothing-search-status { margin:0;padding:1rem 1rem .6rem;color:#4c6076;font-size:.85rem;line-height:1.5; }
+.clothing-search-options { list-style:none;padding:0;margin:0;max-height:24rem;overflow:auto; }
+.clothing-search-option { display:flex;align-items:center;gap:.9rem;padding:.8rem 1rem;text-decoration:none;color:#253e55; }
+.clothing-search-option:hover,.clothing-search-option[aria-selected=true] { background:#edf4ff; }
+.clothing-search-option img { width:48px;height:56px;object-fit:contain;background:#f5f7fa;border-radius:6px;flex-shrink:0; }
+.clothing-search-option-text { display:flex;flex-direction:column;gap:.2rem;min-width:0; }
+.clothing-search-name { font-size:.9rem;font-weight:600;line-height:1.45;overflow-wrap:anywhere; }
+.clothing-search-price { color:#104d9e;font-weight:600;font-size:.85rem; }
+.clothing-search-option small { color:#6b5353; }
+.clothing-search-all { display:block;text-align:center;padding:.9rem 1rem;border-top:1px solid #e1e7ef;color:#104d9e;font-size:.9rem;font-weight:600; }
+.clothing-search-all:hover { background:#f4f8ff; }
+#mobileSearch.show { overflow:visible; }
+.clothing-search-form :focus-visible { outline:3px solid #174476;outline-offset:3px; }
+.header .clothing-search-form input:focus-visible { outline:0; }
+.header .clothing-search-form .input-group:focus-within { border-radius:50px;box-shadow:0 0 0 3px #c5d9f7; }
+.search-results-page #search-results-header { padding-block:2rem 1.5rem; }
+.search-results-page .results-count h2 { font-size:clamp(1.4rem,2.4vw,2rem);line-height:1.4;overflow-wrap:anywhere; }
+.search-results-page .results-count p { color:#4b6178;line-height:1.6;margin-bottom:0; }
+.search-results-page .search-results-header .client-filters { margin:1.5rem 0 0;padding:1.25rem;border:1px solid #dce3eb;border-radius:12px;background:#fff;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;align-items:end; }
+.search-results-page .client-filters label { font-size:.85rem;font-weight:600;color:#314f6a; }
+.search-results-page .client-filters :is(input,select) { margin-top:.4rem;min-height:44px;font-weight:400; }
+.search-results-page .client-filters > button { grid-column:span 2;min-height:44px; }
+.search-results-page .client-filters > a { align-self:center;text-align:center;grid-column:span 2; }
+.search-results-page .client-search-empty { grid-column:1/-1;padding:3rem 1rem;text-align:center;color:#3e5670; }
+.search-results-page .client-product-grid .product-card { border:1px solid #e1e7ef;border-radius:10px;overflow:hidden;background:#fff; }
+.search-results-page .client-product-grid .product-image { position:relative;aspect-ratio:4/3;height:auto;min-height:0;max-height:320px;padding:0;background:#f7f8fa;overflow:hidden; }
+.search-results-page .client-product-grid .product-image img { width:100%;height:100%;aspect-ratio:auto;object-fit:contain; }
+.search-results-page .client-product-grid .product-details { padding:1rem; }
+.search-results-page .client-product-grid .product-title { font-size:1rem;line-height:1.5;margin:.35rem 0 .65rem; }
+.search-results-page .client-product-grid .product-category { color:#536579;font-size:.8rem; }
+.client-search-empty > i { display:block;font-size:2.5rem;color:#607b98;margin-bottom:1rem; }
+.client-search-empty h3 { font-size:1.3rem;line-height:1.5; }
+.client-search-empty p { max-width:38rem;margin:1rem auto 1.5rem;line-height:1.7; }
+.client-pagination a[aria-current=page] { background:#0a4db8;color:#fff;border-radius:6px;padding:.35rem .65rem; }
+@media(max-width:767px) { .search-results-page .search-results-header .client-filters { grid-template-columns:repeat(2,minmax(0,1fr));padding:1rem; }.search-results-page .client-filters > button,.search-results-page .client-filters > a { grid-column:auto; }.clothing-search-options { max-height:20rem; } }
+@media(prefers-reduced-motion:reduce) { .clothing-search-form * { scroll-behavior:auto; } }

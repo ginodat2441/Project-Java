@@ -165,6 +165,8 @@ public class BillService {
   @Transactional
   public BillView changeStatus(long billId, int newStatus, Long managerId, String note) {
     queries.findBill2("i", billId);
+      if (!db.rows("SELECT ID FROM BILL_CUSTOMER_REQUEST WHERE BILL_ID=:id AND STATUS='PENDING'","id",billId).isEmpty())
+        throw new BusinessException("Đơn có yêu cầu hủy / trả hàng chờ duyệt. Duyệt hoặc từ chối trước khi chuyển trạng thái.");
     BillView bill = get(billId);
     int old = bill.status();
     boolean valid =
@@ -205,6 +207,17 @@ public class BillService {
         Map.of("status", newStatus),
         note);
     return get(billId);
+  }
+
+  @Transactional
+  public void approveCustomerCancellation(long billId,long actor,String note) {
+    var b=db.one("SELECT STATUS,DISPATCHED FROM BILL WHERE ID=:id AND DELETE_FLAG=0 FOR UPDATE","id",billId);
+    int old=(int)number(b,"STATUS");
+    if(old>1||number(b,"DISPATCHED")!=0)throw new BusinessException("Đơn đã xuất giao; không thể hủy.");
+    if(repo.updateStatus(billId,old,4,actor)==0)throw new BusinessException("Đơn đã thay đổi, vui lòng tải lại.");
+    if(queries.updateBill2("i",billId)==1)inventory.cancelSale(billId,actor);
+    repo.insertHistory(billId,old,4,note,actor);
+    db.audit(actor,"APPROVE_CUSTOMER_CANCEL","BILL",billId);
   }
 
   public BigDecimal discount(String code, BigDecimal subtotal, boolean consume) {

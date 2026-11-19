@@ -5,6 +5,7 @@ com\example\clothingshop\dto\order\BillView.class
 com\example\clothingshop\bootstrap\admin\FirstAdmin$1.class
 com\example\clothingshop\service\inventory\OpeningCostService.class
 com\example\clothingshop\repository\store\StoreOperationsRepository.class
+com\example\clothingshop\service\order\CustomerOrderRequestService$Review.class
 com\example\clothingshop\service\account\CustomerService.class
 com\example\clothingshop\bootstrap\admin\FirstAdmin$Input.class
 com\example\clothingshop\common\NotFoundException.class
@@ -65,6 +66,7 @@ com\example\clothingshop\repository\inventory\InventoryOperationsRepository.clas
 com\example\clothingshop\dto\admin\AdminRequests$Variant.class
 com\example\clothingshop\service\inventory\OpeningCostService$Request.class
 com\example\clothingshop\bootstrap\product\ImageCleanup.class
+com\example\clothingshop\controller\order\CustomerOrderRequestController.class
 com\example\clothingshop\controller\brand\BrandController.class
 com\example\clothingshop\controller\report\ExportController.class
 com\example\clothingshop\service\order\RefundService.class
@@ -93,6 +95,7 @@ com\example\clothingshop\dto\admin\AdminRequests$Voucher.class
 com\example\clothingshop\dto\inventory\InventoryRequests$Note.class
 com\example\clothingshop\dto\dev\SqlRequest.class
 com\example\clothingshop\dto\product\ProductDetailView.class
+com\example\clothingshop\service\order\CustomerOrderRequestService.class
 com\example\clothingshop\service\promotion\VoucherService.class
 com\example\clothingshop\util\report\SaleAccounting.class
 com\example\clothingshop\dto\inventory\InventoryRequests$Line.class

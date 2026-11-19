@@ -37,6 +37,7 @@
   ======================================================== -->
   <!-- Trạng thái bổ sung cho chức năng client; giữ CSS gốc. -->
   <link href="assets/css/client-store.css" rel="stylesheet">
+  <link href="assets/css/client-search.css" rel="stylesheet">
 </head>
 
 <body class="search-results-page" data-client-store="true">
@@ -753,7 +754,7 @@
             <div class="col-lg-6 mb-4 mb-lg-0">
               <div class="results-count" data-aos="fade-right" data-aos-delay="200">
                 <h2>Kết quả tìm kiếm</h2>
-                <p>Tìm thấy <span class="results-number">24</span> sản phẩm cho <span class="search-term">"từ khóa của bạn"</span></p>
+                  <p role="status" aria-live="polite">Đang tìm sản phẩm…</p>
               </div>
             </div>
           </div>
@@ -1279,6 +1280,7 @@
   <script src="assets/js/main.js"></script>
 
   <script src="assets/js/client-store.js" defer></script>
+  <script src="assets/js/client-search.js" defer></script>
 </body>
 
 </html>

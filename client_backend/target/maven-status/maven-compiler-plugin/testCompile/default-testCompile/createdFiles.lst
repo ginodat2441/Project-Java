@@ -1,2 +1,15 @@
 com\example\clothingshop\service\BillServiceVoucherTest$VoucherRepository.class
+com\example\clothingshop\repositories\BillRepositoryTest$RecordingSqlHelper.class
+com\example\clothingshop\repositories\ProductCatalogTest.class
+com\example\clothingshop\PurchaseOracleTest.class
+com\example\clothingshop\repositories\ProductCatalogTest$CaptureSql.class
+com\example\clothingshop\OrderRequestsOracleTest.class
+com\example\clothingshop\service\BillServiceCancellationTest.class
+com\example\clothingshop\repositories\BillRepositoryTest.class
+com\example\clothingshop\ProductSearchOracleTest.class
+com\example\clothingshop\service\AuthenticationValidationTest.class
 com\example\clothingshop\service\BillServiceVoucherTest.class
+com\example\clothingshop\service\PurchaseQuoteTest.class
+com\example\clothingshop\service\SePayServiceTest.class
+com\example\clothingshop\RegistrationOracleTest.class
+com\example\clothingshop\service\BillServiceCancellationTest$CancellationRepository.class

@@ -46,15 +46,17 @@ public class AuthenticationService {
 
     @Transactional
     public AuthView register(RegisterRequest request) {
+        com.example.clothingshop.common.AccountInputPolicy.register(request);
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         String username = request.username().trim();
         if (users.emailExists(email)) {
-            throw new BusinessException("Email đã được sử dụng");
+            throw new com.example.clothingshop.common.AccountInputPolicy.Invalid(java.util.Map.of("email","Email đã được sử dụng. Hãy đăng nhập hoặc dùng email khác."));
         }
         if (users.usernameExists(username)) {
-            throw new BusinessException("Tên đăng nhập đã được sử dụng");
+            throw new com.example.clothingshop.common.AccountInputPolicy.Invalid(java.util.Map.of("username","Tên đăng nhập đã được sử dụng. Hãy chọn tên khác."));
         }
 
+        try {
         long userId = users.insertUser(users.customerRoleId(), username, email,
                 passwordEncoder.encode(request.password()));
         long customerId = users.insertCustomer(userId, request.fullName().trim(),
@@ -62,9 +64,14 @@ public class AuthenticationService {
         UserAccount user = users.findByCustomerId(customerId)
                 .orElseThrow(() -> new IllegalStateException("Không tải lại được tài khoản vừa tạo"));
         return issueToken(user);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new com.example.clothingshop.common.AccountInputPolicy.Invalid(java.util.Map.of(
+                "email","Email hoặc tên đăng nhập vừa được sử dụng. Vui lòng kiểm tra và thử lại."));
+        }
     }
 
     public AuthView login(LoginRequest request) {
+        com.example.clothingshop.common.AccountInputPolicy.login(request);
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         UserAccount user = users.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Email hoặc mật khẩu không chính xác"));
@@ -76,6 +83,7 @@ public class AuthenticationService {
     }
 
     public AdminAuthView loginAdmin(LoginRequest request) {
+        com.example.clothingshop.common.AccountInputPolicy.login(request);
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         ManagerAccount manager = managers.findActiveByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Email hoặc mật khẩu không chính xác"));
@@ -99,7 +107,7 @@ public class AuthenticationService {
     }
 
     public AuthenticatedUserView currentUser(long customerId) {
-        return users.findByCustomerId(customerId).map(this::toView)
+        return users.findByCustomerId(customerId).filter(u -> u.status()!=null && u.status()==1).map(this::toView)
                 .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Tài khoản không còn hoạt động"));
     }
 
