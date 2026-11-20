@@ -26,6 +26,7 @@ async function page(url,{badQuote=false}={}){
   else if(route==='/api/products/1')data=product;
   else if(route==='/api/products')data={items:Array.from({length:15},(_,i)=>({...product,id:i+1,minPrice:200000+i})),page:Number(u.searchParams.get('page')||1),totalPages:2,total:17};
   else if(route==='/api/brands')data={items:[]};
+  else if(route==='/api/vouchers')data=[];
   else if(route==='/api/addresses'&&options.method==='POST')data={id:3};
   else if(route==='/api/addresses')data=[{id:3,receiverName:'Khách thử',receiverPhone:'0900000000',province:'Hà Nội',ward:'Phường A',detailAddress:'Số 1',isDefault:true}];
   else if(route==='/api/bills'&&(!options.method||options.method==='GET'))data=[];
@@ -53,6 +54,20 @@ test('separate product listing requests 15 rows, passes price sort and preserves
 });
 test('category directory renders real category links instead of all products',async()=>{
  const p=await page('category.html');try{assert.equal(p.doc.querySelectorAll('.client-category-links a').length,2);assert.match(p.doc.querySelector('.client-category-links a').href,/categoryId=5/);assert.equal(p.calls.some(x=>new URL(x.url).pathname==='/api/products'),false);}finally{p.close();}
+});
+test('search filters preserve keyword, use real totals and keep pagination on search route',async()=>{
+ const p=await page('search-results.html?q=ao+so+mi&brandId=3');try{
+  const form=p.doc.querySelector('.client-filters');
+  assert.equal(form.querySelector('[name=q]').type,'hidden');
+  assert.equal(form.querySelector('[name=q]').value,'ao so mi');
+  assert.match(p.doc.querySelector('.results-count').textContent,/17 sản phẩm/);
+  assert.match(form.querySelector('a').href,/q=ao\+so\+mi/);
+  const next=[...p.doc.querySelectorAll('.client-pagination a')].find(a=>a.textContent.includes('Trang sau'));
+  assert.match(next.href,/search-results\.html\?q=ao\+so\+mi&brandId=3&page=2/);
+  form.querySelector('[name=sort]').value='price_desc';form.dispatchEvent(new p.w.Event('submit',{cancelable:true}));
+  assert.equal(new URL(p.destinations[0],'http://localhost').searchParams.get('q'),'ao so mi');
+  assert.equal(new URL(p.destinations[0],'http://localhost').searchParams.get('sort'),'price_desc');
+ }finally{p.close();}
 });
 test('buy now goes straight to checkout without mutating cart',async()=>{
  const p=await page('product-details.html?id=1');try{await selectVariant(p);p.doc.querySelector('.buy-now-btn').click();await tick();assert.deepEqual(p.destinations,['checkout.html?buyNow=1&productId=1&variantId=12&quantity=1']);assert.equal(p.calls.some(x=>x.options.method==='POST'),false);}finally{p.close();}

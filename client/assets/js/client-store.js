@@ -87,7 +87,7 @@
       img.hidden = true;
     };
   }
-  async function api(url, method = 'GET', data) {
+  async function api(url, method = 'GET', data, options = {}) {
     const headers = { Accept: 'application/json' };
     const token = sessionStorage.getItem(tokenKey);
     if (token) headers.Authorization = 'Bearer ' + token;
@@ -99,9 +99,11 @@
         method,
         headers,
         credentials: 'same-origin',
+        ...(options.signal ? {signal:options.signal} : {}),
         ...(data === undefined ? {} : { body: JSON.stringify(data) }),
       });
-    } catch {
+    } catch (error) {
+      if (error.name === 'AbortError') throw error;
       throw Error('Không kết nối được máy chủ. Vui lòng kiểm tra backend Java.');
     }
     const body = await response.json().catch(() => null);
@@ -322,7 +324,7 @@
       form.method = 'get';
       input.name = 'q';
       input.value = query.get('q') || '';
-      input.placeholder = 'Tìm quần áo…';
+      input.placeholder = 'Tìm tên sản phẩm, thương hiệu…';
     });
     badges();
   }
@@ -422,7 +424,7 @@
         node.hidden = false;
       }
     });
-    if (!data.items.length && templates.length && (isListing || file==='index.html'))
+    if (!data.items.length && templates.length && file !== 'search-results.html' && (isListing || file==='index.html'))
       message($('main'), 'Chưa có sản phẩm phù hợp. Hãy thử điều kiện tìm kiếm khác.');
     if (!isListing) return;
     const first = templates.find(({ node }) => node.closest('main'));
@@ -449,6 +451,12 @@
         if (wrapped) node.className = 'client-product-cell';
         parent.append(node);
       }
+      if (!data.items.length && file === 'search-results.html') {
+        const empty = document.createElement('div');
+        empty.className = 'client-search-empty';
+        empty.innerHTML = '<i class="bi bi-search" aria-hidden="true"></i><h3>Chưa tìm thấy sản phẩm phù hợp</h3><p>Thử tên sản phẩm ngắn hơn, tìm không dấu hoặc bỏ bớt bộ lọc để khám phá thêm sản phẩm.</p><a class="btn btn-primary" href="products.html">Khám phá tất cả sản phẩm</a>';
+        parent.append(empty);
+      }
     }
     const [brandsPage, categories] = await Promise.all([api('/api/brands?page=1&size=100'), api('/api/products/categories')]);
     const brands = brandsPage.items || [];
@@ -462,7 +470,7 @@
             `<option value="${row.id}" ${query.get(key) === String(row.id) ? 'selected' : ''}>${esc(row[label])}</option>`,
         )
         .join('');
-    form.innerHTML = `<label>Tìm sản phẩm<input name="q" maxlength="200" value="${esc(keyword || '')}"></label><label>Thương hiệu<select name="brandId"><option value="">Tất cả thương hiệu</option>${options(brands, 'brandId', 'brandName')}</select></label><label>Đối tượng<select name="gender"><option value="">Tất cả</option><option value="0">Nam</option><option value="1">Nữ</option><option value="2">Khác</option></select></label><button class="btn btn-primary">Tìm kiếm và lọc</button><a href="category.html">Xóa bộ lọc</a>`;
+    form.innerHTML = `<label>Tìm sản phẩm<input name="q" maxlength="120" value="${esc(keyword || '')}"></label><label>Thương hiệu<select name="brandId"><option value="">Tất cả thương hiệu</option>${options(brands, 'brandId', 'brandName')}</select></label><label>Đối tượng<select name="gender"><option value="">Tất cả</option><option value="0">Nam</option><option value="1">Nữ</option><option value="2">Khác</option></select></label><button class="btn btn-primary">Tìm kiếm và lọc</button><a href="category.html">Xóa bộ lọc</a>`;
     $('[name="gender"]', form).value = query.get('gender') || '';
     const categoryLabel = document.createElement('label');
     categoryLabel.innerHTML = `Danh mục<select name="categoryId"><option value="">Tất cả danh mục</option>${options(categories, 'categoryId', 'categoryName')}</select>`;
@@ -473,6 +481,15 @@
     $('[name="sort"]', form).value = query.get('sort') || 'newest';
     const listingPath = file === 'search-results.html' ? file : 'products.html';
     $('a', form).href = listingPath;
+    if (file === 'search-results.html') {
+      const keywordInput = $('[name="q"]', form);
+      const hiddenKeyword = document.createElement('input');
+      hiddenKeyword.type = 'hidden'; hiddenKeyword.name = 'q'; hiddenKeyword.value = keyword || '';
+      keywordInput.closest('label').replaceWith(hiddenKeyword);
+      $('button', form).textContent = 'Áp dụng bộ lọc';
+      $('a', form).href = listingPath + '?' + new URLSearchParams(keyword ? {q: keyword} : {});
+      form.setAttribute('aria-label', 'Lọc và sắp xếp kết quả tìm kiếm');
+    }
     if (file === 'category.html') {
       const selectedCategory = categories.find((c) => String(c.id) === query.get('categoryId'));
       $('.page-title h1').textContent = selectedCategory?.categoryName || 'Danh mục không tồn tại';
@@ -491,22 +508,22 @@
     if (file !== 'search-results.html') {
       if (filtersHost?.classList.contains('widgets-container')) filtersHost.replaceChildren(form);
       else filtersHost?.prepend(form);
-    } else $('.search-results-header')?.append(form);
+    } else $('#search-results-header .search-results-header')?.append(form);
     const oldFilters = $('#category-header .filter-container');
     if (oldFilters && !oldFilters.contains(form)) {
       oldFilters.hidden = true;
       const oldHeader = $('#category-header');
       if (oldHeader && !oldHeader.contains(form)) oldHeader.hidden = true;
     }
-    const searchHeader = $('.search-results-header');
+    const searchHeader = $('#search-results-header .search-results-header');
     if (searchHeader) {
       $$('.sort-options,.active-filters', searchHeader).forEach((n) => (n.hidden = true));
       const title = $('h1,h2', searchHeader);
       if (title)
-        title.textContent = `Tìm kiếm: ${query.get('q') || 'Tất cả sản phẩm'} · ${data.total} kết quả`;
+        title.textContent = keyword ? `Kết quả cho “${keyword}”` : 'Khám phá sản phẩm';
       const description =
         $('.search-results-count', searchHeader) || $('h1 + p,h2 + p', searchHeader);
-      if (description) description.textContent = `${data.total} sản phẩm phù hợp`;
+      if (description) description.textContent = `${data.total} sản phẩm phù hợp${keyword ? ' với từ khóa của bạn' : ''}`;
       $('.search-filters', searchHeader)?.remove();
       const searchForm = $('form.search-form', searchHeader);
       if (searchForm) {
@@ -523,6 +540,7 @@
       document.createElement('div');
     pagination.classList.add('client-pagination');
     pagination.replaceChildren();
+    pagination.hidden = !data.total;
     const page = Number(data.page || 1),
       pages = Math.max(1, data.totalPages || 1);
     for (const [label, target] of [
@@ -960,7 +978,7 @@
     orders.before(tabs);
     const refresh = document.createElement('button'); refresh.type='button'; refresh.className='btn btn-outline-primary mb-3';refresh.textContent='Làm mới đơn hàng';
     tabs.before(refresh);
-    refresh.onclick=()=>action(refresh,async()=>{orderData=await api('/api/bills');drawOrders();});
+    refresh.onclick=()=>action(refresh,async()=>{window.ClientOrderRequests?.invalidate();orderData=await api('/api/bills');drawOrders();});
     const drawOrders = () => {
       tabs.innerHTML = orderGroups.map(([key,label])=>`<button type="button" data-order-group="${key}" aria-pressed="${key===currentGroup}">${label} <span>${orderData.filter(o=>key==='all'||groupOf(o)===key).length}</span></button>`).join('');
       $('.menu-nav a[href="#orders"] .badge', host).textContent = orderData.length;
@@ -972,7 +990,7 @@
         const node = document.createElement('article');
         node.className = 'order-card';
         const paymentMethod = order.paymentMethod === 'SEPAY' ? 'SePay' : 'COD';
-        node.innerHTML = `<div class="client-order-head"><h3>${esc(order.billCode)}</h3><p class="client-order-state" data-state="${Number(order.status)}">${esc(billStatusLabel(order, orderStatuses))}</p></div><p>Thanh toán: ${paymentMethod} · ${paymentStatusLabel(order.paymentStatus)} · <strong>${money(order.totalAmount)}</strong></p><p class="client-order-date">Ngày đặt: ${esc(order.createdAt ? new Date(order.createdAt).toLocaleString('vi-VN') : 'Đang cập nhật')}</p>${cancellationNotice(order) ? `<p class="alert alert-warning">${esc(cancellationNotice(order))}</p>` : ''}<button class="btn btn-outline-primary" type="button">Xem chi tiết</button><a class="btn btn-primary ms-2" href="order-confirmation.html?orderId=${order.id}">${groupOf(order)==='payment'?'Tiếp tục thanh toán':'Xem trạng thái đơn'}</a>${Number(order.status) === 0 ? '<button class="btn btn-outline-danger ms-2" type="button" data-cancel-order>Hủy đơn</button>' : ''}`;
+        node.innerHTML = `<div class="client-order-head"><h3>${esc(order.billCode)}</h3><p class="client-order-state" data-state="${Number(order.status)}">${esc(billStatusLabel(order, orderStatuses))}</p></div><p>Thanh toán: ${paymentMethod} · ${paymentStatusLabel(order.paymentStatus)} · <strong>${money(order.totalAmount)}</strong></p><p class="client-order-date">Ngày đặt: ${esc(order.createdAt ? new Date(order.createdAt).toLocaleString('vi-VN') : 'Đang cập nhật')}</p>${cancellationNotice(order) ? `<p class="alert alert-warning">${esc(cancellationNotice(order))}</p>` : ''}<button class="btn btn-outline-primary" type="button">Xem chi tiết</button><a class="btn btn-primary ms-2" href="order-confirmation.html?orderId=${order.id}">${groupOf(order)==='payment'?'Tiếp tục thanh toán':'Xem trạng thái đơn'}</a>`;
         $('button', node).onclick = (e) =>
           action(e.currentTarget, async () => {
             const [bill, linesData] = await Promise.all([
@@ -1035,19 +1053,8 @@
               lines.append(checkPayment);
             }
           });
-        const cancelButton = $('[data-cancel-order]', node);
-        if (cancelButton) {
-          cancelButton.onclick = (event) =>
-            action(event.currentTarget, async () => {
-              if (!window.confirm('Bạn có chắc muốn hủy đơn hàng này?')) return;
-              const cancelled = await api('/api/bills/' + order.id + '/cancel', 'PATCH');
-              Object.assign(order, cancelled);
-              if (currentGroup !== 'all') currentGroup = 'history';
-              drawOrders();
-              message($('#orders', host), cancellationNotice(cancelled));
-            });
-        }
         orders.append(node);
+        window.ClientOrderRequests?.mount(node,order,async()=>{orderData=await api('/api/bills');drawOrders();});
       }
       if (!orders.children.length) message(orders, 'Bạn chưa có đơn hàng phù hợp.');
     };
@@ -1411,6 +1418,7 @@
       api('/api/bills/' + encodeURIComponent(orderId) + '/history'),
     ]);
     const render = (current) => {
+      window.ClientOrderRequests?.invalidate();
       host.hidden = false;
       host.innerHTML =
         `<div class="container"><div class="alert alert-info"><h2 class="h4">Đơn ${esc(current.billCode)}</h2><p class="mb-1">Trạng thái đơn: ${esc(billStatusLabel(current, orderStatuses))}</p><p class="mb-0">Thanh toán: ${current.paymentMethod === 'SEPAY' ? 'SePay' : 'COD'} · ${paymentStatusLabel(current.paymentStatus)}</p>${cancellationNotice(current) ? `<p class="mt-2 mb-0">${esc(cancellationNotice(current))}</p>` : ''}</div>` +
@@ -1469,20 +1477,18 @@
               '.';
         paymentPanel.append(paid);
       }
-      if (Number(current.status) === 0) {
-        const cancel = document.createElement('button');
-        cancel.className = 'btn btn-outline-danger mt-3';
-        cancel.type = 'button';
-        cancel.textContent = 'Hủy đơn hàng';
-        cancel.onclick = (event) =>
-          action(event.currentTarget, async () => {
-            if (!window.confirm('Bạn có chắc muốn hủy đơn hàng này?')) return;
-            bill = await api('/api/bills/' + encodeURIComponent(orderId) + '/cancel', 'PATCH');
-            history = await api('/api/bills/' + encodeURIComponent(orderId) + '/history');
-            render(bill);
-          });
-        paymentPanel.append(cancel);
-      }
+      window.ClientOrderRequests?.mount(paymentPanel,current,async()=>{
+        bill=await api('/api/bills/'+encodeURIComponent(orderId));
+        history=await api('/api/bills/'+encodeURIComponent(orderId)+'/history');
+        render(bill);
+      });
+      const refreshOrder=document.createElement('button');
+      refreshOrder.type='button';refreshOrder.className='btn btn-outline-primary mt-3';refreshOrder.textContent='Cập nhật trạng thái đơn';
+      refreshOrder.onclick=event=>action(event.currentTarget,async()=>{
+        [bill,history]=await Promise.all([api('/api/bills/'+encodeURIComponent(orderId)),api('/api/bills/'+encodeURIComponent(orderId)+'/history')]);
+        render(bill);
+      });
+      paymentPanel.append(refreshOrder);
     };
     render(bill);
   }

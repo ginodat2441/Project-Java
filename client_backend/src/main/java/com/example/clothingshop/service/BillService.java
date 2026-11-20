@@ -242,25 +242,8 @@ public class BillService {
 
     @Transactional
     public BillView cancel(long customerId, long billId) {
-        Bill bill = repo.lockByIdAndCustomer(billId, customerId)
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn id=" + billId));
-        if (bill.status() == null || bill.status() != 0) {
-            throw new BusinessException("Chỉ có thể hủy đơn đang chờ xác nhận");
-        }
-        if (repo.updateStatus(billId, bill.status(), 4, null) == 0) {
-            throw new BusinessException("Trạng thái đơn đã bị thay đổi, vui lòng tải lại");
-        }
-        repo.releaseReservedStockForBill(billId);
-        boolean paid = bill.paymentStatus() != null && bill.paymentStatus() == 1;
-        String historyNote =
-                paid
-                        ? "Khách hàng hủy đơn trước khi admin xác nhận; cần hoàn tiền thủ công"
-                        : "Khách hàng hủy đơn";
-        repo.insertHistory(billId, bill.status(), 4, historyNote, null);
-        if (paid) {
-            logger.warn("Customer cancelled paid bill {}; manual refund required", billId);
-        }
-        return get(customerId, billId);
+        getEntity(billId, customerId);
+        throw new BusinessException("Vui lòng gửi yêu cầu hủy kèm lý do và chờ cửa hàng duyệt.");
     }
 
     public List<BillHistoryView> history(long customerId, long billId) {
@@ -374,6 +357,8 @@ public class BillService {
                                         long managerId, boolean owner) {
         Bill bill = repo.lockById(billId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn id=" + billId));
+        if(repo.hasPendingCustomerRequest(billId))
+            throw new BusinessException("Đơn có yêu cầu hủy / trả hàng chờ duyệt. Vui lòng xử lý tại trang quản trị trước.");
         int oldStatus = bill.status() == null ? -1 : bill.status();
         if (oldStatus == newStatus) {
             return BillView.from(bill);
@@ -386,7 +371,7 @@ public class BillService {
         boolean validTransition = approveOrder
                 || oldStatus == 1 && newStatus == 2
                 || oldStatus == 2 && newStatus == 3
-                || (oldStatus == 0 || oldStatus == 1 || oldStatus == 2) && newStatus == 4
+                || (oldStatus == 0 || oldStatus == 1) && newStatus == 4
                 || oldStatus == 3 && newStatus == 5;
         if (!validTransition) {
             throw new BusinessException("Không thể chuyển trạng thái đơn từ " + oldStatus + " sang " + newStatus);

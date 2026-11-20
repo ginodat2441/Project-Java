@@ -1,3 +1,12 @@
+function orderCustomerRequestPanel(rows, order) {
+  if (!rows?.length) return '';
+  const names={PENDING:'Chờ duyệt',APPROVED:'Đã chấp nhận',REJECTED:'Đã từ chối'};
+  const pendingCancel=rows.some(r=>r.REQUEST_TYPE==='CANCEL'&&r.STATUS==='PENDING');
+  const paidSepayCancel=pendingCancel&&order.PAYMENT_METHOD==='SEPAY'&&Number(order.PAYMENT_STATUS)===1;
+  const urgentAlert=pendingCancel?`<div class="order-customer-request-alert" role="alert" aria-live="assertive"><span>KHÁCH ĐANG YÊU CẦU HỦY ĐƠN</span><strong>${paidSepayCancel?'ĐÃ THANH TOÁN SEPAY · CẦN XỬ LÝ HOÀN TIỀN NẾU DUYỆT HỦY':'CẦN DUYỆT YÊU CẦU CỦA KHÁCH'}</strong><p>${paidSepayCancel?'Đơn đã thu tiền qua SePay. Việc duyệt hủy không tự chuyển tiền hoàn; cần đối soát và ghi nhận hoàn tiền thủ công.':'Chưa xuất giao: hãy xem lý do bên dưới rồi chấp nhận hoặc từ chối yêu cầu.'}</p></div>`:'';
+  return `${urgentAlert}<section class="order-customer-requests"><h3>Yêu cầu hủy / trả hàng của khách</h3>${rows.map(r=>`<article class="order-request-review"><div class="order-request-heading"><strong>${r.REQUEST_TYPE==='CANCEL'?'Hủy đơn trước vận chuyển':'Trả hàng / hoàn tiền'}</strong><span class="order-request-label" data-state="${esc(r.STATUS)}">${esc(names[r.STATUS])}</span></div><p class="order-request-reason">${esc(r.REASON)}</p><small>Gửi lúc ${date(r.CREATED_AT)}</small>${r.RESPONSE_NOTE?`<p><b>Phản hồi:</b> ${esc(r.RESPONSE_NOTE)}</p>`:''}${r.STATUS==='PENDING'&&window.AdminV8Utils?.isAdmin()?`<label>Phản hồi gửi cho khách<textarea name="request-note-${Number(r.ID)}" minlength="10" maxlength="500" rows="3" placeholder="Nêu kết quả kiểm tra; nếu duyệt trả hàng, hướng dẫn cách gửi trả"></textarea></label><p class="order-explainer">Duyệt hủy sẽ hủy đơn và giải phóng giữ hàng. Duyệt trả chỉ chấp nhận yêu cầu; tiếp nhận hàng và hoàn tiền được xác nhận riêng.</p><div class="toolbar">${button('Chấp nhận yêu cầu','approve-customer-request',r.ID)}${button('Từ chối và phản hồi','reject-customer-request',r.ID)}</div>`:''}</article>`).join('')}</section>`;
+}
+
 function orderReturnPanel(order, id) {
   const labels = {
     NONE: "Chưa nhận hoàn",
@@ -32,10 +41,11 @@ async function orderEditor(id) {
     Number(r.STATUS) === 4 && Number(r.PAYMENT_STATUS) === 1
       ? '<section class="refund-critical-alert" role="alert" aria-live="assertive"><span class="refund-critical-alert__label">MỨC ĐỘ KHẨN CẤP</span><div><strong>Đơn đã hủy nhưng chưa hoàn tiền</strong><p>Đơn này đã thu tiền. Cần đối soát và xử lý hoàn tiền thủ công ngay.</p></div></section>'
       : "";
+  const customerRequestPanel=orderCustomerRequestPanel(d.customerRequests,r);
   const transitions = { 0: [1, 4], 1: [4], 2: [3, 6], 3: [5], 4: [], 5: [], 6: [] };
   modal(
     "Đơn " + r.BILL_CODE,
-    `${refundAlert}<div class="grid"><section><h3>${esc(r.RECEIVER_NAME)}</h3><p>${esc(r.RECEIVER_PHONE)}<br>${esc(r.SHIPPING_ADDRESS)}</p><p>Trạng thái: <b>${esc(statusNames[r.STATUS])}</b></p><p>Ghi chú: ${esc(r.NOTE)}</p></section><section><p>Tiền hàng: ${money(r.SUB_TOTAL)}<br>Voucher: ${esc(r.VOUCHER_CODE || "—")}<br>Giảm giá: ${money(r.DISCOUNT_AMOUNT)}<br>Phí giao: ${money(r.SHIPPING_FEE)}<br>${r.SHIPPING_SERVICE_NAME ? `Dịch vụ: ${esc(r.SHIPPING_SERVICE_NAME)} (${esc(r.SHIPPING_SERVICE)})<br>Báo giá lúc: ${date(r.SHIPPING_QUOTED_AT)}<br>` : ""}<b>Phải trả: ${money(r.TOTAL_AMOUNT)}</b></p></section></div>${table(
+    `${refundAlert}${customerRequestPanel}<div class="grid"><section><h3>${esc(r.RECEIVER_NAME)}</h3><p>${esc(r.RECEIVER_PHONE)}<br>${esc(r.SHIPPING_ADDRESS)}</p><p>Trạng thái: <b>${esc(statusNames[r.STATUS])}</b></p><p>Ghi chú: ${esc(r.NOTE)}</p></section><section><p>Tiền hàng: ${money(r.SUB_TOTAL)}<br>Voucher: ${esc(r.VOUCHER_CODE || "—")}<br>Giảm giá: ${money(r.DISCOUNT_AMOUNT)}<br>Phí giao: ${money(r.SHIPPING_FEE)}<br>${r.SHIPPING_SERVICE_NAME ? `Dịch vụ: ${esc(r.SHIPPING_SERVICE_NAME)} (${esc(r.SHIPPING_SERVICE)})<br>Báo giá lúc: ${date(r.SHIPPING_QUOTED_AT)}<br>` : ""}<b>Phải trả: ${money(r.TOTAL_AMOUNT)}</b></p></section></div><h3>Sản phẩm trong đơn</h3>${table(
       d.lines.map((x) => ({
         NAME: x.productName,
         COLOR: x.colorName,
@@ -118,6 +128,14 @@ async function orderEditor(id) {
     if (!b) return;
     b.disabled = true;
     try {
+      if (b.dataset.action === 'approve-customer-request' || b.dataset.action === 'reject-customer-request') {
+        const note=fields.querySelector('[name="request-note-'+Number(b.dataset.id)+'"]').value.trim();
+        if(note.length<10)throw Error('Nhập phản hồi từ 10 đến 500 ký tự trước khi duyệt.');
+        const approved=b.dataset.action==='approve-customer-request';
+        if(!confirm(approved?'Xác nhận chấp nhận yêu cầu này? Với hủy đơn, hàng giữ sẽ được giải phóng.':'Xác nhận từ chối yêu cầu và gửi phản hồi cho khách?')){b.disabled=false;return;}
+        await api('/api/admin/order-requests/'+Number(b.dataset.id),'PUT',{decision:approved?'APPROVED':'REJECTED',note});
+        $('#dialog').close();await load();await orderEditor(id);return;
+      }
       if (b.dataset.action === "record-refund" || b.dataset.action === "edit-refund") {
         await window.AdminV8.refundForm(
           id,

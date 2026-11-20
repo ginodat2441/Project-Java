@@ -47,8 +47,15 @@ public class ProductRepository {
         StringBuilder q = new StringBuilder(SELECT_PRODUCT);
         Map<String, Object> p = new HashMap<>();
         if (keyword != null && !keyword.isBlank()) {
-            q.append(" AND LOWER(p.PRODUCT_NAME) LIKE '%' || LOWER(:keyword) || '%' ");
-            p.put("keyword", keyword.trim());
+            String cleaned=com.example.clothingshop.common.ProductSearchText.normalize(keyword);
+            String accents=com.example.clothingshop.common.ProductSearchText.ACCENTS;
+            String searchable="TRANSLATE(LOWER(p.PRODUCT_NAME || ' ' || p.PRODUCT_CODE || ' ' || b.BRAND_NAME), '"
+                +accents+"', '"+com.example.clothingshop.common.ProductSearchText.fold(accents)+"')";
+            String[] terms=cleaned.split(" ");
+            for(int i=0;i<terms.length;i++) {
+                q.append(" AND ").append(searchable).append(" LIKE :searchTerm").append(i).append(" ESCAPE '\\' ");
+                p.put("searchTerm"+i, com.example.clothingshop.common.ProductSearchText.literalLike(terms[i]));
+            }
         }
         if (brandId != null) {
             q.append(" AND p.BRAND_ID = :brandId ");

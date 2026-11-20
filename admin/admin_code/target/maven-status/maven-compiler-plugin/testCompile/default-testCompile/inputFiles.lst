@@ -2,6 +2,7 @@ D:\IT\JP1\Project-Java\admin\admin_code\src\test\java\com\example\clothingshop\b
 D:\IT\JP1\Project-Java\admin\admin_code\src\test\java\com\example\clothingshop\bootstrap\admin\SmtpCheckRunnerTest.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\test\java\com\example\clothingshop\config\ClientAdminLoginTest.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\test\java\com\example\clothingshop\controller\store\ShippingCheckoutTest.java
+D:\IT\JP1\Project-Java\admin\admin_code\src\test\java\com\example\clothingshop\CustomerOrderRequestsOracleTest.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\test\java\com\example\clothingshop\DemoDataSeedTest.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\test\java\com\example\clothingshop\integration\shipping\ShippingQuoteServiceTest.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\test\java\com\example\clothingshop\InventoryV8AcceptanceTest.java

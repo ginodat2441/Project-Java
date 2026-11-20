@@ -42,7 +42,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/bills/**").hasAnyRole("ADMIN", "STAFF")
                         .requestMatchers("/api/admin/**").denyAll()
                         .requestMatchers("/api/auth/me", "/api/addresses/**", "/api/bills/**",
-                                "/api/carts/**", "/api/vouchers")
+                                  "/api/carts/**", "/api/vouchers", "/api/order-requests/**", "/api/order-requests")
                         .authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/brands/**").permitAll()
                         .anyRequest().permitAll())

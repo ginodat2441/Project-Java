@@ -22,6 +22,7 @@ D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\c
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\inventory\StockController.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\order\AdminOrderController.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\order\BillController.java
+D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\order\CustomerOrderRequestController.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\order\WorkflowController.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\product\AdminProductController.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\product\CategoryController.java
@@ -84,6 +85,7 @@ D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\s
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\service\inventory\StockCostService.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\service\order\AdminOrderQueryService.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\service\order\BillService.java
+D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\service\order\CustomerOrderRequestService.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\service\order\RefundQueryService.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\service\order\RefundService.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\service\product\AdminProductQueryService.java

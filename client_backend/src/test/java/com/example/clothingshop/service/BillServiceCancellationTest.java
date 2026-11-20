@@ -13,28 +13,21 @@ import org.junit.jupiter.api.Test;
 
 class BillServiceCancellationTest {
     @Test
-    void customerCanCancelPaidUnconfirmedOrderAndManualRefundIsRecorded() {
+    void paidOrderCannotBypassAdminReview() {
         var repo = new CancellationRepository(bill(0, 1));
         var service = new BillService(repo, new SePayService(""), BigDecimal.valueOf(30000));
 
-        var cancelled = service.cancel(7L, 15L);
-
-        assertEquals(4, cancelled.status());
-        assertEquals(1, cancelled.paymentStatus());
-        assertEquals(1, repo.releasedReservations);
-        assertTrue(repo.historyNote.contains("cần hoàn tiền thủ công"));
+        assertThrows(BusinessException.class, () -> service.cancel(7L,15L));
+        assertEquals(0,repo.releasedReservations);assertEquals(0,repo.statusUpdates);
     }
 
     @Test
-    void customerCanCancelUnpaidUnconfirmedOrder() {
+    void unpaidOrderCannotBypassAdminReview() {
         var repo = new CancellationRepository(bill(0, 0));
         var service = new BillService(repo, new SePayService(""), BigDecimal.valueOf(30000));
 
-        var cancelled = service.cancel(7L, 15L);
-
-        assertEquals(4, cancelled.status());
-        assertEquals("Khách hàng hủy đơn", repo.historyNote);
-        assertEquals(1, repo.releasedReservations);
+        assertThrows(BusinessException.class, () -> service.cancel(7L,15L));
+        assertEquals(0,repo.releasedReservations);assertEquals(0,repo.statusUpdates);
     }
 
     @Test

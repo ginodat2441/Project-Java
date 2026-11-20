@@ -18,11 +18,8 @@
   // Keep cookies on the same host as Live Server (localhost and 127.0.0.1 differ).
   const adminBase = (window.CLOTHING_SHOP_ADMIN_BASE ||
     (isLoopbackHost ? `${location.protocol}//${location.hostname}:8888` : location.origin)).replace(/\/+$/, '');
-  const notice = document.createElement('div');
-  notice.className = 'alert alert-danger';
-  notice.setAttribute('role', 'alert');
-  notice.hidden = true;
-  document.querySelector('.login-register-wraper .tab-content').before(notice);
+  const ui = window.ClothingAuthUI;
+  const notice = ui.notice;
 
   async function submit(endpoint, payload) {
     let response;
@@ -44,7 +41,9 @@
     if (!response.ok || body?.success !== true || !body.data?.accessToken || !body.data?.user) {
       if (response.status >= 500)
         throw Error('Máy chủ chưa xử lý được yêu cầu. Vui lòng thử lại sau.');
-      throw Error(body?.message || 'Email hoặc mật khẩu không chính xác.');
+      const error = Error(body?.message || 'Email hoặc mật khẩu không chính xác.');
+      error.fieldErrors = body?.fieldErrors;
+      throw error;
     }
     return body.data;
   }
@@ -62,7 +61,7 @@
         body: new URLSearchParams({ username: payload.email, password: payload.password }),
       });
     } catch {
-      throw Error('Không kết nối được máy chủ quản trị. Hãy chạy backend Admin và thử lại.');
+      throw Error('Email hoặc mật khẩu không chính xác. Nếu đây là tài khoản quản trị, hãy kiểm tra backend Admin đã chạy chưa.');
     }
     const result = await response.json().catch(() => null);
     if (!response.ok || result?.success !== true || result.redirect !== '/admin') {
@@ -73,35 +72,36 @@
 
   async function handleSubmit(form, endpoint, getPayload) {
     const button = form.querySelector('[type="submit"]');
+    if (button.disabled) return;
     const label = button.textContent;
     button.disabled = true;
     button.textContent = 'Đang xử lý…';
     notice.hidden = true;
     try {
-      const auth = await submit(endpoint, getPayload());
+      const payload=getPayload();
+      const auth = await submit(endpoint, payload);
       if (auth.managerRedirect) {
         sessionStorage.removeItem(tokenKey);
         sessionStorage.removeItem(userKey);
         form.reset();
-        location.assign(auth.managerRedirect);
+        ui.success('Đăng nhập thành công','Chào mừng bạn trở lại không gian quản trị Clothing Shop.','Vào trang quản trị',auth.managerRedirect);
+        return;
+      }
+      if (endpoint === 'register') {
+        sessionStorage.removeItem(tokenKey);sessionStorage.removeItem(userKey);
+        form.reset();
+        const destination=new URL('login-register.html',location.href);destination.searchParams.set('email',payload.email);
+        const next=new URLSearchParams(location.search).get('next');if(next)destination.searchParams.set('next',ui.safeNext());
+        ui.success('Đăng ký thành công','Tài khoản đã được lưu. Hãy đăng nhập để bắt đầu mua sắm tại Clothing Shop.','Đến trang đăng nhập',destination.pathname+destination.search);
         return;
       }
       sessionStorage.setItem(tokenKey, auth.accessToken);
       sessionStorage.setItem(userKey, JSON.stringify(auth.user));
       form.reset();
-      const next = new URLSearchParams(location.search).get('next');
-      const destination =
-        endpoint === 'login' &&
-        next &&
-        !next.startsWith('//') &&
-        !/^[a-z][a-z\d+.-]*:/i.test(next)
-          ? next
-          : 'index.html';
-      location.assign(destination);
+      ui.success('Đăng nhập thành công','Chào mừng bạn trở lại Clothing Shop.','Tiếp tục mua sắm',ui.safeNext());
     } catch (error) {
-      notice.textContent = error.message;
-      notice.hidden = false;
-      notice.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+      if(error.fieldErrors)ui.showErrors(form,error.fieldErrors);
+      else ui.notify(error.message);
     } finally {
       button.disabled = false;
       button.textContent = label;
@@ -110,11 +110,10 @@
 
   login.addEventListener('submit', (event) => {
     event.preventDefault();
-    if (!login.reportValidity()) return;
+    if (!ui.validate(login)) return;
     const email = input('login-email').value.trim();
     if (!email.includes('@')) {
-      notice.textContent = 'Đăng nhập khách hàng cần sử dụng địa chỉ email.';
-      notice.hidden = false;
+      ui.notify('Vui lòng dùng email để đăng nhập.');
       return;
     }
     handleSubmit(login, 'login', () => ({
@@ -125,22 +124,20 @@
 
   register.addEventListener('submit', (event) => {
     event.preventDefault();
-    if (!register.reportValidity()) return;
+    if (!ui.validate(register)) return;
     const password = input('reg-password').value;
     if (password !== input('reg-confirm-password').value) {
-      notice.textContent = 'Mật khẩu xác nhận không khớp.';
-      notice.hidden = false;
+      ui.showErrors(register,{confirmPassword:'Mật khẩu xác nhận không khớp.'});
       return;
     }
     if (new TextEncoder().encode(password).length > 72) {
-      notice.textContent = 'Mật khẩu không được vượt quá 72 byte UTF-8.';
-      notice.hidden = false;
+      ui.showErrors(register,{password:'Mật khẩu không được vượt quá 72 byte UTF-8.'});
       return;
     }
     handleSubmit(register, 'register', () => ({
-      username: input('reg-username').value.trim(),
+      username: input('reg-username').value.trim().toLowerCase(),
       fullName: `${input('reg-lastname').value.trim()} ${input('reg-firstname').value.trim()}`.trim(),
-      phone: input('reg-phone').value.trim(),
+      phone: ui.normalizePhone(input('reg-phone').value),
       email: input('reg-email').value.trim().toLowerCase(),
       password,
     }));
