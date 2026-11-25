@@ -1,8 +1,6 @@
-com\example\clothingshop\InventoryV8AcceptanceTest$Browser.class
 com\example\clothingshop\service\inventory\StockCostServiceTest.class
 com\example\clothingshop\DemoDataSeedTest.class
 com\example\clothingshop\integration\shipping\ShippingQuoteServiceTest.class
-com\example\clothingshop\InventoryV8AcceptanceTest.class
 com\example\clothingshop\bootstrap\admin\SmtpCheckRunnerTest.class
 com\example\clothingshop\bootstrap\admin\FirstAdminTest$Terminal.class
 com\example\clothingshop\controller\store\ShippingCheckoutTest.class

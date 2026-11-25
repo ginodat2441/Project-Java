@@ -51,13 +51,17 @@ public class SecurityConfig {
 
   @Bean
   @org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
-  SecurityFilterChain security(HttpSecurity http, UserDetailsService users, AdminRepository db,
-      @org.springframework.beans.factory.annotation.Value("${shop.client-home-url:http://127.0.0.1:5500/client/index.html}") String clientHome)
+  SecurityFilterChain security(HttpSecurity http, UserDetailsService users, AdminRepository db)
       throws Exception {
     var attempts = new ConcurrentHashMap<String, Attempt>();
     http.cors(c -> {
           var config = new org.springframework.web.cors.CorsConfiguration();
-          config.setAllowedOrigins(List.of("http://localhost:5500", "http://127.0.0.1:5500", "http://localhost:3000", "http://127.0.0.1:3000"));
+          config.setAllowedOrigins(
+              List.of(
+                  "http://localhost:5500",
+                  "http://127.0.0.1:5500",
+                  "http://localhost:3000",
+                  "http://127.0.0.1:3000"));
           config.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
           config.setAllowedHeaders(List.of("Accept", "Content-Type", "X-XSRF-TOKEN", "X-CSRF-TOKEN"));
           config.setAllowCredentials(true);
@@ -135,7 +139,6 @@ public class SecurityConfig {
             f ->
                 f.loginPage("/login")
                     .loginProcessingUrl("/login")
-                    .defaultSuccessUrl("/admin", true)
                     .successHandler(
                         (req, res, auth) -> {
                           attempts.remove(req.getRemoteAddr());
@@ -155,7 +158,7 @@ public class SecurityConfig {
                           if (wantsJson(req)) {
                             res.setContentType("application/json");
                             res.getWriter().write("{\"success\":true,\"redirect\":\"/admin\"}");
-                          } else res.sendRedirect("/admin");
+                          } else redirect(res, "/admin");
                         })
                     .failureHandler(
                         (req, res, e) -> {
@@ -169,7 +172,7 @@ public class SecurityConfig {
                             res.setStatus(401);
                             res.setContentType("application/json");
                             res.getWriter().write("{\"success\":false}");
-                          } else res.sendRedirect("/login?error");
+                          } else redirect(res, "/login?error");
                         })
                     .permitAll())
         .logout(
@@ -177,8 +180,9 @@ public class SecurityConfig {
                 l.logoutSuccessHandler((req, res, auth) -> {
                       if (wantsJson(req)) {
                         res.setContentType("application/json");
-                        new com.fasterxml.jackson.databind.ObjectMapper().writeValue(res.getWriter(), Map.of("redirect", clientHome));
-                      } else res.sendRedirect(clientHome);
+                        new com.fasterxml.jackson.databind.ObjectMapper()
+                            .writeValue(res.getWriter(), Map.of("redirect", "/client/index.html"));
+                      } else redirect(res, "/client/index.html");
                     })
                     .invalidateHttpSession(true)
                     .deleteCookies("JSESSIONID"))
@@ -187,7 +191,7 @@ public class SecurityConfig {
                 e.authenticationEntryPoint(
                     (req, res, x) -> {
                       if (req.getRequestURI().startsWith("/api/")) res.sendError(401);
-                      else res.sendRedirect("/login");
+                      else redirect(res, "/login");
                     }))
         .headers(
             h ->
@@ -212,7 +216,7 @@ public class SecurityConfig {
                 && attempt.count >= 5) {
               long seconds = Math.max(1, (attempt.until - System.currentTimeMillis() + 999) / 1000);
               res.setHeader("Retry-After", Long.toString(seconds));
-              res.sendRedirect("/login?lockedUntil=" + attempt.until);
+              redirect(res, "/login?lockedUntil=" + attempt.until);
               return;
             }
             if (attempts.size() > 10000)
@@ -241,7 +245,7 @@ public class SecurityConfig {
                 SecurityContextHolder.clearContext();
                 if (req.getSession(false) != null) req.getSession(false).invalidate();
                 if (req.getRequestURI().startsWith("/api/")) res.sendError(401);
-                else res.sendRedirect("/login");
+                else redirect(res, "/login");
                 return;
               }
             }
@@ -253,6 +257,11 @@ public class SecurityConfig {
   }
 
   private record Attempt(int count, long until) {}
+
+  private static void redirect(HttpServletResponse response, String location) {
+    response.setStatus(HttpServletResponse.SC_FOUND);
+    response.setHeader("Location", location);
+  }
 
   private static boolean wantsJson(HttpServletRequest request) {
     return Optional.ofNullable(request.getHeader("Accept")).orElse("").contains("application/json");

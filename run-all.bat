@@ -45,8 +45,13 @@ if defined NGROK_CMD (
   if errorlevel 1 (
     echo The local proxy did not listen on port 3000. ngrok was not started.
   ) else (
-    echo Starting ngrok tunnel to the local proxy...
-    start "Shop ngrok tunnel" "%ComSpec%" /d /k call "%~f0" ngrok
+    call :waitForAdmin
+    if errorlevel 1 (
+      echo The admin backend did not become ready on port 8888. ngrok was not started.
+    ) else (
+      echo Starting ngrok tunnel to the local proxy...
+      start "Shop ngrok tunnel" "%ComSpec%" /d /k call "%~f0" ngrok
+    )
   )
 )
 
@@ -176,6 +181,11 @@ exit /b %ERRORLEVEL%
 :waitForProxy
 echo Waiting for the proxy to listen on port 3000...
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$deadline=(Get-Date).AddSeconds(30); do { if (Test-NetConnection -ComputerName 127.0.0.1 -Port 3000 -InformationLevel Quiet) { exit 0 }; Start-Sleep -Milliseconds 500 } while ((Get-Date) -lt $deadline); exit 1"
+exit /b %ERRORLEVEL%
+
+:waitForAdmin
+echo Waiting for the admin backend to serve its JavaScript...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$deadline=(Get-Date).AddSeconds(180); do { try { $response=Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8888/admin/js/core/state.js' -TimeoutSec 2; if ($response.StatusCode -eq 200) { exit 0 } } catch {}; Start-Sleep -Milliseconds 500 } while ((Get-Date) -lt $deadline); exit 1"
 exit /b %ERRORLEVEL%
 
 :installPython

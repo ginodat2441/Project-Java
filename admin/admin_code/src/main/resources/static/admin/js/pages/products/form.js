@@ -52,7 +52,7 @@ function namedLookup(name, label, rows, id) {
 }
 
 function productPhotoFields() {
-  return `<section class="product-photo-section"><h3>Hình ảnh sản phẩm</h3><p class="muted">Chọn nhiều ảnh, ảnh đại diện và màu ngay tại đây. Ảnh được tải lên khi bấm Lưu thay đổi. JPEG, PNG, WebP · tối đa 5 MB/ảnh, 25 MB/lần lưu.</p>${input("productFiles", "Thêm ảnh", "", "file", false, 'multiple accept="image/jpeg,image/png,image/webp"')}<div id="product-photos"></div></section><p class="muted">Biến thể mới bắt đầu tồn 0. Nhập hàng bằng phiếu kho được ADMIN xác nhận.</p>`;
+  return `<section class="product-photo-section"><div class="product-photo-heading"><div><h3>Ảnh &amp; xem trước</h3><p class="muted">Ảnh được tải lên khi bấm Lưu thay đổi. Chọn ảnh đại diện, màu và thứ tự hiển thị.</p></div><span id="product-photo-count" class="product-photo-count">0/20 ảnh mới</span></div><label id="product-photo-drop" class="product-photo-drop"><input name="productFiles" type="file" multiple accept="image/jpeg,image/png,image/webp" aria-label="Chọn nhiều ảnh sản phẩm"><span class="product-photo-upload-icon" aria-hidden="true">↑</span><span class="product-photo-drop-copy"><strong>Chọn ảnh hoặc kéo thả vào đây</strong><small>PNG, JPG, WEBP · tối đa 5 MB/ảnh · 25 MB/lần lưu</small></span></label><div id="product-photos" class="product-photo-grid"></div></section>`;
 }
 
 function bindProductPhotos(product) {
@@ -63,25 +63,45 @@ function bindProductPhotos(product) {
     cover = product.THUMBNAIL_URL ? "existing" : null;
   const imageUrl = (u) => (u?.startsWith("assets/") ? "/store/" + u : u);
   function render() {
+    const existing = product.THUMBNAIL_URL
+      ? `<article class="product-photo-card existing"><div class="product-photo-preview"><img src="${esc(imageUrl(product.THUMBNAIL_URL))}" alt="Ảnh đại diện hiện tại"><span class="product-photo-badge">Đang dùng</span></div><div class="product-photo-card-body"><p class="product-photo-name">Ảnh hiện tại</p><label class="product-photo-cover"><input type="radio" name="draftCover" value="existing" ${cover === "existing" ? "checked" : ""}><span>Ảnh đại diện</span></label></div></article>`
+      : "";
+    const photos = pending
+      .map(
+        (p, index) =>
+          `<article class="product-photo-card" data-photo="${p.key}"><div class="product-photo-preview"><img src="${esc(p.url)}" alt="${esc(p.file.name)}"><span class="product-photo-badge">${cover === p.key ? "★ Ảnh đại diện" : "Ảnh " + (index + 1)}</span></div><div class="product-photo-card-body"><p class="product-photo-name" title="${esc(p.file.name)}">${esc(p.file.name)}</p><label class="product-photo-cover"><input type="radio" name="draftCover" value="${p.key}" ${cover === p.key ? "checked" : ""}><span>Ảnh đại diện</span></label><div class="product-photo-options">${select("photoColor", "Màu / ảnh chung", lookups.colors, p.colorId, true)}${input("photoOrder", "Thứ tự", p.order, "number", true, 'min="0"')}</div><button type="button" data-photo-remove="${p.key}" class="secondary product-photo-remove">Gỡ ảnh</button></div></article>`,
+      )
+      .join("");
     container.innerHTML =
-      (product.THUMBNAIL_URL
-        ? `<label class="draft-photo existing"><input type="radio" name="draftCover" value="existing" ${cover === "existing" ? "checked" : ""}><img src="${esc(imageUrl(product.THUMBNAIL_URL))}" alt="Ảnh đại diện hiện tại"><span>Giữ ảnh đại diện hiện tại</span></label>`
-        : "") +
-      pending
-        .map(
-          (p) =>
-            `<div class="draft-photo" data-photo="${p.key}"><img src="${esc(p.url)}" alt="${esc(p.file.name)}"><span>${esc(p.file.name)}</span><label>Ảnh đại diện<input type="radio" name="draftCover" value="${p.key}" ${cover === p.key ? "checked" : ""}></label>${select("photoColor", "Màu (hoặc ảnh chung)", lookups.colors, p.colorId, true)}${input("photoOrder", "Thứ tự", p.order, "number", true, 'min="0"')}<button type="button" data-photo-remove="${p.key}" class="secondary">Gỡ ảnh</button></div>`,
-        )
-        .join("");
+      existing +
+      photos ||
+      '<p class="product-photo-empty">Chưa có ảnh xem trước. Chọn hoặc kéo ảnh vào khu vực phía trên.</p>';
+    $("#product-photo-count").textContent = `${pending.length}/20 ảnh mới`;
   }
-  picker.onchange = () => {
-    const files = [...picker.files];
+  const rejectFiles = (text) => {
+    $("#form-error").textContent = text;
+    picker.value = "";
+  };
+  const addFiles = (files) => {
+    if (!files.length) return;
     if (pending.length + files.length > 20) {
-      $("#form-error").textContent = "Mỗi lần lưu tối đa 20 ảnh.";
+      rejectFiles("Mỗi lần lưu tối đa 20 ảnh.");
       return;
     }
     if (files.some((f) => f.size > 5 * 1024 * 1024 || f.size === 0)) {
-      $("#form-error").textContent = "Mỗi ảnh phải từ 1 byte đến 5 MB.";
+      rejectFiles("Mỗi ảnh phải từ 1 byte đến 5 MB.");
+      return;
+    }
+    if (files.some((f) => !/\.(jpe?g|png|webp)$/i.test(f.name))) {
+      rejectFiles("Chỉ hỗ trợ ảnh JPEG, PNG hoặc WebP.");
+      return;
+    }
+    if (
+      pending.reduce((total, p) => total + p.file.size, 0) +
+        files.reduce((total, file) => total + file.size, 0) >
+      25 * 1024 * 1024
+    ) {
+      rejectFiles("Tổng dung lượng ảnh không vượt quá 25 MB mỗi lần lưu.");
       return;
     }
     for (const file of files) {
@@ -95,13 +115,28 @@ function bindProductPhotos(product) {
       });
       if (cover == null) cover = key;
     }
-    picker.value = "";
     $("#form-error").textContent = "";
+    picker.value = "";
     render();
   };
+  const dropZone = $("#product-photo-drop");
+  picker.onchange = () => addFiles([...picker.files]);
+  dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("is-dragging");
+  });
+  dropZone.addEventListener("dragleave", (e) => {
+    if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove("is-dragging");
+  });
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("is-dragging");
+    addFiles([...e.dataTransfer.files]);
+  });
   container.onchange = (e) => {
     if (e.target.name === "draftCover") {
       cover = e.target.value;
+      render();
       return;
     }
     const row = e.target.closest("[data-photo]"),

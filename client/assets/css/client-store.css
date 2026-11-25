@@ -142,6 +142,15 @@ body[data-client-store]:not(.client-ready) :is(.product-card, .product-box) {
 .client-address-card button {
   margin-right: 0.6rem;
 }
+.client-sepay-demo {
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto 1rem;
+}
+.client-sepay-demo img {
+  width: 100%;
+  height: auto;
+}
 body[data-client-store] [hidden] {
   display: none !important;
 }
