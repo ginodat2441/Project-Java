@@ -12,6 +12,8 @@
     'Trả hàng',
     'Giao thất bại',
   ];
+  const sePayTestNotice =
+    'đây là tính năng môi trường test sepay, không thể dùng tài khoản thật để quét, liên hệ zalo 0948728295';
   const esc = (value) =>
     String(value ?? '').replace(
       /[&<>"']/g,
@@ -47,6 +49,51 @@
     url.searchParams.set('amount', String(value));
     url.searchParams.set('des', String(description));
     return url.toString();
+  }
+  function createSePayQr(amount, billCode) {
+    const frame = document.createElement('div');
+    frame.className = 'client-sepay-qr';
+    frame.style.position = 'relative';
+    frame.style.width = '320px';
+    frame.style.maxWidth = '100%';
+    frame.style.margin = '0 auto 1rem';
+    const qr = document.createElement('img');
+    qr.className = 'img-fluid d-block mx-auto';
+    qr.src = sePayQrUrl(amount, billCode);
+    qr.alt = 'Mã QR thanh toán SePay';
+    frame.append(qr);
+    const notice = document.createElement('span');
+    notice.textContent = sePayTestNotice;
+    notice.style.position = 'absolute';
+    notice.style.top = '50%';
+    notice.style.left = '50%';
+    notice.style.transform = 'translate(-50%, -50%)';
+    notice.style.width = '90%';
+    notice.style.padding = '0.5rem';
+    notice.style.borderRadius = '0.25rem';
+    notice.style.background = 'rgba(255, 255, 255, 0.94)';
+    notice.style.color = '#842029';
+    notice.style.fontWeight = '700';
+    notice.style.lineHeight = '1.35';
+    notice.style.textAlign = 'center';
+    notice.style.boxShadow = '0 0 0.5rem rgba(0, 0, 0, 0.2)';
+    frame.append(notice);
+    return frame;
+  }
+  function createSePayDemoImage() {
+    const figure = document.createElement('figure');
+    figure.className = 'client-sepay-demo';
+    const image = document.createElement('img');
+    image.className = 'img-fluid d-block mx-auto rounded border';
+    image.src = 'assets/img/sepay-demo.png';
+    image.alt = 'Ảnh mô phỏng giao dịch SePay đã được xác nhận';
+    image.style.width = '100%';
+    image.style.height = 'auto';
+    const caption = document.createElement('figcaption');
+    caption.className = 'text-center small text-muted mt-2';
+    caption.textContent = 'Ảnh mô phỏng giao dịch SePay';
+    figure.append(image, caption);
+    return figure;
   }
   const isLoopbackHost =
     location.hostname === 'localhost' || location.hostname === '127.0.0.1';
@@ -1212,6 +1259,19 @@
       `<label class="d-block mb-3">Địa chỉ nhận hàng<select class="form-select" name="addressId"><option value="">Chọn địa chỉ</option>${addressOptions}<option value="new" ${addresses.length ? '' : 'selected'}>Nhập địa chỉ mới</option></select></label>` +
       '<div class="client-new-address" hidden><label class="d-block mb-3">Người nhận<input class="form-control" name="receiverName" maxlength="150"></label><label class="d-block mb-3">Điện thoại<input class="form-control" name="receiverPhone" maxlength="20"></label><label class="d-block mb-3">Tỉnh/thành phố<select class="form-select" name="province"></select></label><label class="d-block mb-3">Phường/xã<select class="form-select" name="ward"></select></label><label class="d-block mb-3">Địa chỉ chi tiết<input class="form-control" name="detailAddress" maxlength="300"></label></div>' +
       `<fieldset class="mb-3"><legend class="form-label">Phương thức thanh toán</legend><label class="d-block"><input type="radio" name="paymentMethod" value="COD" checked> Thanh toán khi nhận hàng (COD)</label><label class="d-block"><input type="radio" name="paymentMethod" value="SEPAY"> Chuyển khoản qua SePay</label></fieldset><div class="client-voucher mb-3"><label class="d-block">Voucher dành cho tài khoản<select name="voucherCode" class="form-select"><option value="">Không sử dụng voucher</option>${voucherOptions}</select></label>${availableVouchers.length ? '' : '<p>Hiện chưa có voucher phù hợp với tài khoản của bạn.</p>'}<button type="button" class="btn btn-outline-primary mt-2" data-voucher-apply ${availableVouchers.length ? '' : 'disabled'}>Áp dụng voucher</button><p class="client-voucher-message" role="status"></p></div><label class="d-block mb-3">Ghi chú<textarea name="note" class="form-control" maxlength="500"></textarea></label><p class="client-checkout-total"></p><button type="submit" class="btn btn-primary">Đặt hàng</button>`;
+    const sepayInfo = document.createElement('p');
+    sepayInfo.className = 'client-sepay-info';
+    sepayInfo.textContent = 'Mã QR và ảnh mô phỏng sẽ hiển thị sau khi bạn bấm Đặt hàng.';
+    sepayInfo.hidden = true;
+    $('fieldset', form).after(sepayInfo);
+    const sepayDemoImage = createSePayDemoImage();
+    sepayDemoImage.hidden = true;
+    $$('input[name="paymentMethod"]', form).forEach((input) => {
+      input.onchange = () => {
+        sepayInfo.hidden = input.value !== 'SEPAY' || !input.checked;
+        sepayDemoImage.hidden = input.value !== 'SEPAY' || !input.checked;
+      };
+    });
     const addressSelect = $('[name="addressId"]', form);
     const newAddress = $('.client-new-address', form);
     let addressSelectsLoaded = false;
@@ -1239,6 +1299,7 @@
       summaryTotal.className = 'fw-bold';
       summary.append(summaryTotal);
     }
+    if (summary) summary.append(sepayDemoImage);
     let appliedVoucherCode = '',
       voucherQuote = null,
       quoteSequence = 0;
@@ -1351,44 +1412,62 @@
           : `Đặt hàng thành công với phương thức ${paymentMethod}. Mã đơn: ${order.billCode}.`;
         result.append(resultText);
         if (paymentMethod === 'SEPAY') {
-          const qr = document.createElement('img');
-          qr.className = 'img-fluid d-block mx-auto mb-3';
-          qr.style.maxWidth = '320px';
-          qr.src = sePayQrUrl(order.totalAmount, order.billCode);
-          qr.alt = 'Mã QR thanh toán SePay';
-          result.append(qr);
+          const qrFrame = createSePayQr(order.totalAmount, order.billCode);
+          result.append(qrFrame);
           const instructions = document.createElement('p');
           instructions.textContent =
             `Chuyển ${money(order.totalAmount)} đến tài khoản SePay và giữ nguyên nội dung ${order.billCode}.`;
           result.append(instructions);
           const paymentStatus = document.createElement('p');
-          paymentStatus.className = 'alert alert-warning';
           paymentStatus.setAttribute('role', 'status');
-          paymentStatus.textContent = 'Chưa ghi nhận thanh toán. Hãy hoàn tất chuyển khoản rồi kiểm tra lại.';
+          paymentStatus.hidden = true;
           result.append(paymentStatus);
+          const updatePaymentStatus = async (showUnpaid) => {
+            const latest = await api('/api/bills/' + order.id);
+            if (latest.paymentMethod !== 'SEPAY')
+              throw Error('Đơn hàng này không được ghi nhận bằng SePay.');
+            if (!Number.isInteger(latest.paymentStatus))
+              throw Error('Máy chủ chưa trả trạng thái thanh toán hợp lệ.');
+            if (latest.paymentStatus === 1) {
+              paymentStatus.className = 'alert alert-success';
+              paymentStatus.textContent =
+                latest.status === 0
+                  ? 'Đã thanh toán - Chờ xác nhận.'
+                  : 'Đã thanh toán. Trạng thái đơn: ' +
+                    (orderStatuses[latest.status] || 'Đang cập nhật') +
+                    '.';
+              paymentStatus.hidden = false;
+              return true;
+            }
+            if (showUnpaid && latest.paymentStatus === 0) {
+              paymentStatus.className = 'alert alert-warning';
+              paymentStatus.textContent =
+                'Chưa ghi nhận thanh toán. Hãy hoàn tất chuyển khoản rồi kiểm tra lại.';
+              paymentStatus.hidden = false;
+            } else if (showUnpaid) {
+              paymentStatus.className = 'alert alert-info';
+              paymentStatus.textContent =
+                'Trạng thái thanh toán: ' + paymentStatusLabel(latest.paymentStatus) + '.';
+              paymentStatus.hidden = false;
+            }
+            return false;
+          };
           const checkPayment = document.createElement('button');
           checkPayment.type = 'button';
           checkPayment.className = 'btn btn-outline-primary';
           checkPayment.textContent = 'Kiểm tra trạng thái thanh toán';
           checkPayment.onclick = (event) =>
-            action(event.currentTarget, async () => {
-              const latest = await api('/api/bills/' + order.id);
-              if (latest.paymentMethod !== 'SEPAY')
-                throw Error('Đơn hàng này không được ghi nhận bằng SePay.');
-              if (!Number.isInteger(latest.paymentStatus))
-                throw Error('Máy chủ chưa trả trạng thái thanh toán hợp lệ.');
-              const paid = latest.paymentStatus === 1;
-              paymentStatus.className = paid ? 'alert alert-success' : 'alert alert-warning';
-              paymentStatus.textContent = paid
-                ? latest.status === 0
-                  ? 'Đã thanh toán - Chờ xác nhận.'
-                  : 'Đã thanh toán. Trạng thái đơn: ' +
-                    (orderStatuses[latest.status] || 'Đang cập nhật') +
-                    '.'
-                : 'Chưa ghi nhận thanh toán. Hãy hoàn tất chuyển khoản rồi kiểm tra lại.';
-              if (paid) qr.hidden = true;
-            });
+            action(event.currentTarget, () => updatePaymentStatus(true));
           result.append(checkPayment);
+          const pollPaymentStatus = async () => {
+            try {
+              if (await updatePaymentStatus(false)) return;
+            } catch (error) {
+              message($('main'), error.message, true);
+            }
+            window.setTimeout(pollPaymentStatus, 3000);
+          };
+          window.setTimeout(pollPaymentStatus, 3000);
         }
         const ordersLink = document.createElement('a');
         ordersLink.className = 'btn btn-primary ms-2';
@@ -1402,6 +1481,7 @@
   async function orderConfirmationPage() {
     const host = $('#order-confirmation');
     const orderId = query.get('orderId');
+    let paymentCheckTimer;
     if (!customer) {
       host.hidden = false;
       message(host, 'Vui lòng đăng nhập để kiểm tra đơn hàng.', true);
@@ -1418,6 +1498,7 @@
       api('/api/bills/' + encodeURIComponent(orderId) + '/history'),
     ]);
     const render = (current) => {
+      window.clearTimeout(paymentCheckTimer);
       window.ClientOrderRequests?.invalidate();
       host.hidden = false;
       host.innerHTML =
@@ -1440,31 +1521,71 @@
         `${esc(current.receiverName)} · ${esc(current.receiverPhone)}<br>${esc(current.shippingAddress)}</p>` +
         `<p>Tổng thanh toán: <strong>${money(current.totalAmount)}</strong></p></div></div></div><a class="btn btn-outline-primary mt-4" href="account.html#orders">Về đơn hàng của tôi</a></div>`;
       const paymentPanel = host.querySelector('.col-lg-5 > div');
-      if (current.paymentMethod === 'SEPAY' && current.paymentStatus === 0 && current.status !== 4) {
-        const qr = document.createElement('img');
-        qr.className = 'img-fluid d-block mx-auto mb-3';
-        qr.style.maxWidth = '320px';
-        qr.src = sePayQrUrl(current.totalAmount, current.billCode);
-        qr.alt = 'Mã QR thanh toán SePay';
-        paymentPanel.append(qr);
+      if (
+        current.paymentMethod === 'SEPAY' &&
+        current.status !== 4 &&
+        (current.paymentStatus === 0 || current.paymentStatus === 1)
+      ) {
+        const qrFrame = createSePayQr(current.totalAmount, current.billCode);
+        paymentPanel.append(qrFrame);
         const note = document.createElement('p');
         note.textContent =
           `Chuyển ${money(current.totalAmount)} và giữ nguyên nội dung ${current.billCode}.`;
         paymentPanel.append(note);
-        const check = document.createElement('button');
-        check.className = 'btn btn-outline-primary';
-        check.type = 'button';
-        check.textContent = 'Kiểm tra trạng thái thanh toán';
-        check.onclick = (event) =>
-          action(event.currentTarget, async () => {
-            const latest = await api('/api/bills/' + encodeURIComponent(orderId));
-            if (latest.paymentMethod !== 'SEPAY')
-              throw Error('Đơn hàng này không được ghi nhận bằng SePay.');
-            if (!Number.isInteger(latest.paymentStatus))
-              throw Error('Máy chủ chưa trả trạng thái thanh toán hợp lệ.');
-            render(latest);
-          });
-        paymentPanel.append(check);
+        const paymentStatus = document.createElement('p');
+        paymentStatus.setAttribute('role', 'status');
+        paymentPanel.append(paymentStatus);
+        if (current.paymentStatus === 1) {
+          paymentStatus.className = 'alert alert-success';
+          paymentStatus.textContent =
+            current.status === 0
+              ? 'Đã thanh toán - Chờ xác nhận.'
+              : 'Đã thanh toán. Trạng thái đơn: ' +
+                (orderStatuses[current.status] || 'Đang cập nhật') +
+                '.';
+        } else {
+          paymentStatus.hidden = true;
+          const check = document.createElement('button');
+          check.className = 'btn btn-outline-primary';
+          check.type = 'button';
+          check.textContent = 'Kiểm tra trạng thái thanh toán';
+          check.onclick = (event) =>
+            action(event.currentTarget, async () => {
+              const latest = await api('/api/bills/' + encodeURIComponent(orderId));
+              if (latest.paymentMethod !== 'SEPAY')
+                throw Error('Đơn hàng này không được ghi nhận bằng SePay.');
+              if (!Number.isInteger(latest.paymentStatus))
+                throw Error('Máy chủ chưa trả trạng thái thanh toán hợp lệ.');
+              if (latest.paymentStatus !== 0) {
+                bill = latest;
+                render(latest);
+              } else {
+                paymentStatus.className = 'alert alert-warning';
+                paymentStatus.textContent =
+                  'Chưa ghi nhận thanh toán. Hãy hoàn tất chuyển khoản rồi kiểm tra lại.';
+                paymentStatus.hidden = false;
+              }
+            });
+          paymentPanel.append(check);
+          const pollPaymentStatus = async () => {
+            try {
+              const latest = await api('/api/bills/' + encodeURIComponent(orderId));
+              if (latest.paymentMethod !== 'SEPAY')
+                throw Error('Đơn hàng này không được ghi nhận bằng SePay.');
+              if (!Number.isInteger(latest.paymentStatus))
+                throw Error('Máy chủ chưa trả trạng thái thanh toán hợp lệ.');
+              if (latest.paymentStatus !== 0 || latest.status === 4) {
+                bill = latest;
+                render(latest);
+                return;
+              }
+            } catch (error) {
+              message($('main'), error.message, true);
+            }
+            paymentCheckTimer = window.setTimeout(pollPaymentStatus, 3000);
+          };
+          paymentCheckTimer = window.setTimeout(pollPaymentStatus, 3000);
+        }
       } else if (current.paymentMethod === 'SEPAY' && current.paymentStatus === 1) {
         const paid = document.createElement('p');
         paid.className = 'alert alert-success';

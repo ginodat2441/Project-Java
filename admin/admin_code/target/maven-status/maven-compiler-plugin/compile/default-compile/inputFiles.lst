@@ -12,6 +12,7 @@ D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\c
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\account\AccountController.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\admin\GlobalExceptionHandler.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\audit\AuditController.java
+D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\auth\AdminEntryController.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\auth\AdminSessionController.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\auth\PasswordRecoveryController.java
 D:\IT\JP1\Project-Java\admin\admin_code\src\main\java\com\example\clothingshop\controller\brand\BrandController.java

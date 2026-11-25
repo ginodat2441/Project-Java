@@ -54,16 +54,39 @@ window.AdminPages.products = {
     let photos;
     modal(
       id ? "Sửa sản phẩm" : "Thêm sản phẩm",
-      `<div class="grid">${productCodeInput(p)}${input("name", "Tên sản phẩm", p.PRODUCT_NAME)}${namedLookup("brandName", "Th\u01b0\u01a1ng hi\u1ec7u", lookups.brands, p.BRAND_ID)}${namedLookup("materialName", "Ch\u1ea5t li\u1ec7u", lookups.materials, p.MATERIAL_ID)}${categorySearch(p.CATEGORY_ID)}${select(
-        "gender",
-        "Đối tượng",
-        [
-          { ID: 0, NAME: "Nữ" },
-          { ID: 1, NAME: "Nam" },
-          { ID: 2, NAME: "Unisex" },
-        ],
-        p.TARGET_GENDER ?? 2,
-      )}${select("status", "Trạng thái", statusOptions, p.STATUS)}<input type="hidden" name="thumbnailUrl" value="${esc(p.THUMBNAIL_URL)}"><label class="wide">Mô tả<textarea name="description">${esc(p.DESCRIPTION)}</textarea></label></div>${productPhotoFields()}<h3>Biến thể</h3><p class="muted">Mỗi dòng là một màu và size. Thêm dòng để bán nhiều màu/size cho cùng sản phẩm.</p><details class="color-creator"><summary>+ Thêm màu mới</summary><div class="toolbar"><label>Tên màu<input name="newColorName" maxlength="100" placeholder="Ví dụ: Xanh navy, Be, Đỏ đô"></label><label>Mã màu (không bắt buộc)<input name="newColorHex" maxlength="7" placeholder="#1A237E"></label><button type="button" data-action="create-color">Thêm màu</button></div><p id="color-message" role="status"></p></details><div id="variants"></div>${button("+ Thêm biến thể", "add-variant", "")}`,
+      `<div class="product-editor-layout">
+        <div class="product-editor-gallery">${productPhotoFields()}</div>
+        <div class="product-editor-details">
+          <div class="grid">
+            ${productCodeInput(p)}
+            ${input("name", "Tên sản phẩm", p.PRODUCT_NAME)}
+            ${namedLookup("brandName", "Th\u01b0\u01a1ng hi\u1ec7u", lookups.brands, p.BRAND_ID)}
+            ${namedLookup("materialName", "Ch\u1ea5t li\u1ec7u", lookups.materials, p.MATERIAL_ID)}
+            ${categorySearch(p.CATEGORY_ID)}
+            ${select(
+              "gender",
+              "Đối tượng",
+              [
+                { ID: 0, NAME: "Nữ" },
+                { ID: 1, NAME: "Nam" },
+                { ID: 2, NAME: "Unisex" },
+              ],
+              p.TARGET_GENDER ?? 2,
+            )}
+            ${select("status", "Trạng thái", statusOptions, p.STATUS)}
+            <input type="hidden" name="thumbnailUrl" value="${esc(p.THUMBNAIL_URL)}">
+            <label class="wide">Mô tả<textarea name="description">${esc(p.DESCRIPTION)}</textarea></label>
+          </div>
+        </div>
+      </div>
+      <section class="product-variant-section">
+        <h3>Biến thể</h3>
+        <p class="muted">Mỗi dòng là một màu và size. Thêm dòng để bán nhiều màu/size cho cùng sản phẩm.</p>
+        <p class="muted">Biến thể mới bắt đầu tồn 0. Nhập hàng bằng phiếu kho được ADMIN xác nhận.</p>
+        <details class="color-creator"><summary>+ Thêm màu mới</summary><div class="toolbar"><label>Tên màu<input name="newColorName" maxlength="100" placeholder="Ví dụ: Xanh navy, Be, Đỏ đô"></label><label>Mã màu (không bắt buộc)<input name="newColorHex" maxlength="7" placeholder="#1A237E"></label><button type="button" data-action="create-color">Thêm màu</button></div><p id="color-message" role="status"></p></details>
+        <div id="variants"></div>
+        ${button("+ Thêm biến thể", "add-variant", "")}
+      </section>`,
       async (d) => {
         const variants = [...document.querySelectorAll(".variant")].map((row) => ({
           id: row.dataset.id ? Number(row.dataset.id) : null,

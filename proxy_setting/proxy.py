@@ -11,6 +11,8 @@ FRONTEND_HOST = os.environ.get("FRONTEND_HOST", "127.0.0.1")
 FRONTEND_PORT = int(os.environ.get("FRONTEND_PORT", "5500"))
 BACKEND_HOST = os.environ.get("BACKEND_HOST", "127.0.0.1")
 BACKEND_PORT = int(os.environ.get("BACKEND_PORT", "8080"))
+ADMIN_HOST = os.environ.get("ADMIN_HOST", "127.0.0.1")
+ADMIN_PORT = int(os.environ.get("ADMIN_PORT", "8888"))
 HOP_BY_HOP_HEADERS = {
     "connection",
     "keep-alive",
@@ -48,10 +50,31 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self._dispatch()
 
     def _dispatch(self):
-        if self._is_api_request():
+        if self._is_admin_request():
+            self._proxy_request(ADMIN_HOST, ADMIN_PORT)
+        elif self._is_api_request():
             self._proxy_request(BACKEND_HOST, BACKEND_PORT)
         else:
             self._proxy_request(FRONTEND_HOST, FRONTEND_PORT)
+
+    def _is_admin_request(self):
+        path = urlsplit(self.path).path
+        return (
+            path == "/admin"
+            or path.startswith(
+                ("/admin/", "/api/admin/", "/uploads/", "/shared/", "/auth/js/")
+            )
+            or path
+            in {
+                "/api/admin",
+                "/api/csrf",
+                "/login",
+                "/logout",
+                "/uploads",
+                "/shared",
+                "/auth/js",
+            }
+        )
 
     def _is_api_request(self):
         path = urlsplit(self.path).path
@@ -72,9 +95,28 @@ class ProxyHandler(BaseHTTPRequestHandler):
         headers = {
             name: value
             for name, value in self.headers.items()
-            if name.lower() not in excluded_headers and name.lower() != "host"
+            if name.lower() not in excluded_headers
+            and not (
+                self._is_admin_request()
+                and name.lower() == "origin"
+                and self._is_same_origin(value)
+            )
+            and name.lower() not in {
+                "host",
+                "forwarded",
+                "x-forwarded-host",
+                "x-forwarded-port",
+                "x-forwarded-proto",
+            }
         }
         headers["Host"] = f"{host}:{port}"
+        headers["X-Forwarded-Host"] = self.headers.get("Host", f"{host}:{port}")
+        forwarded_proto = (
+            self.headers.get("X-Forwarded-Proto", "http").split(",", 1)[0].strip().lower()
+        )
+        if forwarded_proto not in {"http", "https"}:
+            forwarded_proto = "http"
+        headers["X-Forwarded-Proto"] = forwarded_proto
 
         transfer_encoding = self.headers.get("Transfer-Encoding", "").lower()
         if transfer_encoding and transfer_encoding != "identity":
@@ -98,6 +140,12 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 connection.request(self.command, path, body=body, headers=headers)
                 response = connection.getresponse()
             except (HTTPException, OSError) as error:
+                print(
+                    f"Proxy upstream failure: {self.command} {path} -> "
+                    f"{host}:{port}: {type(error).__name__}: {error}",
+                    file=sys.stderr,
+                    flush=True,
+                )
                 self.send_error(502, f"Backend unavailable: {error}")
                 return
 
@@ -138,15 +186,52 @@ class ProxyHandler(BaseHTTPRequestHandler):
         finally:
             connection.close()
 
+    def _is_same_origin(self, origin):
+        forwarded_proto = (
+            self.headers.get("X-Forwarded-Proto", "http").split(",", 1)[0].strip().lower()
+        )
+        host = self.headers.get("Host")
+        if not host or forwarded_proto not in {"http", "https"}:
+            return False
+        try:
+            request_origin = urlsplit(f"{forwarded_proto}://{host}")
+            origin_url = urlsplit(origin)
+            origin_port = origin_url.port or (443 if origin_url.scheme == "https" else 80)
+            request_port = request_origin.port or (443 if forwarded_proto == "https" else 80)
+            return (
+                origin_url.scheme.lower() == forwarded_proto
+                and origin_url.hostname is not None
+                and request_origin.hostname is not None
+                and origin_url.hostname.lower() == request_origin.hostname.lower()
+                and origin_port == request_port
+                and not origin_url.path
+                and not origin_url.query
+                and not origin_url.fragment
+                and not origin_url.username
+                and not origin_url.password
+            )
+        except ValueError:
+            return False
+
     def log_request(self, code="-", size="-"):
         path = urlsplit(self.path).path
-        target = "backend" if self._is_api_request() else "frontend"
+        target = (
+            "admin"
+            if self._is_admin_request()
+            else "backend"
+            if self._is_api_request()
+            else "frontend"
+        )
         print(f'{self.client_address[0]} "{self.command} {path}" {code} -> {target}', flush=True)
+
+
+class ProxyServer(ThreadingHTTPServer):
+    request_queue_size = 128
 
 
 def main():
     try:
-        server = ThreadingHTTPServer((PROXY_HOST, PROXY_PORT), ProxyHandler)
+        server = ProxyServer((PROXY_HOST, PROXY_PORT), ProxyHandler)
     except OSError as error:
         print(f"Cannot start proxy on {PROXY_HOST}:{PROXY_PORT}: {error}", file=sys.stderr)
         return 1
@@ -155,6 +240,7 @@ def main():
     print(f"Proxy listening at http://{PROXY_HOST}:{PROXY_PORT}")
     print(f"Frontend requests are forwarded to http://{FRONTEND_HOST}:{FRONTEND_PORT}")
     print(f"API requests are forwarded to http://{BACKEND_HOST}:{BACKEND_PORT}")
+    print(f"Admin requests are forwarded to http://{ADMIN_HOST}:{ADMIN_PORT}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

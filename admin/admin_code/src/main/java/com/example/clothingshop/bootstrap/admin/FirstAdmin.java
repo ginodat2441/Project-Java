@@ -137,7 +137,7 @@ public class FirstAdmin implements ApplicationRunner {
                         savedEmail);
                 db.audit(id, "BOOTSTRAP", "MANAGER", id);
               });
-          input.message("Da tao admin thanh cong. Dang nhap tai http://localhost:8080/login");
+          input.message("Da tao admin thanh cong. Dang nhap tai /login tren host admin.");
         } catch (IllegalStateException e) {
           input.message(e.getMessage());
         }

@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.example.clothingshop.controller.auth.AdminSessionController;
+import com.example.clothingshop.controller.auth.AdminEntryController;
 import com.example.clothingshop.repository.admin.AdminRepository;
 import java.util.*;
 import org.junit.jupiter.api.*;
@@ -24,7 +25,12 @@ import org.springframework.test.web.servlet.MockMvc;
 class ClientAdminLoginTest {
   @SpringBootConfiguration
   @EnableAutoConfiguration(exclude=DataSourceAutoConfiguration.class)
-  @Import({SecurityConfig.class, AdminSessionController.class})
+  @Import({
+    SecurityConfig.class,
+    WebConfig.class,
+    AdminSessionController.class,
+    AdminEntryController.class
+  })
   static class App {
     @Bean AdminRepository db() { return mock(AdminRepository.class); }
   }
@@ -50,16 +56,41 @@ class ClientAdminLoginTest {
     Assertions.assertEquals(1L,session.getAttribute("manager-access-version"));
     mvc.perform(get("/api/admin/me").session(session)).andExpect(status().isOk())
       .andExpect(jsonPath("$.username").value("testadmin"));
+    mvc.perform(get("/admin").session(session))
+      .andExpect(status().isOk())
+      .andExpect(forwardedUrl("/admin/index.html"));
+    mvc.perform(get("/admin/index.html").session(session))
+      .andExpect(status().isOk())
+      .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"nav\"")));
     var freshCsrf=mvc.perform(get("/api/csrf").session(session)).andReturn().getResponse();
     var freshJson=new com.fasterxml.jackson.databind.ObjectMapper().readTree(freshCsrf.getContentAsString());
     mvc.perform(post("/logout").session(session).cookie(freshCsrf.getCookies())
       .header("Accept","application/json")
       .header(freshJson.get("headerName").asText(),freshJson.get("token").asText()))
       .andExpect(status().isOk())
-      .andExpect(jsonPath("$.redirect").value("http://127.0.0.1:5500/client/index.html"))
+      .andExpect(jsonPath("$.redirect").value("/client/index.html"))
       .andExpect(cookie().maxAge("JSESSIONID",0));
     Assertions.assertTrue(session.isInvalid());
     mvc.perform(get("/api/admin/me")).andExpect(status().isUnauthorized());
+  }
+  @Test void formLoginRedirectRemainsRelativeBehindPublicProxy() throws Exception {
+    var csrf = mvc.perform(get("/api/csrf")).andReturn().getResponse();
+    var json = new com.fasterxml.jackson.databind.ObjectMapper().readTree(csrf.getContentAsString());
+    mvc.perform(post("/login")
+        .header("Host", "example.ngrok-free.app")
+        .header("X-Forwarded-Host", "example.ngrok-free.app")
+        .header("X-Forwarded-Proto", "https")
+        .header(json.get("headerName").asText(), json.get("token").asText())
+        .cookie(csrf.getCookies())
+        .param("username", "testadmin")
+        .param("password", "ValidPassword123!"))
+      .andExpect(status().isFound())
+      .andExpect(header().string("Location", "/admin"));
+  }
+  @Test void rootRedirectRemainsRelativeForAdminAuthentication() throws Exception {
+    mvc.perform(get("/"))
+      .andExpect(status().isFound())
+      .andExpect(header().string("Location", "/admin"));
   }
   @Test void loginWithoutCsrfIsRejected() throws Exception {
     mvc.perform(post("/login").header("Accept","application/json").param("username","testadmin").param("password","ValidPassword123!"))
