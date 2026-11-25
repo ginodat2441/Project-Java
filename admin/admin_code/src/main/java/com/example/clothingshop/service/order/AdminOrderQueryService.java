@@ -29,6 +29,8 @@ public class AdminOrderQueryService {
         "history",
         queries.listBillHistory("i", id),
         "inventoryDocuments",
-        queries.listInventoryDocument("i", id));
+        queries.listInventoryDocument("i", id),
+        "customerRequests",
+        db.rows("SELECT * FROM BILL_CUSTOMER_REQUEST WHERE BILL_ID=:id ORDER BY CREATED_AT DESC,ID DESC","id",id));
   }
 }

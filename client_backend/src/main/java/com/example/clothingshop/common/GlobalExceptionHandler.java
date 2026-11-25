@@ -11,6 +11,17 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    public record AccountError(boolean success, String message, java.util.Map<String,String> fieldErrors) {}
+
+    @ExceptionHandler(AccountInputPolicy.Invalid.class)
+    public ResponseEntity<AccountError> accountInput(AccountInputPolicy.Invalid e) {
+        return ResponseEntity.badRequest().body(new AccountError(false,e.getMessage(),e.fields()));
+    }
+
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<ApiResponse<Void>> status(org.springframework.web.server.ResponseStatusException e) {
+        return ResponseEntity.status(e.getStatusCode()).body(ApiResponse.error(e.getReason()==null?"Yêu cầu không hợp lệ.":e.getReason()));
+    }
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
@@ -25,7 +36,13 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Void>> validation(MethodArgumentNotValidException e) {
+    public ResponseEntity<?> validation(MethodArgumentNotValidException e) {
+        Object target=e.getBindingResult().getTarget();
+        if(target instanceof com.example.clothingshop.dto.request.RegisterRequest || target instanceof com.example.clothingshop.dto.request.LoginRequest) {
+            var fields=new java.util.LinkedHashMap<String,String>();
+            e.getBindingResult().getFieldErrors().forEach(f->fields.putIfAbsent(f.getField(),f.getDefaultMessage()));
+            return ResponseEntity.badRequest().body(new AccountError(false,"Vui lòng kiểm tra các thông tin được đánh dấu.",fields));
+        }
         String msg = e.getBindingResult().getFieldErrors().stream()
                 .map(f -> f.getField() + ": " + f.getDefaultMessage())
                 .reduce((a, b) -> a + "; " + b).orElse("Dữ liệu không hợp lệ");

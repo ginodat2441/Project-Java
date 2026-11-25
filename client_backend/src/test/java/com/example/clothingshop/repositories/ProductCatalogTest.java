@@ -7,6 +7,24 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class ProductCatalogTest {
+    @Test void searchMatchesVietnameseWithoutAccentsAndBindsEveryWordLiterally() {
+        var sql=new CaptureSql();
+        new ProductRepository(sql).searchViews("  ÁO   sơ mi 100%_  ",null,null,null,"newest",1,15);
+        assertTrue(sql.query.contains("TRANSLATE(LOWER("));
+        assertTrue(sql.query.contains("p.PRODUCT_CODE"));
+        assertTrue(sql.query.contains("b.BRAND_NAME"));
+        assertTrue(sql.query.contains("ESCAPE '\\'"));
+        assertEquals("%ao%",sql.params.get("searchTerm0"));
+        assertEquals("%so%",sql.params.get("searchTerm1"));
+        assertEquals("%mi%",sql.params.get("searchTerm2"));
+        assertEquals("%100\\%\\_%",sql.params.get("searchTerm3"));
+        assertFalse(sql.query.contains("100%_"));
+    }
+    @Test void keywordLimitAndVietnameseFoldAreConsistent() {
+        assertEquals("ao dep dang moi",ProductSearchText.fold("ÁO ĐẸP DÁNG MỚI"));
+        assertEquals("Áo sơ mi",ProductSearchText.normalize("  Áo  sơ mi  "));
+        assertThrows(BusinessException.class,()->ProductSearchText.normalize("a".repeat(121)));
+    }
     static class CaptureSql extends SqlHelper {
         String query; Map<String,Object> params; int page, size;
         CaptureSql() { super(null); }

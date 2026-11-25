@@ -27,13 +27,13 @@
       rows = await api("/api/admin/orders/" + bill + "/refunds"),
       old = rows.find((r) => Number(r.ID) === Number(refundId)) || {},
       docs = detail.inventoryDocuments.filter(
-        (d) => d.DOC_TYPE === "RETURN" && d.STATUS === "POSTED",
+        (d) => (d.DOC_TYPE === "RETURN" || (d.DOC_TYPE === "RELEASE" && Number(detail.order.STATUS)===4)) && d.STATUS === "POSTED",
       );
     modal(
       "Hoàn tiền · " + detail.order.BILL_CODE,
-      `<p>Chỉ hoàn số tiền của phiếu nhận hàng đã xác nhận, chưa bị đảo; tổng khoản đã chi và đang chờ không vượt mức được hoàn. Số thuế/phí giao không tự hoàn.</p><div class="grid">${select(
+      `<p>Đơn hủy trước xuất giao: hoàn tối đa tổng tiền đã thu theo phiếu giải phóng giữ. Đơn trả hàng: hoàn theo giá trị hàng đã nhận và kiểm tra. Tổng khoản đã chi và đang chờ không vượt mức được hoàn.</p><div class="grid">${select(
         "documentId",
-        "Phiếu nhận hoàn",
+        "Phiếu nhận hoàn / giải phóng giữ",
         docs.map((d) => ({ ID: d.ID, NAME: d.DOC_CODE })),
         old.RETURN_DOCUMENT_ID,
         true,

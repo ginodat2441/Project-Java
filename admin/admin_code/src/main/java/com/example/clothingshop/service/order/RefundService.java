@@ -45,6 +45,10 @@ public class RefundService {
         throw new IllegalArgumentException("Khoản hoàn đã kết thúc, không ghi nhận lại");
     }
     var a = queries.findInventoryDocumentLine("d", r.documentId(), "i", id);
+    var cancellationCap=db.one("SELECT b.STATUS,b.TOTAL_AMOUNT,(SELECT NVL(SUM(r.AMOUNT),0) FROM BILL_REFUND r WHERE r.BILL_ID=b.ID AND r.STATUS IN ('PAID','PENDING') AND (:refund IS NULL OR r.ID<>:refund)) USED FROM BILL b WHERE b.ID=:bill","bill",bill,"refund",id);
+    if(number(cancellationCap,"STATUS")==4&&!r.status().equals("FAILED")
+        && r.amount().compareTo(((BigDecimal)cancellationCap.get("TOTAL_AMOUNT")).subtract((BigDecimal)cancellationCap.get("USED")))>0)
+      throw new IllegalArgumentException("Tổng tiền hoàn của đơn hủy vượt số tiền đã thu.");
     if (!r.status().equals("FAILED")
         && r.amount().compareTo(((BigDecimal) a.get("CAP")).subtract((BigDecimal) a.get("USED")))
             > 0)
@@ -71,6 +75,7 @@ public class RefundService {
     if (id == null) id = queries.insertBillRefund(p);
     else queries.updateBillRefund(p);
     db.audit(actor, "REFUND_" + r.status(), "BILL_REFUND", id);
+    db.update("UPDATE BILL b SET PAYMENT_STATUS=2 WHERE b.ID=:id AND b.STATUS=4 AND b.PAYMENT_STATUS=1 AND (SELECT NVL(SUM(r.AMOUNT),0) FROM BILL_REFUND r WHERE r.BILL_ID=b.ID AND r.STATUS='PAID')>=b.TOTAL_AMOUNT", "id",bill);
     return id;
   }
 }

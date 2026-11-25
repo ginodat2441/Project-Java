@@ -17,6 +17,9 @@ import java.util.Optional;
 
 @Repository
 public class BillRepository {
+    public boolean hasPendingCustomerRequest(long billId) {
+        return sql.scalar("SELECT COUNT(*) FROM BILL_CUSTOMER_REQUEST WHERE BILL_ID=:id AND STATUS='PENDING'",Map.of("id",billId),Long.class).orElse(0L)>0;
+    }
 
     private final SqlHelper sql;
 

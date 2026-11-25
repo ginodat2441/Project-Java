@@ -1,10 +1,11 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {JSDOM}=require('../.local/dom-tests/node_modules/jsdom');
 const root=path.join(__dirname,'..');
-const source=fs.readFileSync(path.join(root,'client/assets/js/client-auth.js'),'utf8').replaceAll('location.assign(', 'window.navigate(');
+const source=(fs.readFileSync(path.join(root,'client/assets/js/client-auth-ui.js'),'utf8')+fs.readFileSync(path.join(root,'client/assets/js/client-auth.js'),'utf8')).replaceAll('location.assign(', 'window.navigate(');
 async function setup(customerStatus,adminSuccess=true){
  const dom=new JSDOM(fs.readFileSync(path.join(root,'client/login-register.html'),'utf8'),{url:'http://127.0.0.1:5500/client/login-register.html',runScripts:'outside-only'});
  const w=dom.window,calls=[],destinations=[];w.TextEncoder=TextEncoder;w.navigate=x=>destinations.push(x);
+ w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
  w.fetch=async(url,options={})=>{calls.push({url,options});let status=200,body;
   if(url.endsWith('/auth/login')){status=customerStatus;body=status===200?{success:true,data:{accessToken:'customer-token',user:{email:'user@example.test'}}}:{success:false};}
   else if(url.endsWith('/api/csrf'))body={token:'csrf-test',headerName:'X-XSRF-TOKEN'};
@@ -17,6 +18,7 @@ async function setup(customerStatus,adminSuccess=true){
  w.sessionStorage.setItem('clothingShopToken','old-customer-token');
  form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  for(let i=0;i<8;i++)await new Promise(r=>setImmediate(r));
+ w.document.querySelector('#client-auth-success button')?.click();
  return {w,calls,destinations,close:()=>w.close()};
 }
 test('customer login stays on customer flow',async()=>{const p=await setup(200);try{assert.equal(p.calls.length,1);assert.deepEqual(p.destinations,['index.html']);assert.equal(p.w.sessionStorage.getItem('clothingShopToken'),'customer-token');}finally{p.close();}});

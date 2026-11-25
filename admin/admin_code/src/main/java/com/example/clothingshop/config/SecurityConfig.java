@@ -93,6 +93,8 @@ public class SecurityConfig {
                     .hasRole("ADMIN")
                     .requestMatchers("/api/admin/shipping/**")
                     .hasRole("ADMIN")
+                      .requestMatchers(org.springframework.http.HttpMethod.PUT,"/api/admin/order-requests/**")
+                      .hasRole("ADMIN")
                     .requestMatchers(
                         org.springframework.http.HttpMethod.POST,
                         "/api/admin/orders/*/refunds",

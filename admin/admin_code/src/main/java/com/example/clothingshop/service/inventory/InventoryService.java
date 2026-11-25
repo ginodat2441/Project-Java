@@ -77,6 +77,8 @@ public class InventoryService {
       throw new BusinessException("Loại phiếu thủ công không hợp lệ");
     if (r.type().equals("RETURN")) {
       if (r.billId() == null) throw new BusinessException("Phiếu hoàn cần đơn gốc");
+      lockBill(r.billId());
+      ensureNoPendingReturn(r.billId());
       queries.findBill2("b", r.billId());
     }
     if (id == null)
@@ -234,6 +236,16 @@ public class InventoryService {
   }
 
   /** Called after atomic reservation in BillRepository; physical stock/cost are unchanged. */
+  private void ensureNoPendingCancellation(long bill) {
+    if(!db.rows("SELECT ID FROM BILL_CUSTOMER_REQUEST WHERE BILL_ID=:id AND REQUEST_TYPE='CANCEL' AND STATUS='PENDING'","id",bill).isEmpty())
+      throw new BusinessException("Khách đang yêu cầu hủy. Xử lý yêu cầu trước khi xuất giao.");
+  }
+
+  private void ensureNoPendingReturn(long bill) {
+    if(!db.rows("SELECT ID FROM BILL_CUSTOMER_REQUEST WHERE BILL_ID=:id AND REQUEST_TYPE='RETURN' AND STATUS='PENDING'","id",bill).isEmpty())
+      throw new BusinessException("Duyệt yêu cầu trả hàng của khách trước khi tiếp nhận hàng hoàn.");
+  }
+
   public void sale(long bill) {
     long doc = header("RESERVE", "Giữ hàng khi đặt đơn", bill, null, null, "POSTED");
     for (var l : billLines(bill)) {
@@ -257,6 +269,7 @@ public class InventoryService {
   @Transactional
   public long prepareDispatch(long bill, long actor) {
     lockBill(bill);
+    ensureNoPendingCancellation(bill);
     var b = queries.findBill3("b", bill);
     if (number(b, "DISPATCHED") == 1)
       throw new BusinessException("Đơn đã xuất giao, không lập xuất lần hai");
@@ -281,9 +294,11 @@ public class InventoryService {
     if (!doc.get("STATUS").equals("DRAFT"))
       throw new BusinessException("Phiếu đã ghi sổ hoặc hủy, không duyệt trùng");
     String type = doc.get("DOC_TYPE").toString();
+    if(type.equals("RETURN"))ensureNoPendingReturn(bill);
     var lines = queries.listInventoryDocumentLine2("i", id);
     lockProducts(lines.stream().map(l -> number(l, "PRODUCT_DETAIL_ID")).toList());
     if (type.equals("DISPATCH")) {
+      ensureNoPendingCancellation(bill);
       var b = queries.findBill3("b", bill);
       if (number(b, "STATUS") != 1
           || number(b, "DISPATCHED") != 0
