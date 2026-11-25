@@ -5,16 +5,17 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $root
+$localConfig = Join-Path $root 'backend_java/src/main/resources/application.properties'
 $envFile = Join-Path $root '.vscode/oracle-local.env'
-if (-not (Test-Path -LiteralPath $envFile)) { throw 'Missing .vscode/oracle-local.env. Add your local Oracle configuration first.' }
-function Import-LocalEnvironment($file) {
+function Import-LocalEnvironment($file, [switch]$SkipShipping) {
     foreach ($line in Get-Content -LiteralPath $file -Encoding UTF8) {
-        if ($line -match '^\s*([A-Z][A-Z0-9_]*)=(.*)$') {
+        if ($line -match '^\s*([A-Z][A-Z0-9_]*)\s*=(.*)$') {
+            if ($SkipShipping -and $Matches[1] -match '^SHOP_(SHIPPING|VIETTEL)_') { continue }
             [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2].Trim().Trim('"').Trim("'"), 'Process')
         }
     }
 }
-Import-LocalEnvironment $envFile
+if (Test-Path -LiteralPath $envFile -PathType Leaf) { Import-LocalEnvironment $envFile -SkipShipping }
 if (-not $env:SPRING_DATASOURCE_PASSWORD) {
     throw 'Missing SPRING_DATASOURCE_PASSWORD in local configuration.'
 }
@@ -72,11 +73,11 @@ $launches = foreach ($name in $services) {
 
 if (-not $launches) { exit 0 }
 
-$viettelEnv = Join-Path $root '.vscode/viettel-local.env'
-$hasViettelEnv = Test-Path -LiteralPath $viettelEnv -PathType Leaf
+$adminConfigFiles = @($localConfig, (Join-Path $root '.vscode/viettel-local.env')) |
+    Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }
 
 if ($Service -ne 'Both') {
-    if ($Service -eq 'Admin' -and $hasViettelEnv) { Import-LocalEnvironment $viettelEnv }
+    if ($Service -eq 'Admin') { foreach ($file in $adminConfigFiles) { Import-LocalEnvironment $file } }
     Set-Location -LiteralPath $launches.Directory
     $javaArgs = $launches.Arguments
     $javaArgs[1] = $javaArgs[1].Trim('"')
@@ -87,7 +88,7 @@ if ($Service -ne 'Both') {
 $processes = @()
 try {
     foreach ($launch in $launches) {
-        if ($launch.Name -eq 'Admin' -and $hasViettelEnv) { Import-LocalEnvironment $viettelEnv }
+        if ($launch.Name -eq 'Admin') { foreach ($file in $adminConfigFiles) { Import-LocalEnvironment $file } }
         $processes += Start-Process -FilePath $java -ArgumentList $launch.Arguments -WorkingDirectory $launch.Directory -NoNewWindow -PassThru
     }
     while ($true) {

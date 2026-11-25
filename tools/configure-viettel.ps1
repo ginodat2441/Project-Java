@@ -28,20 +28,21 @@ if($WebsiteToken){
  if($response.error -ne $false -or $token -notmatch '^[A-Za-z0-9._~+/-]+=*$'){throw 'Viettel Post did not return a valid Partner token.'}
  $response = $null
 }
-$lines=@('SHOP_SHIPPING_ENABLED=true',"SHOP_VIETTEL_ENVIRONMENT=$environment","SHOP_VIETTEL_TOKEN=$token","SHOP_SHIPPING_ORIGIN=$origin")
-foreach($entry in $values.GetEnumerator()){$lines+='SHOP_SHIPPING_'+$entry.Key+'='+$entry.Value}
-$configPath=Join-Path $projectRoot '.vscode/viettel-local.env'
-$configDir=Split-Path -Parent $configPath
-[IO.Directory]::CreateDirectory($configDir) | Out-Null
-if(Test-Path -LiteralPath $configPath -PathType Leaf){
- $lines+=@(Get-Content -LiteralPath $configPath -Encoding UTF8 |
-   Where-Object { $_ -match '^\s*SHOP_(VIETTEL_WEBHOOK_SECRET|SHIPPING_SENDER_NAME|SHIPPING_SENDER_PHONE|INVENTORY_WAREHOUSE_NAME)=' })
+$settings=[ordered]@{
+ SHOP_SHIPPING_ENABLED='true'; SHOP_VIETTEL_ENVIRONMENT=$environment
 }
-if(-not (Test-Path -LiteralPath $configPath)){[IO.File]::WriteAllText($configPath,'')}
-$identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name
-& icacls $configPath /inheritance:r /grant:r "${identity}:F" 'SYSTEM:F' | Out-Null
-if($LASTEXITCODE -ne 0){throw 'Cannot secure config file; credentials were not saved'}
-[IO.File]::WriteAllLines($configPath,$lines,[Text.UTF8Encoding]::new($false))
+foreach($entry in $values.GetEnumerator()){$settings['SHOP_SHIPPING_'+$entry.Key]=$entry.Value}
+$configPath=Join-Path $projectRoot '.vscode/viettel-local.env'
+. (Join-Path $PSScriptRoot 'configure-smtp.ps1')
+Write-ShopSmtpEnvironment -Path $configPath -Values ([ordered]@{
+ SHOP_VIETTEL_TOKEN=$token; SHOP_SHIPPING_ORIGIN=$origin
+})
+$propertiesPath=Join-Path $projectRoot 'backend_java/src/main/resources/application.properties'
+$lines=@([IO.File]::ReadAllLines($propertiesPath) | Where-Object {
+ if($_ -match '^\s*([A-Z][A-Z0-9_]*)\s*='){-not $settings.Contains($Matches[1])}else{$true}
+})
+foreach($key in $settings.Keys){$lines+="$key=$($settings[$key])"}
+[IO.File]::WriteAllLines($propertiesPath,$lines,[Text.UTF8Encoding]::new($false))
 $token=$null;$lines=$null;$secret.Dispose()
 Write-Host 'Saved private Viettel Post configuration. Restart backend with .\shop.cmd -Mode Run.'
 Write-Host 'This saves configuration only. Verify an actual quote with your Viettel account before accepting orders.'

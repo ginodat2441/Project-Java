@@ -42,8 +42,20 @@ public class ExportController {
       @RequestParam(defaultValue = "") String q) throws java.io.IOException {
     var bytes = reports.salesWorkbook(year == null ? LocalDate.now().getYear() : year,
         month, quarter, from, to, productId, q);
+    return workbookResponse(bytes, "bao-cao-ban-hang.xlsx");
+  }
+
+  @GetMapping("/api/admin/inventory/export.xlsx")
+  public ResponseEntity<byte[]> inventoryWorkbook(
+      @RequestParam(required = false) LocalDate from,
+      @RequestParam(required = false) LocalDate to,
+      @RequestParam(defaultValue = "") String q) throws java.io.IOException {
+    return workbookResponse(inventory.workbook(from, to, q), "bao-cao-nhap-xuat-ton.xlsx");
+  }
+
+  private ResponseEntity<byte[]> workbookResponse(byte[] bytes, String fileName) {
     return ResponseEntity.ok()
-        .header("Content-Disposition", "attachment; filename=bao-cao-ban-hang.xlsx")
+        .header("Content-Disposition", "attachment; filename=" + fileName)
         .cacheControl(org.springframework.http.CacheControl.noStore())
         .contentType(org.springframework.http.MediaType.parseMediaType(
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))

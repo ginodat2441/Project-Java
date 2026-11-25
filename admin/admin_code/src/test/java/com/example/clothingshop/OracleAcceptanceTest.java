@@ -1282,6 +1282,21 @@ class OracleAcceptanceTest {
             + balance.get("RETURNED").asLong()
             + balance.get("ADJUSTMENT").asLong();
     assertEquals(expectedClosing, balance.get("CLOSING").asLong());
+    var inventoryExport = admin.client.send(
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port
+            + "/api/admin/inventory/export.xlsx?q="
+            + URLEncoder.encode(originalSku, java.nio.charset.StandardCharsets.UTF_8))).GET().build(),
+        HttpResponse.BodyHandlers.ofByteArray());
+    assertEquals(200, inventoryExport.statusCode());
+    try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
+        new java.io.ByteArrayInputStream(inventoryExport.body()))) {
+      assertEquals(2, workbook.getNumberOfSheets());
+      var detail = workbook.getSheetAt(1);
+      assertTrue(detail.getPaneInformation().isFreezePane());
+      assertEquals(originalSku, detail.getRow(4).getCell(0).getStringCellValue());
+      assertEquals(expectedClosing, detail.getRow(4).getCell(16).getNumericCellValue());
+      assertEquals(expectedClosing, workbook.getSheetAt(0).getRow(6).getCell(1).getNumericCellValue());
+    }
     for (var s : admin.get("/api/admin/stock").get("items"))
       assertEquals(
           s.get("QUANTITY").asLong() + s.get("RESERVED").asLong(), s.get("PHYSICAL").asLong());

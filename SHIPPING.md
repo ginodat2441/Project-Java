@@ -18,7 +18,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\configure-viettel.ps
 
 Lệnh hỏi môi trường, địa chỉ kho thật, token ở dạng ẩn, gram mỗi sản phẩm, bao bì và kích thước kiện. Không mặc định địa chỉ/khối lượng giả. Các thông số cần được cân/đo và xác nhận phù hợp hàng bán; cách hiện tại là khối lượng theo mỗi sản phẩm + bao bì, chưa có trọng lượng riêng từng SKU hay thuật toán chia kiện. Đơn vượt 30kg bị từ chối để shop tư vấn chia kiện. Với hàng có trọng lượng khác nhau đáng kể cần mở rộng trọng lượng theo SKU trước khi nhận đơn thật.
 
-Cấu hình lưu tại `.vscode/viettel-local.env`, ngoài Git, ACL người dùng hiện tại và SYSTEM. File này không sửa cấu hình Oracle/SMTP. `shop.cmd` nạp hai file khi khởi chạy. Lệnh chỉ lưu cấu hình, không khẳng định token hợp lệ. Dừng backend đang chạy rồi chạy:
+Thông số kiện và môi trường nằm trong `backend_java/src/main/resources/application.properties`. Token và thông tin kho nằm trong `.vscode/viettel-local.env`, ngoài Git. `shop.cmd` nạp cả hai khi khởi chạy. Lệnh chỉ lưu cấu hình, không khẳng định token hợp lệ. Dừng backend đang chạy rồi chạy:
 
 ```powershell
 .\shop.cmd -Mode Run

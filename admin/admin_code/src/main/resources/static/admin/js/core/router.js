@@ -1,4 +1,5 @@
 async function load() {
+  $("#content").classList.remove("is-ready");
   $("#title").textContent = titles[section];
   document
     .querySelectorAll("#nav button")
@@ -11,6 +12,7 @@ async function load() {
       html = await window.AdminModules[section].render();
     else if (window.AdminPages?.[section]?.render) html = await window.AdminPages[section].render();
     $("#content").innerHTML = html;
+    $("#content").classList.add("is-ready");
     window.AdminV8?.[section]?.mount?.($("#content"));
     if (section === "stock")
       $("#clear-stock-filter").onclick = () => {
