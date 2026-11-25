@@ -3,7 +3,7 @@
 (() => {
   const { params, known, isAdmin, kind, labels, dates, allRows, csv, valuation } =
     window.AdminV8Utils;
-  async function refundPanel(id) {
+  async function refundPanel(id, hasReturnDocument = false) {
     const rows = await api("/api/admin/orders/" + id + "/refunds");
     return `<h3>Tiền thực tế hoàn cho khách</h3><p>Ghi nhận tiền riêng với nhận hàng hoàn. Khoản chi tiền không giảm doanh thu thêm lần nữa.</p>${table(
       rows,
@@ -19,7 +19,7 @@
         r.STATUS === "PENDING" && isAdmin()
           ? button("Cập nhật khoản chờ", "edit-refund", r.ID)
           : "",
-    )}${isAdmin() ? button("Ghi nhận hoàn tiền", "record-refund", id) : ""}`;
+    )}${isAdmin() && hasReturnDocument ? button("Ghi nhận hoàn tiền", "record-refund", id) : !hasReturnDocument && !rows.length ? "<p>Ghi nhận tiền hoàn sau khi phiếu nhận hàng hoàn được xác nhận.</p>" : ""}`;
   }
 
   async function refundForm(bill, refundId = null) {

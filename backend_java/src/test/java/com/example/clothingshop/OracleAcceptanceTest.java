@@ -505,7 +505,7 @@ class OracleAcceptanceTest {
             .upload(
                 product,
                 java.nio.file.Files.readAllBytes(
-                    java.nio.file.Path.of("../giao dien/assets/img/product/product-1.webp")))
+                    java.nio.file.Path.of("../client/assets/img/product/product-1.webp")))
             .statusCode());
     var duplicate =
         productBody(
@@ -707,37 +707,16 @@ class OracleAcceptanceTest {
         num(
             db.one("SELECT USED_COUNT FROM VOUCHER WHERE ID=:i", "i", singleVoucher),
             "USED_COUNT"));
-    // Public checkout requires the customer session, and derives customer identity server-side.
-    var checkout =
-        Map.of(
-            "name",
-            prefix,
-            "phone",
-            "0900000000",
-            "province",
-            "HCM",
-            "ward",
-            "Ward",
-            "address",
-            "Test",
-            "paymentMethod",
-            "COD",
-            "items",
-            List.of(Map.of("productDetailId", other, "quantity", 1)));
+    // The staging suite exercises customer identity and refuses checkout without a carrier quote.
+    var checkout = Map.of("name", prefix, "phone", "0900000000", "province", "HCM",
+        "ward", "Ward", "address", "Test", "paymentMethod", "COD",
+        "shippingService", "VCN", "expectedShippingFee", 30000,
+        "items", List.of(Map.of("productDetailId", other, "quantity", 1)));
     anonymous.csrf();
     assertEquals(400, anonymous.request("/api/checkout", "POST", checkout).statusCode());
-    var publicOrder = client.save("/api/checkout", "POST", checkout);
-    assertEquals(customer, publicOrder.get("customerId").asLong());
-    admin.save(
-        "/api/admin/orders/" + publicOrder.get("id").asLong() + "/payment-failed", "POST", null);
-    assertEquals(
-        400,
-        admin
-            .request(
-                "/api/admin/orders/" + publicOrder.get("id").asLong() + "/payment-failed",
-                "POST",
-                null)
-            .statusCode());
+    if (!"true".equalsIgnoreCase(System.getenv("SHOP_SHIPPING_ENABLED"))) {
+      assertEquals(503, client.request("/api/checkout", "POST", checkout).statusCode());
+    }
     var formProduct = productBody(List.of(variant(null, black, "S", "-FORM-S", 0)));
     formProduct.put("code", prefix + "FORM");
     formProduct.remove("brandId");
@@ -774,7 +753,7 @@ class OracleAcceptanceTest {
         admin
             .productWithImages(
                 invalidForm,
-                List.of(png.toByteArray(), "invalid image".getBytes()),
+                List.of("invalid image".getBytes(), png.toByteArray()),
                 List.of(Map.of("order", 0, "cover", true), Map.of("order", 1, "cover", false)))
             .statusCode());
     assertEquals(
@@ -1010,13 +989,10 @@ class OracleAcceptanceTest {
                         other)
                     .get("COST_UNIT"))
             .doubleValue();
-    long pooledQty =
-        num(
-            db.one(
-                "SELECT SUM(QUANTITY) Q FROM PRODUCT_DETAIL WHERE PRODUCT_ID=:p AND DELETE_FLAG=0",
-                "p",
-                product),
-            "Q");
+    var skuBeforeReceipt = db.one(
+        "SELECT PHYSICAL_QUANTITY,AVERAGE_COST FROM PRODUCT_DETAIL WHERE ID=:i", "i", other);
+    long pooledQty = num(skuBeforeReceipt, "PHYSICAL_QUANTITY");
+    double pooledCost = ((Number) skuBeforeReceipt.get("AVERAGE_COST")).doubleValue();
     long variedReceipt =
         admin
             .save(
@@ -1042,10 +1018,10 @@ class OracleAcceptanceTest {
     admin.save("/api/admin/inventory/documents/" + variedReceipt + "/approve", "POST", null);
     double averageAfter =
         ((Number)
-                db.one("SELECT AVERAGE_COST FROM PRODUCT WHERE ID=:p", "p", product)
+                db.one("SELECT AVERAGE_COST FROM PRODUCT_DETAIL WHERE ID=:i", "i", other)
                     .get("AVERAGE_COST"))
             .doubleValue();
-    assertEquals((pooledQty * originalCost + 600000) / (pooledQty + 2), averageAfter, 0.000001);
+    assertEquals((pooledQty * pooledCost + 600000) / (pooledQty + 2), averageAfter, 0.000001);
     assertEquals(
         originalCost,
         ((Number)
@@ -1084,9 +1060,7 @@ class OracleAcceptanceTest {
     double expectedValue =
         ((Number)
                 db.one(
-                        "SELECT ROUND(SUM(d.QUANTITY)*p.AVERAGE_COST,2) V FROM PRODUCT p JOIN"
-                            + " PRODUCT_DETAIL d ON d.PRODUCT_ID=p.ID WHERE p.ID=:p AND"
-                            + " d.DELETE_FLAG=0 GROUP BY p.AVERAGE_COST",
+                        "SELECT SUM(ROUND(KNOWN_VALUE,0)) V FROM PRODUCT_DETAIL WHERE PRODUCT_ID=:p AND DELETE_FLAG=0",
                         "p",
                         product)
                     .get("V"))
@@ -1246,93 +1220,7 @@ class OracleAcceptanceTest {
     assertEquals(
         stockValue.get("globalTotals"),
         admin.get("/api/admin/stock?q=NO_MATCH_VALUE_TEST").get("globalTotals"));
-    long legacyColor =
-        num(db.one("SELECT COLOR_ID FROM PRODUCT_DETAIL WHERE ID=:i", "i", chosen), "COLOR_ID");
-    long legacyProduct =
-        admin
-            .save(
-                "/api/admin/products",
-                "POST",
-                productBody(List.of(variant(null, legacyColor, "M", "OLD-COST", 0))))
-            .asLong();
-    long legacyVariant =
-        admin.get("/api/admin/products/" + legacyProduct).get("variants").get(0).get("ID").asLong();
-    db.update("UPDATE PRODUCT_DETAIL SET QUANTITY=90 WHERE ID=:i", "i", legacyVariant);
-    long legacyReceipt = 0;
-    for (var entry : Map.of(10, 1222, 100, 100000).entrySet()) {
-      long doc =
-          admin
-              .save(
-                  "/api/admin/inventory/documents",
-                  "POST",
-                  Map.of(
-                      "type",
-                      "RECEIPT",
-                      "reason",
-                      prefix + " historic receipt",
-                      "lines",
-                      List.of(
-                          Map.of(
-                              "variantId",
-                              legacyVariant,
-                              "quantity",
-                              entry.getKey(),
-                              "unitCost",
-                              entry.getValue(),
-                              "restock",
-                              true))))
-              .asLong();
-      admin.save("/api/admin/inventory/documents/" + doc + "/approve", "POST", null);
-      if (entry.getKey() == 10) legacyReceipt = doc;
-    }
-    long oldLine =
-        num(
-            db.one(
-                "SELECT ID FROM INVENTORY_DOCUMENT_LINE WHERE DOCUMENT_ID=:d", "d", legacyReceipt),
-            "ID");
-    db.update(
-        "UPDATE INVENTORY_DOCUMENT_LINE SET UNIT_COST=NULL,COST_UNIT=NULL WHERE ID=:i",
-        "i",
-        oldLine);
-    var opening = admin.get("/api/admin/opening-cost/" + legacyProduct);
-    assertEquals(90, opening.get("openingQuantity").asInt());
-    assertEquals(200, opening.get("quantity").asInt());
-    var initialize =
-        Map.of(
-            "openingUnitCost",
-            50000,
-            "reason",
-            prefix + " documented opening cost",
-            "receipts",
-            List.of(Map.of("lineId", oldLine, "unitCost", 1222)));
-    assertEquals(
-        403,
-        staff.request("/api/admin/opening-cost/" + legacyProduct, "POST", initialize).statusCode());
-    assertEquals(
-        400,
-        admin
-            .request(
-                "/api/admin/opening-cost/" + legacyProduct,
-                "POST",
-                Map.of("reason", prefix, "receipts", List.of()))
-            .statusCode());
-    admin.save("/api/admin/opening-cost/" + legacyProduct, "POST", initialize);
-    assertEquals(
-        200,
-        num(
-            db.one("SELECT QUANTITY FROM PRODUCT_DETAIL WHERE ID=:i", "i", legacyVariant),
-            "QUANTITY"));
-    var legacyCode = admin.get("/api/admin/products/" + legacyProduct).get("PRODUCT_CODE").asText();
-    assertEquals(
-        14512220,
-        admin
-            .get("/api/admin/products?q=" + legacyCode)
-            .get("totals")
-            .get("INVENTORY_VALUE")
-            .asLong());
-    assertEquals(
-        400,
-        admin.request("/api/admin/opening-cost/" + legacyProduct, "POST", initialize).statusCode());
+    assertEquals(410, admin.request("/api/admin/opening-cost/" + product, "GET", null).statusCode());
     var balance =
         admin
             .get(
@@ -1346,6 +1234,8 @@ class OracleAcceptanceTest {
             - balance.get("ISSUE").asLong()
             - balance.get("SALE").asLong()
             + balance.get("CANCELLED").asLong()
+            - balance.get("RESERVED").asLong()
+            + balance.get("RELEASED").asLong()
             + balance.get("RETURNED").asLong()
             + balance.get("ADJUSTMENT").asLong();
     assertEquals(expectedClosing, balance.get("CLOSING").asLong());
@@ -1462,6 +1352,13 @@ class OracleAcceptanceTest {
             + " USERS WHERE USERNAME=:p))) OR MANAGER_ID IN (SELECT ID FROM MANAGER WHERE USERNAME"
             + " LIKE :pfx)",
         "p", prefix, "pfx", prefix + "%");
+    String fixtureBills =
+        "SELECT ID FROM BILL WHERE CUSTOMER_ID IN (SELECT ID FROM CUSTOMER WHERE USER_ID IN"
+            + " (SELECT ID FROM USERS WHERE USERNAME=:p))";
+    for (String table : List.of("BILL_VIETTEL_EVENT", "BILL_VIETTEL_TRACKING",
+        "BILL_VIETTEL_DISPATCH", "BILL_CHECKOUT_REQUEST")) {
+      db.update("DELETE FROM " + table + " WHERE BILL_ID IN (" + fixtureBills + ")", "p", prefix);
+    }
     String docs =
         "SELECT ID FROM INVENTORY_DOCUMENT WHERE CREATED_BY IN (SELECT ID FROM MANAGER WHERE"
             + " USERNAME LIKE :pfx) OR BILL_ID IN (SELECT ID FROM BILL WHERE CUSTOMER_ID IN (SELECT"

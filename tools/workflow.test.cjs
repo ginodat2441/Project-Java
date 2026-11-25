@@ -58,7 +58,7 @@ test('Viettel status renders correct Vietnamese and a usable Windows configurati
  const h=await setup();await h.section('shipping','pre');
  assert.equal(h.d.querySelector('#title').textContent,'Vận chuyển Viettel Post');
  const text=h.d.querySelector('#content').textContent;assert.match(text,/Trạng thái: Chưa hoàn tất cấu hình/);assert.match(text,/Địa chỉ kho gửi/);assert.match(text,/Khối lượng và kích thước kiện/);assert.match(text,/Chính thức/);assert.doesNotMatch(text,/[?\uFFFD]/);
- assert.equal(h.d.querySelector('pre').textContent,'powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\configure-viettel.ps1');h.dom.window.close();
+ assert.equal(h.d.querySelector('pre').textContent,'powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\configure-viettel.ps1 -WebsiteToken');h.dom.window.close();
 });
 test('Product revenue opens read-only SKU report while Edit opens the product form',async()=>{
  const h=await setup();await h.section('products','[data-action=product-revenue]');

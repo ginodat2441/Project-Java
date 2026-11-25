@@ -97,7 +97,7 @@ public class BillRepository {
     p.put("oldStatus", oldStatus);
     p.put("newStatus", newStatus);
     p.put("note", note);
-    p.put("managerId", managerId);
+    p.put("managerId", new org.springframework.jdbc.core.SqlParameterValue(java.sql.Types.NUMERIC, managerId));
     sql.update(q, p);
   }
 
@@ -147,7 +147,7 @@ public class BillRepository {
     p.put("id", billId);
     p.put("oldStatus", oldStatus);
     p.put("newStatus", newStatus);
-    p.put("managerId", managerId);
+    p.put("managerId", new org.springframework.jdbc.core.SqlParameterValue(java.sql.Types.NUMERIC, managerId));
     return sql.update(q, p);
   }
 }

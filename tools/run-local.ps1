@@ -7,11 +7,14 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $root
 $envFile = Join-Path $root '.vscode/oracle-local.env'
 if (-not (Test-Path -LiteralPath $envFile)) { throw 'Missing .vscode/oracle-local.env. Add your local Oracle configuration first.' }
-foreach ($line in Get-Content -LiteralPath $envFile -Encoding UTF8) {
-    if ($line -match '^\s*([A-Z][A-Z0-9_]*)=(.*)$') {
-        [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2].Trim().Trim('"').Trim("'"), 'Process')
+function Import-LocalEnvironment($file) {
+    foreach ($line in Get-Content -LiteralPath $file -Encoding UTF8) {
+        if ($line -match '^\s*([A-Z][A-Z0-9_]*)=(.*)$') {
+            [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2].Trim().Trim('"').Trim("'"), 'Process')
+        }
     }
 }
+Import-LocalEnvironment $envFile
 if (-not $env:SPRING_DATASOURCE_PASSWORD) {
     throw 'Missing SPRING_DATASOURCE_PASSWORD in local configuration.'
 }
@@ -69,7 +72,11 @@ $launches = foreach ($name in $services) {
 
 if (-not $launches) { exit 0 }
 
+$viettelEnv = Join-Path $root '.vscode/viettel-local.env'
+$hasViettelEnv = Test-Path -LiteralPath $viettelEnv -PathType Leaf
+
 if ($Service -ne 'Both') {
+    if ($Service -eq 'Admin' -and $hasViettelEnv) { Import-LocalEnvironment $viettelEnv }
     Set-Location -LiteralPath $launches.Directory
     $javaArgs = $launches.Arguments
     $javaArgs[1] = $javaArgs[1].Trim('"')
@@ -80,6 +87,7 @@ if ($Service -ne 'Both') {
 $processes = @()
 try {
     foreach ($launch in $launches) {
+        if ($launch.Name -eq 'Admin' -and $hasViettelEnv) { Import-LocalEnvironment $viettelEnv }
         $processes += Start-Process -FilePath $java -ArgumentList $launch.Arguments -WorkingDirectory $launch.Directory -NoNewWindow -PassThru
     }
     while ($true) {

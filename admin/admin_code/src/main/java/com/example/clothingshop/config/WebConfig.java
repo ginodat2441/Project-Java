@@ -7,7 +7,7 @@ import org.springframework.web.servlet.config.annotation.*;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
-  @Value("${shop.storefront:../giao dien}")
+  @Value("${shop.storefront:../../client}")
   String storefront;
 
   @Override
@@ -23,6 +23,7 @@ public class WebConfig implements WebMvcConfigurer {
     r.addViewController("/login").setViewName("forward:/login.html");
     r.addViewController("/forgot-password").setViewName("forward:/forgot-password.html");
     r.addViewController("/reset-password").setViewName("forward:/reset-password.html");
+    r.addViewController("/store/index.html").setViewName("forward:/shop/index.html");
     r.addViewController("/admin").setViewName("forward:/admin/index.html");
     r.addViewController("/").setViewName("redirect:/admin");
   }

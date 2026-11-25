@@ -31,6 +31,25 @@ public class ExportController {
     return v == null || v.isBlank() ? null : Integer.valueOf(v);
   }
 
+  @GetMapping("/api/admin/reports/export.xlsx")
+  public ResponseEntity<byte[]> salesWorkbook(
+      @RequestParam(required = false) Integer year,
+      @RequestParam(required = false) Integer month,
+      @RequestParam(required = false) Integer quarter,
+      @RequestParam(required = false) LocalDate from,
+      @RequestParam(required = false) LocalDate to,
+      @RequestParam(required = false) Long productId,
+      @RequestParam(defaultValue = "") String q) throws java.io.IOException {
+    var bytes = reports.salesWorkbook(year == null ? LocalDate.now().getYear() : year,
+        month, quarter, from, to, productId, q);
+    return ResponseEntity.ok()
+        .header("Content-Disposition", "attachment; filename=bao-cao-ban-hang.xlsx")
+        .cacheControl(org.springframework.http.CacheControl.noStore())
+        .contentType(org.springframework.http.MediaType.parseMediaType(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .body(bytes);
+  }
+
   @SuppressWarnings("unchecked")
   @GetMapping("/api/admin/reports/export")
   public ResponseEntity<String> reports(@RequestParam Map<String, String> f) {

@@ -17,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.*;
+import static com.example.clothingshop.controller.shipping.ViettelTrackingController.WEBHOOK;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Configuration
@@ -109,13 +110,17 @@ public class SecurityConfig {
                         "/store/**",
                         "/")
                     .permitAll()
+                    .requestMatchers(org.springframework.http.HttpMethod.POST, WEBHOOK)
+                    .permitAll()
                     .requestMatchers("/api/checkout", "/api/customer/**", "/api/catalog/quote")
                     .permitAll()
                     .anyRequest()
                     .hasAnyRole("ADMIN", "STAFF"))
         .csrf(
             c ->
-                c.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                c.ignoringRequestMatchers(request -> "POST".equals(request.getMethod())
+                        && WEBHOOK.equals(request.getServletPath()))
+                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                     .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
         .formLogin(
             f ->

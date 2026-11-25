@@ -37,7 +37,7 @@ public class InventoryOperationsRepository {
   public Map<String, Object> pageInventoryDocumentLine(int page, int size, Object... args) {
     return db.page(
         "SELECT"
-            + " d.ID,d.DOC_CODE,d.DOC_TYPE,d.STATUS,d.REASON,d.BILL_ID,b.BILL_CODE,b.RECEIVER_NAME,b.STATUS"
+            + " d.ID,d.DOC_CODE,d.DOC_TYPE,d.STATUS,d.REASON,d.WAREHOUSE_NAME,d.BILL_ID,b.BILL_CODE,b.RECEIVER_NAME,b.STATUS"
             + " ORDER_STATUS,d.SOURCE_ID,m.USERNAME CREATED_BY,d.CREATED_AT,d.POSTED_AT,(SELECT"
             + " SUM(l.QUANTITY*l.UNIT_COST) FROM INVENTORY_DOCUMENT_LINE l WHERE l.DOCUMENT_ID=d.ID"
             + " AND l.UNIT_COST IS NOT NULL) PURCHASE_TOTAL FROM INVENTORY_DOCUMENT d LEFT JOIN"
@@ -53,7 +53,7 @@ public class InventoryOperationsRepository {
   public Map<String, Object> findInventoryDocument(Object... args) {
     return db.one(
         "SELECT"
-            + " d.ID,d.DOC_CODE,d.DOC_TYPE,d.STATUS,d.REASON,d.BILL_ID,b.BILL_CODE,b.RECEIVER_NAME,b.STATUS"
+            + " d.ID,d.DOC_CODE,d.DOC_TYPE,d.STATUS,d.REASON,d.WAREHOUSE_NAME,d.BILL_ID,b.BILL_CODE,b.RECEIVER_NAME,b.STATUS"
             + " ORDER_STATUS,d.SOURCE_ID,d.CREATED_BY,m.USERNAME CREATOR,a.USERNAME"
             + " APPROVER,d.CANCEL_REASON,d.CREATED_AT,d.POSTED_AT,d.CANCELLED_AT FROM"
             + " INVENTORY_DOCUMENT d LEFT JOIN BILL b ON b.ID=d.BILL_ID LEFT JOIN MANAGER m ON"
@@ -207,6 +207,18 @@ public class InventoryOperationsRepository {
         "SELECT ID FROM INVENTORY_DOCUMENT WHERE BILL_ID=:b AND DOC_TYPE='DISPATCH' AND"
             + " STATUS='DRAFT'",
         args);
+  }
+
+  public void prepareDelivery(long bill, long document, String warehouse, Long weight) {
+    db.update("UPDATE INVENTORY_DOCUMENT SET WAREHOUSE_NAME=COALESCE(WAREHOUSE_NAME,:w) WHERE ID=:d",
+        "w", warehouse, "d", document);
+    db.update("""
+        MERGE INTO BILL_VIETTEL_DISPATCH x USING (SELECT :b BILL_ID FROM DUAL) source
+        ON (x.BILL_ID=source.BILL_ID)
+        WHEN MATCHED THEN UPDATE SET x.DOCUMENT_ID=:d, x.WEIGHT_GRAMS=COALESCE(x.WEIGHT_GRAMS,:weight)
+        WHEN NOT MATCHED THEN INSERT (BILL_ID,DOCUMENT_ID,SEND_STATE,WEIGHT_GRAMS)
+        VALUES (source.BILL_ID,:d,'DRAFT',:weight)
+        """, "b", bill, "d", document, "weight", new org.springframework.jdbc.core.SqlParameterValue(java.sql.Types.NUMERIC, weight));
   }
 
   public Map<String, Object> findInventoryDocument3(Object... args) {

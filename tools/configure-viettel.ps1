@@ -1,12 +1,14 @@
-param()
+param([switch]$WebsiteToken)
 $ErrorActionPreference='Stop'
 $projectRoot=Split-Path -Parent $PSScriptRoot
 Write-Host 'Viettel Post: enter real API credentials and pickup warehouse. No account is created by this script.'
 $environment=Read-Host 'Environment: production or development'
 if($environment -notin @('production','development')){throw 'Invalid environment'}
+if($WebsiteToken -and $environment -ne 'production'){throw 'LoginVTP is for production website tokens. Use a Partner token for development.'}
 $origin=Read-Host 'Full pickup address: street, ward, province'
 if([string]::IsNullOrWhiteSpace($origin) -or $origin.Length -gt 500 -or $origin.Contains("`n") -or $origin.Contains("`r")){throw 'Enter a valid warehouse address'}
-$secret=Read-Host 'Viettel Post API token (hidden)' -AsSecureString
+$tokenPrompt = if($WebsiteToken){'Token copied from viettelpost.vn (hidden)'}else{'Viettel Post Partner API token (hidden)'}
+$secret=Read-Host $tokenPrompt -AsSecureString
 $pointer=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)
 try{$token=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)}finally{[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)}
 if([string]::IsNullOrWhiteSpace($token) -or $token -notmatch '^[A-Za-z0-9._~+/-]+=*$'){throw 'Invalid token format'}
@@ -16,11 +18,25 @@ foreach($item in @(@('GRAMS_PER_ITEM','Conservative packed grams per product (co
  if(-not [int]::TryParse($inputValue,[ref]$parsed) -or $parsed -lt $item[2] -or $parsed -gt $item[3]){throw ('Invalid parcel value: '+$item[0])}
  $values[$item[0]]=$parsed
 }
+if($WebsiteToken){
+ try {
+  $response = Invoke-RestMethod -Method Post -Uri 'https://partner.viettelpost.vn/v2/user/LoginVTP' -ContentType 'application/json' -Body (@{token=$token} | ConvertTo-Json -Compress) -TimeoutSec 20 -MaximumRedirection 0
+ } catch {
+  throw 'Could not exchange the token with Viettel Post. Check the connection and copy the website token again.'
+ }
+ $token = [string]$response.data.token
+ if($response.error -ne $false -or $token -notmatch '^[A-Za-z0-9._~+/-]+=*$'){throw 'Viettel Post did not return a valid Partner token.'}
+ $response = $null
+}
 $lines=@('SHOP_SHIPPING_ENABLED=true',"SHOP_VIETTEL_ENVIRONMENT=$environment","SHOP_VIETTEL_TOKEN=$token","SHOP_SHIPPING_ORIGIN=$origin")
 foreach($entry in $values.GetEnumerator()){$lines+='SHOP_SHIPPING_'+$entry.Key+'='+$entry.Value}
 $configPath=Join-Path $projectRoot '.vscode/viettel-local.env'
 $configDir=Split-Path -Parent $configPath
 [IO.Directory]::CreateDirectory($configDir) | Out-Null
+if(Test-Path -LiteralPath $configPath -PathType Leaf){
+ $lines+=@(Get-Content -LiteralPath $configPath -Encoding UTF8 |
+   Where-Object { $_ -match '^\s*SHOP_(VIETTEL_WEBHOOK_SECRET|SHIPPING_SENDER_NAME|SHIPPING_SENDER_PHONE|INVENTORY_WAREHOUSE_NAME)=' })
+}
 if(-not (Test-Path -LiteralPath $configPath)){[IO.File]::WriteAllText($configPath,'')}
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name
 & icacls $configPath /inheritance:r /grant:r "${identity}:F" 'SYSTEM:F' | Out-Null

@@ -70,6 +70,18 @@ ROUND(NVL(SUM(e.DAMAGED_COST),0),0) DAMAGED_COST
       Long productId,
       String q,
       int page) {
+    return report(period, year, month, quarter, from, to, productId, q, page, false);
+  }
+
+  public Map<String, Object> salesWorkbook(
+      int year, Integer month, Integer quarter, LocalDate from, LocalDate to, Long productId,
+      String q) {
+    return report("DAY", year, month, quarter, from, to, productId, q, 1, true);
+  }
+
+  private Map<String, Object> report(
+      String period, int year, Integer month, Integer quarter, LocalDate from, LocalDate to,
+      Long productId, String q, int page, boolean workbook) {
     if (year < 2000 || year > 2200)
       throw new IllegalArgumentException("Năm trong khoảng 2000–2200");
     if (!Set.of("DAY", "MONTH", "QUARTER", "YEAR").contains(period))
@@ -166,6 +178,34 @@ ROUND(NVL(SUM(e.DAMAGED_COST),0),0) DAMAGED_COST
                 "DAMAGED_COST")) row.put(k, BigDecimal.ZERO);
       }
       series.add(row);
+    }
+    if (workbook) {
+      String orderSource = """
+          FROM BILL b LEFT JOIN MANAGER m ON m.ID=b.HANDLED_BY
+          WHERE b.DELETE_FLAG=0 AND b.CREATED_AT>=:f AND b.CREATED_AT<:t
+            AND EXISTS (SELECT 1 FROM BILL_DETAIL l
+                        JOIN PRODUCT_DETAIL pd ON pd.ID=l.PRODUCT_DETAIL_ID
+                        JOIN PRODUCT p ON p.ID=pd.PRODUCT_ID
+                        WHERE l.BILL_ID=b.ID AND l.DELETE_FLAG=0 AND (:pid IS NULL OR p.ID=:pid)
+                          AND (LOWER(p.PRODUCT_NAME) LIKE :q OR LOWER(p.PRODUCT_CODE) LIKE :q
+                               OR LOWER(pd.SKU) LIKE :q))
+          """;
+      var orders = db.rows("""
+          SELECT b.BILL_CODE, TO_CHAR(b.CREATED_AT,'YYYY-MM-DD') ORDER_DATE, b.STATUS,
+                 m.FULL_NAME EMPLOYEE, b.SUB_TOTAL, b.DISCOUNT_AMOUNT, b.SHIPPING_FEE,
+                 b.TOTAL_AMOUNT
+          """ + orderSource + " ORDER BY b.CREATED_AT DESC,b.ID DESC", paramsToArgs(params));
+      var employees = db.rows(
+          "SELECT m.FULL_NAME EMPLOYEE, ROUND(SUM(e.NET-e.RETURN_VALUE),0) REVENUE"
+              + source.replace(" WHERE e.EVENT_AT", " JOIN BILL b ON b.ID=e.BILL_ID"
+                  + " LEFT JOIN MANAGER m ON m.ID=b.HANDLED_BY WHERE e.EVENT_AT")
+              + " GROUP BY m.ID,m.FULL_NAME ORDER BY REVENUE DESC,m.ID",
+          paramsToArgs(params));
+      var products = db.rows("SELECT p.PRODUCT_CODE,p.PRODUCT_NAME," + SUMS + source
+          + " GROUP BY p.ID,p.PRODUCT_CODE,p.PRODUCT_NAME ORDER BY NET_AFTER_RETURN DESC,p.ID",
+          paramsToArgs(params));
+      return Map.of("from", start, "to", end, "totals", totals, "series", series,
+          "orders", orders, "employees", employees, "products", products);
     }
     var products =
         db.page(

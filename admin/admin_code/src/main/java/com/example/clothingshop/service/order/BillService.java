@@ -164,9 +164,42 @@ public class BillService {
 
   @Transactional
   public BillView changeStatus(long billId, int newStatus, Long managerId, String note) {
+    return changeStatus(billId, newStatus, managerId, note, true);
+  }
+
+  @Transactional
+  public void completeCarrierDelivery(long billId) {
+    queries.findBill2("i", billId);
+    var bill = get(billId);
+    if (bill.status() == 2 && bill.paymentStatus() != 2
+        && ("COD".equals(bill.paymentMethod()) || bill.paymentStatus() == 1)) {
+      changeStatus(billId, 3, null, "Viettel Post xác nhận giao thành công", false);
+    }
+  }
+
+  @Transactional
+  public BillView confirmDeliveredCash(long billId, long actor) {
+    queries.findBill2("i", billId);
+    var bill = get(billId);
+    if (bill.status() != 3 || !"COD".equals(bill.paymentMethod()) || bill.paymentStatus() == 2)
+      throw new BusinessException("Chỉ xác nhận đã nhận tiền cho đơn COD hoàn thành và chưa hoàn tiền.");
+    if (bill.paymentStatus() == 0) {
+      recordCashReceived(billId);
+      db.auditChange(actor, "COD_RECEIVED", "BILL", billId,
+          Map.of("paymentStatus", 0), Map.of("paymentStatus", 1), "Đã đối chiếu tiền COD");
+    }
+    return get(billId);
+  }
+
+  private BillView changeStatus(long billId, int newStatus, Long managerId, String note,
+      boolean markCashReceived) {
     queries.findBill2("i", billId);
     BillView bill = get(billId);
     int old = bill.status();
+    if (old == 1 && newStatus == 1) {
+      inventory.prepareDispatch(billId, managerId);
+      return bill;
+    }
     boolean valid =
         (old == 0 && (newStatus == 1 || newStatus == 4))
             || (old == 1 && (newStatus == 2 || newStatus == 4))
@@ -189,13 +222,15 @@ public class BillService {
     if (repo.updateStatus(billId, bill.status(), newStatus, managerId) == 0) {
       throw new BusinessException("Trạng thái đơn đã bị thay đổi, vui lòng tải lại");
     }
+    if (newStatus == 1) inventory.prepareDispatch(billId, managerId);
     repo.insertHistory(billId, bill.status(), newStatus, note, managerId);
+    if (newStatus == 4) queries.cancelDelivery("i", billId);
     if (newStatus == 4 && queries.updateBill2("i", billId) == 1) {
       inventory.cancelSale(billId, managerId);
     }
     if (newStatus == 3) queries.updateBill3("i", billId);
     if (newStatus == 5) queries.updateBill4("i", billId);
-    if (newStatus == 3 && bill.paymentMethod().equals("COD")) queries.updateBill5("i", billId);
+    if (newStatus == 3 && markCashReceived && bill.paymentMethod().equals("COD")) recordCashReceived(billId);
     db.auditChange(
         managerId,
         "STATUS_" + newStatus,
@@ -205,6 +240,12 @@ public class BillService {
         Map.of("status", newStatus),
         note);
     return get(billId);
+  }
+
+  private void recordCashReceived(long billId) {
+    if (queries.updateBill5("i", billId) == 1) {
+      queries.recordCashPayment("i", billId, "note", "Admin xác nhận đã nhận tiền COD");
+    }
   }
 
   public BigDecimal discount(String code, BigDecimal subtotal, boolean consume) {
@@ -266,6 +307,8 @@ public class BillService {
     if (!Objects.equals(order.get("PAYMENT_METHOD"), r.paymentMethod())
         || number(order, "PAYMENT_STATUS") != r.paymentStatus())
       throw new BusinessException("Không được sửa phương thức hoặc trạng thái thanh toán trong thông tin giao hàng");
+    if (order.get("VIETTEL_LINKED") instanceof Number linked && linked.intValue() > 0)
+      throw new BusinessException("Đơn đã gắn mã Viettel Post. Xem mục Vận chuyển để theo dõi.");
     queries.updateBill6(
         "p",
         r.paymentMethod(),

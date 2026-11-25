@@ -11,6 +11,7 @@ async function load() {
       html = await window.AdminModules[section].render();
     else if (window.AdminPages?.[section]?.render) html = await window.AdminPages[section].render();
     $("#content").innerHTML = html;
+    window.AdminV8?.[section]?.mount?.($("#content"));
     if (section === "stock")
       $("#clear-stock-filter").onclick = () => {
         filter = {};

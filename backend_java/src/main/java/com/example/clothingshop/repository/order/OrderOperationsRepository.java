@@ -29,7 +29,7 @@ public class OrderOperationsRepository {
 
   public List<Map<String, Object>> listInventoryDocument(Object... args) {
     return db.rows(
-        "SELECT ID,DOC_CODE,DOC_TYPE,STATUS,POSTED_AT FROM INVENTORY_DOCUMENT WHERE BILL_ID=:i"
+        "SELECT ID,DOC_CODE,DOC_TYPE,STATUS,POSTED_AT,WAREHOUSE_NAME FROM INVENTORY_DOCUMENT WHERE BILL_ID=:i"
             + " ORDER BY ID",
         args);
   }
@@ -53,6 +53,10 @@ public class OrderOperationsRepository {
     return db.update("UPDATE BILL SET STOCK_RESERVED=0 WHERE ID=:i AND STOCK_RESERVED=1", args);
   }
 
+  public void cancelDelivery(Object... args) {
+    db.update("UPDATE BILL_VIETTEL_DISPATCH SET SEND_STATE='CANCELLED' WHERE BILL_ID=:i AND SEND_STATE='DRAFT'", args);
+  }
+
   public int updateBill3(Object... args) {
     return db.update(
         "UPDATE BILL SET COMPLETED_AT=COALESCE(COMPLETED_AT,LOCALTIMESTAMP) WHERE ID=:i", args);
@@ -66,7 +70,14 @@ public class OrderOperationsRepository {
   }
 
   public int updateBill5(Object... args) {
-    return db.update("UPDATE BILL SET PAYMENT_STATUS=1 WHERE ID=:i", args);
+    return db.update("UPDATE BILL SET PAYMENT_STATUS=1 WHERE ID=:i AND PAYMENT_STATUS=0", args);
+  }
+
+  public void recordCashPayment(Object... args) {
+    db.update("""
+        INSERT INTO PAYMENT_HISTORY(BILL_ID,AMOUNT,PAYMENT_METHOD,STATUS,PAID_AT,NOTE)
+        SELECT ID,TOTAL_AMOUNT,'COD',1,LOCALTIMESTAMP,:note FROM BILL WHERE ID=:i
+        """, args);
   }
 
   public int updateVoucher(Object... args) {

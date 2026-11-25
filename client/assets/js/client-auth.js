@@ -34,7 +34,7 @@
         body: JSON.stringify(payload),
       });
     } catch {
-      throw Error('Không kết nối được máy chủ. Hãy chạy backend Java và thử lại.');
+      throw Error('Không kết nối được cửa hàng. Vui lòng thử lại.');
     }
 
     const body = await response.json().catch(() => null);
@@ -62,7 +62,7 @@
         body: new URLSearchParams({ username: payload.email, password: payload.password }),
       });
     } catch {
-      throw Error('Không kết nối được máy chủ quản trị. Hãy chạy backend Admin và thử lại.');
+      throw Error('Không kết nối được trang quản trị. Vui lòng thử lại.');
     }
     const result = await response.json().catch(() => null);
     if (!response.ok || result?.success !== true || result.redirect !== '/admin') {
@@ -128,7 +128,8 @@
     if (!register.reportValidity()) return;
     const password = input('reg-password').value;
     if (password !== input('reg-confirm-password').value) {
-      notice.textContent = 'Mật khẩu xác nhận không khớp.';
+      notice.textContent = 'Nhập lại mật khẩu phải khớp với ô Mật khẩu.';
+      input('reg-confirm-password').focus();
       notice.hidden = false;
       return;
     }

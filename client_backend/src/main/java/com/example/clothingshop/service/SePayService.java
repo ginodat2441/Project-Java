@@ -19,8 +19,31 @@ public class SePayService {
 
     private final String apiKey;
 
+    @Value("${app.sepay.bank:}")
+    private String bank = "";
+    @Value("${app.sepay.account-number:}")
+    private String account = "";
+
     public SePayService(@Value("${app.sepay.secret-key:}") String apiKey) {
         this.apiKey = apiKey;
+    }
+
+    public void requireCheckoutConfiguration() {
+        if (!isApiKeyConfigured() || !bank.matches("[A-Za-z0-9_-]{1,50}")
+                || !account.matches("[A-Za-z0-9]{1,50}")) {
+            throw new com.example.clothingshop.common.BusinessException(
+                    "Phương thức thanh toán SePay chưa sẵn sàng. Vui lòng chọn COD.");
+        }
+    }
+
+    public String qrUrl(java.math.BigDecimal amount, String billCode) {
+        requireCheckoutConfiguration();
+        if (amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 0)
+            throw new com.example.clothingshop.common.BusinessException("Số tiền thanh toán SePay không hợp lệ.");
+        return org.springframework.web.util.UriComponentsBuilder.fromUriString("https://vietqr.app/img")
+                .queryParam("bank", bank).queryParam("acc", account)
+                .queryParam("amount", amount.toBigIntegerExact()).queryParam("des", billCode)
+                .queryParam("template", "compact").build().encode().toUriString();
     }
 
     public boolean isApiKeyConfigured() {

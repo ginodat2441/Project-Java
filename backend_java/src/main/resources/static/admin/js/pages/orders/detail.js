@@ -16,7 +16,8 @@ function orderInventoryPanel(data) {
       [
         ["DOC_CODE", "Phiếu"],
         ["DOC_TYPE", "Nghiệp vụ", (v) => esc(movementName(v))],
-        ["STATUS", "Trạng thái"],
+        ["STATUS", "Trạng thái", (value) => ({ DRAFT: "Nháp", POSTED: "Đã ghi tồn", CANCELLED: "Đã hủy" })[value] || value],
+        ["WAREHOUSE_NAME", "Kho xuất", (value) => esc(value || "—")],
         ["POSTED_AT", "Ghi tồn", date],
       ],
       (r) => button("Xem phiếu", "view-inventory", r.ID),
@@ -27,7 +28,72 @@ function orderInventoryPanel(data) {
 async function orderEditor(id) {
   const d = await api("/api/admin/orders/" + id),
     r = d.order,
-    refundHtml = window.AdminV8 ? await window.AdminV8.refundPanel(id) : "";
+    refundHtml = window.AdminV8 ? await window.AdminV8.refundPanel(id, (d.inventoryDocuments || []).some((doc) => doc.DOC_TYPE === "RETURN" && doc.STATUS === "POSTED")) : "";
+  let tracking, trackingError, fulfillment;
+  try {
+    [tracking, fulfillment] = await Promise.all([
+      api(`/api/admin/orders/${id}/viettel-tracking`),
+      api(`/api/admin/orders/${id}/viettel-fulfillment`),
+    ]);
+  } catch (error) {
+    trackingError = error.message;
+  }
+  const state = Number(r.STATUS);
+  const isAdmin = typeof me !== "undefined" && me?.roles?.some((role) => role.authority === "ROLE_ADMIN");
+  const hasTracking = Boolean(tracking?.TRACKING_CODE);
+  const hasOtherTracking = Boolean(r.TRACKING_CODE && !/^viettel[ _]?post$/i.test(r.CARRIER || ""));
+  const postedDispatch = (d.inventoryDocuments || []).some((doc) => doc.DOC_TYPE === "DISPATCH" && doc.STATUS === "POSTED");
+  const canDispatch = !trackingError && !hasTracking && !r.TRACKING_CODE && state === 2 && postedDispatch && isAdmin;
+  const paid = Number(r.PAYMENT_STATUS);
+  const shipment = fulfillment?.delivery || {};
+  const retry = shipment.SEND_STATE === "RETRY" || shipment.SEND_STATE === "SENDING";
+  const shipmentState = {
+    DRAFT: shipment.DOCUMENT_STATUS === "POSTED" ? "Sẵn sàng gửi" : "Nháp, chờ xuất hàng",
+    SENDING: "Đang gửi hoặc chờ đối chiếu",
+    RETRY: "Cần đối chiếu trước khi gửi lại",
+    LINKED: "Đã có mã vận đơn",
+    CANCELLED: "Đã hủy",
+  }[shipment.SEND_STATE];
+  const shipmentSummary = shipmentState ? `<p>Đơn giao hàng: <b>${esc(shipmentState)}</b>
+    ${shipment.WEIGHT_GRAMS == null ? "" : " · " + esc(shipment.WEIGHT_GRAMS) + " g"}
+    ${shipment.SERVICE_CODE ? " · Dịch vụ " + esc(shipment.SERVICE_CODE) : ""}
+    ${shipment.ATTEMPTS > 0 ? " · Đã gửi " + esc(shipment.ATTEMPTS) + " lần" : ""}
+    ${shipment.DOCUMENT_ID ? " · " + button("Phiếu " + esc(shipment.DOC_CODE), "view-inventory", shipment.DOCUMENT_ID) : ""}
+    </p>${shipment.LAST_ERROR ? "<p>" + esc(shipment.LAST_ERROR) + "</p>" : ""}` : "";
+  const paymentReady = r.PAYMENT_METHOD === "COD" || paid === 1;
+  const dispatchDraft = (d.inventoryDocuments || []).find((doc) =>
+    doc.DOC_TYPE === "DISPATCH" && doc.STATUS === "DRAFT");
+  const workflow = {
+    0: [paymentReady ? "Kiểm tra đơn và xác nhận để chuyển sang chuẩn bị hàng." : "Chờ xác nhận thanh toán.",
+        paymentReady ? button("Xác nhận đơn", "confirm-order", id) : ""],
+    1: [dispatchDraft ? "Mở phiếu xuất để kiểm tra và ghi tồn trước khi giao." : "Lập phiếu xuất giao từ sản phẩm trong đơn.",
+        dispatchDraft ? button("Mở phiếu xuất giao", "view-inventory", dispatchDraft.ID)
+          : paymentReady ? button("Lập phiếu xuất giao", "prepare-dispatch", id) : ""],
+    2: [canDispatch ? "Lấy cước và chọn dịch vụ để tạo vận đơn." : hasTracking
+          ? "Theo dõi vận đơn và xác nhận khi đã giao xong." : "Kiểm tra thông tin vận chuyển trước khi hoàn thành.",
+        canDispatch ? button("Đến bước vận chuyển", "show-shipping", id)
+          : paymentReady && paid !== 2 ? button("Xác nhận hoàn thành", "complete-order", id) : ""],
+    3: [r.PAYMENT_METHOD === "COD" && paid === 0 ? "Đơn đã giao. Đối chiếu khoản thu hộ trước khi ghi nhận đã nhận tiền." : "Đơn đã hoàn thành.",
+        r.PAYMENT_METHOD === "COD" && paid === 0 && isAdmin ? button("Xác nhận đã nhận tiền COD", "confirm-cod-received", id) : ""],
+    4: ["Đơn đã hủy.", ""],
+    5: ["Đơn đang xử lý trả hàng.", ""],
+    6: ["Đơn giao thất bại. Lập phiếu nhận hoàn khi hàng về kho.", ""],
+  }[state];
+  const viettelPanel = trackingError
+    ? `<h3>Vận chuyển</h3><p role="status">Không tải được trạng thái Viettel Post. ${esc(trackingError)}</p>`
+    : `<h3>Vận chuyển</h3>${shipmentSummary}${canDispatch ? `<div class="toolbar">${button("Lấy cước theo đơn", "quote-viettel-dispatch", id)}</div><div class="grid"><label>Dịch vụ Viettel Post<select name="viettelService" disabled><option value="">Lấy cước để chọn dịch vụ</option></select></label></div><div class="toolbar">${button(retry ? "Gửi lại Viettel Post" : "Tạo vận đơn Viettel Post", "create-viettel-dispatch", id)}</div><p data-viettel-feedback aria-live="polite"></p>` : ""}${hasTracking ? `<p>Mã vận đơn Viettel Post: <b>${esc(tracking.TRACKING_CODE)}</b> ${button("Tải lại trạng thái", "refresh-viettel-tracking", id)}</p>` : !hasOtherTracking ? `<details><summary>Gắn mã vận đơn Viettel Post đã có</summary><div class="grid">${input(
+        "viettelTracking", "Mã vận đơn Viettel Post", tracking.TRACKING_CODE ||
+          (/^viettel[ _]?post$/i.test(r.CARRIER || "") ? r.TRACKING_CODE : ""),
+        "text", false, 'maxlength="50" pattern="[A-Za-z0-9-]{1,50}"'
+      )}</div><div class="toolbar">${button("Gắn mã vận đơn", "link-viettel-tracking", id)}</div></details>` : ""}
+      <p>Trạng thái hãng: <b>${esc(tracking.STATUS_NAME ||
+        (tracking.STATUS_CODE != null ? "Mã trạng thái " + tracking.STATUS_CODE :
+          tracking.TRACKING_CODE ? "Đang chờ cập nhật" : hasOtherTracking ? "Đang dùng hãng vận chuyển khác" : "Chưa gắn mã vận đơn"))}</b>
+        ${tracking.EVENT_AT ? " · " + esc(tracking.EVENT_AT) : ""}</p>
+        ${Number(r.STATUS) === 2 && tracking.STATUS_CODE === 501
+          ? "<p class='report-note'>Viettel Post đã báo giao thành công. Kiểm tra điều kiện hoàn thành của đơn.</p>" : ""}
+      ${fulfillment?.history?.length ? `<details><summary>Hành trình Viettel Post</summary>${table(fulfillment.history,
+        [["EVENT_AT", "Thời điểm"], ["STATUS_NAME", "Trạng thái hãng"], ["STATUS_CODE", "Mã"]])}</details>` : ""}`;
   const transitions = { 0: [1, 4], 1: [4], 2: [3, 6], 3: [5], 4: [], 5: [], 6: [] };
   modal(
     "Đơn " + r.BILL_CODE,
@@ -48,7 +114,7 @@ async function orderEditor(id) {
         ["PRICE", "Đơn giá", money],
         ["TOTAL", "Thành tiền", money],
       ],
-    )}<h3>Thanh toán và giao hàng</h3><div class="grid">${select(
+    )}<h3>Thanh toán và hãng khác</h3><div class="grid">${select(
       "paymentMethod",
       "Phương thức",
       [
@@ -64,7 +130,7 @@ async function orderEditor(id) {
         { ID: 1, NAME: "Đã nhận tiền" },
       ],
       r.PAYMENT_STATUS,
-    )}${input("carrier", "Đơn vị vận chuyển", r.CARRIER, "text", false)}${input("trackingCode", "Mã theo dõi", r.TRACKING_CODE, "text", false)}</div><div class="toolbar">${button("Lưu giao hàng / thanh toán", "save-shipping", id)}</div>${Number(r.STATUS) === 1 ? `<div class="toolbar">${button("Lập phiếu xuất giao (ADMIN duyệt)", "prepare-dispatch", id)}</div>` : ""}<h3>Chuyển trạng thái</h3><div class="toolbar">${select(
+    )}${input("carrier", "Đơn vị vận chuyển", r.CARRIER, "text", false)}${input("trackingCode", "Mã theo dõi", r.TRACKING_CODE, "text", false)}</div><div class="toolbar">${button("Lưu giao hàng / thanh toán", "save-shipping", id)}</div>${viettelPanel}<h3>Chuyển trạng thái</h3><div class="toolbar">${select(
       "nextStatus",
       "Trạng thái mới",
       (transitions[r.STATUS] || []).map((ID) => ({ ID, NAME: statusNames[ID] })),
@@ -80,9 +146,16 @@ async function orderEditor(id) {
       ],
     )}`,
   );
+  let busy = false;
   $("#fields").onclick = async (e) => {
     const b = e.target.closest("[data-action]");
-    if (!b) return;
+    if (!b || busy) return;
+    if (b.dataset.action === "show-shipping") {
+      fields.querySelector("[data-action=quote-viettel-dispatch]").focus();
+      return;
+    }
+    busy = true;
+    $("#form-error").textContent = "";
     b.disabled = true;
     try {
       if (b.dataset.action === "record-refund" || b.dataset.action === "edit-refund") {
@@ -94,17 +167,87 @@ async function orderEditor(id) {
       }
       if (b.dataset.action === "prepare-dispatch") {
         const doc = await api("/api/admin/orders/" + id + "/dispatch", "POST");
-        await window.AdminModules.documents.detail(Number(doc));
+        await window.AdminModules.documents.detail(Number(doc), id);
         return;
       }
       if (b.dataset.action === "view-inventory") {
         $("#dialog").close();
-        await window.AdminModules.documents.detail(Number(b.dataset.id));
+        await window.AdminModules.documents.detail(Number(b.dataset.id), id);
         return;
       }
       if (b.dataset.action === "receive-return") {
         $("#dialog").close();
         await window.AdminModules.documents.receive(id);
+        return;
+      }
+      if (b.dataset.action === "quote-viettel-dispatch") {
+        const field = fields.querySelector("[name=viettelService]");
+        const feedback = fields.querySelector("[data-viettel-feedback]");
+        field.replaceChildren(new Option("Chọn dịch vụ", ""));
+        field.disabled = true;
+        createButton.disabled = true;
+        feedback.textContent = "Đang lấy cước Viettel Post…";
+        try {
+          const offers = await api(`/api/admin/shipping/orders/${id}/quote`, "POST");
+          for (const offer of offers) {
+            const eta = offer.deliveryTime ? " · " + offer.deliveryTime : "";
+            field.add(new Option(offer.serviceName + " · " + money(offer.fee) + eta, offer.serviceCode));
+          }
+          field.disabled = !offers.length;
+          if (retry && shipment.SERVICE_CODE && offers.some((offer) => offer.serviceCode === shipment.SERVICE_CODE)) {
+            field.value = shipment.SERVICE_CODE;
+            createButton.disabled = false;
+          }
+          feedback.textContent = offers.length ? "Chọn dịch vụ để tạo vận đơn." : "Không có dịch vụ phù hợp.";
+          if (offers.length) field.focus();
+        } catch (error) {
+          feedback.textContent = error.message;
+        } finally {
+          b.disabled = false;
+        }
+        return;
+      }
+      if (b.dataset.action === "confirm-cod-received") {
+        if (!confirm("Đã đối chiếu và nhận đủ tiền COD của đơn này?")) {
+          b.disabled = false;
+          return;
+        }
+        await api(`/api/admin/shipping/orders/${id}/cash-received`, "POST");
+        $("#dialog").close();
+        await load();
+        await orderEditor(id);
+        return;
+      }
+      if (b.dataset.action === "create-viettel-dispatch") {
+        const serviceCode = fields.querySelector("[name=viettelService]").value.trim().toUpperCase();
+        if (!serviceCode) throw Error("Dịch vụ Viettel Post là trường bắt buộc.");
+        const message = retry
+          ? "Đã kiểm tra Viettel Post và chưa thấy vận đơn? Hệ thống sẽ gửi lại với cùng mã đơn."
+          : "Tạo vận đơn thật trên Viettel Post cho đơn " + r.BILL_CODE + "?";
+        if (!confirm(message)) {
+          b.disabled = false;
+          return;
+        }
+        await api(`/api/admin/shipping/orders/${id}/create`, "POST", { serviceCode });
+        $("#dialog").close();
+        await orderEditor(id);
+        return;
+      }
+      if (b.dataset.action === "link-viettel-tracking" || b.dataset.action === "refresh-viettel-tracking") {
+        if (b.dataset.action === "link-viettel-tracking") {
+          const field = fields.querySelector("[name=viettelTracking]");
+          if (!field.value.trim()) {
+            field.focus();
+            throw Error("Mã vận đơn Viettel Post là trường bắt buộc.");
+          }
+          if (!field.reportValidity()) {
+            b.disabled = false;
+            return;
+          }
+          await api(`/api/admin/orders/${id}/viettel-tracking`, "PUT", { trackingCode: field.value.trim() });
+        }
+        $("#dialog").close();
+        await orderEditor(id);
         return;
       }
       if (b.dataset.action === "save-shipping")
@@ -115,9 +258,11 @@ async function orderEditor(id) {
           trackingCode: $("[name=trackingCode]").value,
         });
       else {
-        if ($("[name=nextStatus]").value === "") throw Error("Chọn trạng thái mới.");
+        const nextStatus = b.dataset.action === "confirm-order" ? 1 :
+          b.dataset.action === "complete-order" ? 3 : $("[name=nextStatus]").value;
+        if (nextStatus === "") throw Error("Trạng thái mới là trường bắt buộc.");
         await api(`/api/admin/orders/${id}/status`, "PUT", {
-          status: Number($("[name=nextStatus]").value),
+          status: Number(nextStatus),
           note: $("[name=note]").value,
         });
       }
@@ -127,6 +272,8 @@ async function orderEditor(id) {
     } catch (e) {
       $("#form-error").textContent = e.message;
       b.disabled = false;
+    } finally {
+      busy = false;
     }
   };
 }

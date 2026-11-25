@@ -26,15 +26,16 @@ public class VoucherService {
 
   @Transactional
   public long voucher(Long id, Voucher r, long actor) {
-    if (!r.endsAt().isAfter(r.startsAt())
-        || (r.type().equals("PERCENT")
-            && (r.value().compareTo(java.math.BigDecimal.valueOf(100)) > 0
-                || r.maxDiscount().signum() == 0)))
-      throw new BusinessException("Thời gian hoặc mức giảm không hợp lệ");
+    if (!r.endsAt().isAfter(r.startsAt()))
+      throw new BusinessException("Hết hạn phải sau thời điểm Có hiệu lực từ.");
+    if (r.type().equals("PERCENT") && r.value().compareTo(java.math.BigDecimal.valueOf(100)) > 0)
+      throw new BusinessException("Mức giảm không được vượt quá 100%.");
+    if (r.type().equals("PERCENT") && r.maxDiscount().signum() == 0)
+      throw new BusinessException("Giảm tối đa phải lớn hơn 0 khi dùng loại giảm Phần trăm.");
     if (id != null) {
       var old = queries.findVoucher("i", id);
       if (number(old, "USED_COUNT") > r.usageLimit())
-        throw new BusinessException("Giới hạn thấp hơn lượt đã dùng");
+        throw new BusinessException("Giới hạn lượt không được thấp hơn số lượt đã dùng.");
     }
     Object[] p = {
       "c",
@@ -58,8 +59,12 @@ public class VoucherService {
       "i",
       id
     };
-    if (id == null) id = queries.insertVoucher(p);
-    else queries.updateVoucher(p);
+    try {
+      if (id == null) id = queries.insertVoucher(p);
+      else queries.updateVoucher(p);
+    } catch (org.springframework.dao.DuplicateKeyException e) {
+      throw new BusinessException("Mã voucher đã được sử dụng.");
+    }
     db.audit(actor, "SAVE", "VOUCHER", id);
     return id;
   }

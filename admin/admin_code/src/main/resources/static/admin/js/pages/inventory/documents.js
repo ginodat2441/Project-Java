@@ -181,12 +181,12 @@
     updateType();
   }
 
-  async function detailDocument(id) {
+  async function detailDocument(id, returnToOrder) {
     const data = await api("/api/admin/inventory/documents/" + id),
       r = data.document;
     modal(
       "Phiếu " + r.DOC_CODE,
-      `<div class="grid"><section><p><b>${esc(types[r.DOC_TYPE])}</b> · ${esc(states[r.STATUS])}</p><p>${esc(r.REASON)}</p><p>Đơn gốc: ${r.BILL_ID ? button(esc(r.BILL_CODE || r.BILL_ID), "open-linked-order", r.BILL_ID) : "—"}${r.RECEIVER_NAME ? " · " + esc(r.RECEIVER_NAME) : ""}${r.ORDER_STATUS != null ? " · " + esc(statusNames[r.ORDER_STATUS]) : ""} · Phiếu gốc: ${esc(r.SOURCE_ID || "—")}</p></section><section><p>Lập: ${esc(r.CREATOR || "Hệ thống / khách")} · ${date(r.CREATED_AT)}</p><p>Xác nhận: ${esc(r.APPROVER || "—")} · ${date(r.POSTED_AT)}</p><p>Lý do hủy: ${esc(r.CANCEL_REASON || "—")}</p></section></div>${r.DOC_TYPE === "RECEIPT" ? `<p><b>Tổng giá trị nhập: ${data.lines.some((l) => l.UNIT_COST == null) ? "Chưa đủ đơn giá" : money(data.lines.reduce((sum, l) => sum + Number(l.LINE_COST || 0), 0))}</b></p>` : ""}${table(
+      `<div class="grid"><section><p><b>${esc(types[r.DOC_TYPE])}</b> · ${esc(states[r.STATUS])}</p><p>${esc(r.REASON)}</p>${r.WAREHOUSE_NAME ? "<p>Kho xuất: " + esc(r.WAREHOUSE_NAME) + "</p>" : ""}<p>Đơn gốc: ${r.BILL_ID ? button(esc(r.BILL_CODE || r.BILL_ID), "open-linked-order", r.BILL_ID) : "—"}${r.RECEIVER_NAME ? " · " + esc(r.RECEIVER_NAME) : ""}${r.ORDER_STATUS != null ? " · " + esc(statusNames[r.ORDER_STATUS]) : ""} · Phiếu gốc: ${esc(r.SOURCE_ID || "—")}</p></section><section><p>Lập: ${esc(r.CREATOR || "Hệ thống / khách")} · ${date(r.CREATED_AT)}</p><p>Xác nhận: ${esc(r.APPROVER || "—")} · ${date(r.POSTED_AT)}</p><p>Lý do hủy: ${esc(r.CANCEL_REASON || "—")}</p></section></div>${r.DOC_TYPE === "RECEIPT" ? `<p><b>Tổng giá trị nhập: ${data.lines.some((l) => l.UNIT_COST == null) ? "Chưa đủ đơn giá" : money(data.lines.reduce((sum, l) => sum + Number(l.LINE_COST || 0), 0))}</b></p>` : ""}${table(
         data.lines,
         [
           ["SKU", "SKU"],
@@ -252,7 +252,11 @@
           $("#dialog").close();
           notice("Đã xử lý phiếu thành công.");
           await load();
-          await detailDocument(suffix === "reverse" ? Number(result) : id);
+          if (returnToOrder && r.DOC_TYPE === "DISPATCH" && suffix === "approve") {
+            await orderEditor(returnToOrder);
+          } else {
+            await detailDocument(suffix === "reverse" ? Number(result) : id, returnToOrder);
+          }
         } catch (e) {
           $("#form-error").textContent = e.message;
           button.disabled = false;

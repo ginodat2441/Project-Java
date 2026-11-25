@@ -1,0 +1,6 @@
+
+.order-next-step { background:#e9f4f2; border-color:#c6e2dc; }
+.order-next-step h3, .order-next-step p { margin-top:0; }
+details.order-detail-section > summary, .order-detail-section details > summary { cursor:pointer; font-weight:600; }
+details.order-detail-section[open] > summary, .order-detail-section details[open] > summary { margin-bottom:12px; }
+.order-detail-section [data-viettel-feedback]:empty { display:none; }

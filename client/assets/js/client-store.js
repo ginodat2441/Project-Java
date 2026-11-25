@@ -1,6 +1,7 @@
 /* Native eStore integration: keep the team's template and populate it from Java APIs. */
 (() => {
   'use strict';
+  let addressFieldId = 0;
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
   const orderStatuses = [
@@ -25,20 +26,6 @@
     if (bill.paymentMethod === 'SEPAY' && bill.paymentStatus === 1 && bill.status === 0)
       return 'Đã thanh toán - Chờ xác nhận';
     return statuses[bill.status] || 'Đang cập nhật';
-  }
-  const sePayQrBank = 'Vietcombank';
-  const sePayQrAccount = 'SBSEPAYGL9TEMZRXDAK';
-  function sePayQrUrl(amount, description) {
-    const value = Number(amount);
-    if (!Number.isSafeInteger(value) || value <= 0)
-      throw Error('Số tiền thanh toán SePay không hợp lệ.');
-    const url = new URL('https://vietqr.app/img');
-    url.searchParams.set('bank', sePayQrBank);
-    url.searchParams.set('acc', sePayQrAccount);
-    url.searchParams.set('template', 'compact');
-    url.searchParams.set('amount', String(value));
-    url.searchParams.set('des', String(description));
-    return url.toString();
   }
   const isLoopbackHost =
     location.hostname === 'localhost' || location.hostname === '127.0.0.1';
@@ -78,8 +65,8 @@
       img.hidden = true;
     };
   }
-  async function api(url, method = 'GET', data) {
-    const headers = { Accept: 'application/json' };
+  async function api(url, method = 'GET', data, extraHeaders = {}) {
+    const headers = { Accept: 'application/json', ...extraHeaders };
     const token = sessionStorage.getItem(tokenKey);
     if (token) headers.Authorization = 'Bearer ' + token;
     if (data !== undefined) headers['Content-Type'] = 'application/json';
@@ -93,14 +80,14 @@
         ...(data === undefined ? {} : { body: JSON.stringify(data) }),
       });
     } catch {
-      throw Error('Không kết nối được máy chủ. Vui lòng kiểm tra backend Java.');
+      throw Error('Không kết nối được cửa hàng. Vui lòng thử lại.');
     }
     const body = await response.json().catch(() => null);
     if (!response.ok) {
       const error = Error(
-        response.status >= 500
+        (body?.success === false && body.message) || (response.status >= 500
           ? 'Máy chủ chưa xử lý được yêu cầu. Vui lòng thử lại sau.'
-          : body?.message || 'Yêu cầu không hợp lệ. Hãy tải lại trang.',
+          : 'Yêu cầu không hợp lệ. Hãy tải lại trang.'),
       );
       error.status = response.status;
       throw error;
@@ -517,9 +504,12 @@
         return;
       }
       const quantity = Number(qty.value);
-      if (!selected || !Number.isInteger(quantity) || quantity < 1 || quantity > selected.quantity)
-        throw Error('Chọn màu, kích cỡ và số lượng còn hàng hợp lệ.');
-      if (quantity > 100) throw Error('Mỗi biến thể được mua tối đa 100 sản phẩm trong một đơn.');
+      if (!selected) throw Error('Màu sắc và Kích cỡ đã chọn không có sẵn.');
+      if (!Number.isInteger(quantity) || quantity < 1)
+        throw Error('Số lượng phải là số nguyên từ 1 trở lên.');
+      if (quantity > 100) throw Error('Số lượng tối đa là 100 sản phẩm cho mỗi biến thể.');
+      if (quantity > selected.quantity)
+        throw Error(`Số lượng vượt quá tồn kho. Hiện còn ${selected.quantity} sản phẩm.`);
       if (go) {
         location.assign(`checkout.html?buyNow=1&productId=${id}&variantId=${selected.id}&quantity=${quantity}`);
         return;
@@ -778,8 +768,11 @@
       forms.forEach((f) => $$('input,button', f).forEach((n) => (n.disabled = true)));
       return;
     }
-    const profile = $('#firstName').closest('form');
-    profile.reset();
+    const fullName = (customer.FULL_NAME || '').trim().split(/\s+/);
+    $('#firstName', host).value = fullName.pop() || '';
+    $('#lastName', host).value = fullName.join(' ');
+    $('#email', host).value = customer.EMAIL || '';
+    $('#phone', host).value = customer.PHONE || '';
     $$('#settings form', host).forEach((form) =>
       form.querySelectorAll('input,button').forEach((n) => (n.disabled = true)),
     );
@@ -926,23 +919,11 @@
     const editAddress = (a) => {
       const form = document.createElement('form');
       form.className = 'client-address-card';
-      const fields = [
-        ['receiverName', 'Người nhận', 'receiverName', 150],
-        ['receiverPhone', 'Điện thoại', 'receiverPhone', 20],
-        ['province', 'Tỉnh/thành phố', 'province', 100],
-        ['ward', 'Phường/xã', 'ward', 100],
-        ['detailAddress', 'Địa chỉ chi tiết', 'detailAddress', 300],
-      ];
-      form.innerHTML =
-        fields
-          .map(
-            ([name, label, key, max]) =>
-              `<label class="d-block mb-3">${label}<input class="form-control" name="${name}" required maxlength="${max}" value="${esc(a?.[key] || '')}"></label>`,
-          )
-          .join('') +
-        '<label><input type="checkbox" name="isDefault"> Đặt làm mặc định</label><p><button class="btn btn-primary" type="submit">Lưu địa chỉ</button> <button class="btn btn-link" type="button">Hủy</button></p>';
+      form.innerHTML = deliveryAddressFields(a || {}) +
+        '<label><input type="checkbox" name="isDefault"> Đặt làm mặc định</label><p><button class="btn btn-primary" type="submit">Lưu địa chỉ</button> <button class="btn btn-link" type="button" data-cancel-address>Hủy</button></p>';
       $('[name="isDefault"]', form).checked = a?.isDefault === true;
-      $('[type="button"]', form).onclick = () => form.remove();
+      $('[data-cancel-address]', form).onclick = () => form.remove();
+      bindDeliveryAddress(form).load();
       form.onsubmit = (e) => {
         e.preventDefault();
         action($('[type="submit"]', form), async () => {
@@ -1012,13 +993,14 @@
       .join('');
     form.innerHTML =
       `<label class="d-block mb-3">Địa chỉ nhận hàng<select class="form-select" name="addressId"><option value="">Chọn địa chỉ</option>${addressOptions}<option value="new" ${addresses.length ? '' : 'selected'}>Nhập địa chỉ mới</option></select></label>` +
-      '<div class="client-new-address" hidden><label class="d-block mb-3">Người nhận<input class="form-control" name="receiverName" maxlength="150"></label><label class="d-block mb-3">Điện thoại<input class="form-control" name="receiverPhone" maxlength="20"></label><label class="d-block mb-3">Tỉnh/thành phố<input class="form-control" name="province" maxlength="100"></label><label class="d-block mb-3">Phường/xã<input class="form-control" name="ward" maxlength="100"></label><label class="d-block mb-3">Địa chỉ chi tiết<input class="form-control" name="detailAddress" maxlength="300"></label></div>' +
+      `<fieldset class="client-new-address" hidden disabled>${deliveryAddressFields()}</fieldset>` +
       '<fieldset class="mb-3"><legend class="form-label">Phương thức thanh toán</legend><label class="d-block"><input type="radio" name="paymentMethod" value="COD" checked> Thanh toán khi nhận hàng (COD)</label><label class="d-block"><input type="radio" name="paymentMethod" value="SEPAY"> Chuyển khoản qua SePay</label></fieldset><div class="client-voucher mb-3"><label class="d-block">Mã giảm giá<input name="voucherCode" class="form-control" maxlength="50" autocomplete="off" placeholder="Nhập mã voucher"></label><button type="button" class="btn btn-outline-primary mt-2" data-voucher-apply>Áp dụng voucher</button><p class="client-voucher-message" role="status"></p></div><label class="d-block mb-3">Ghi chú<textarea name="note" class="form-control" maxlength="500"></textarea></label><p class="client-checkout-total"></p><button type="submit" class="btn btn-primary">Đặt hàng</button>';
     const addressSelect = $('[name="addressId"]', form);
     const newAddress = $('.client-new-address', form);
+    const deliveryAddress = bindDeliveryAddress(newAddress);
     addressSelect.onchange = () => {
-      newAddress.hidden = addressSelect.value !== 'new';
-      $$('input', newAddress).forEach((input) => (input.required = !newAddress.hidden));
+      newAddress.disabled = newAddress.hidden = addressSelect.value !== 'new';
+      if (!newAddress.hidden) deliveryAddress.load();
     };
     addressSelect.dispatchEvent(new Event('change'));
     if (summary) {
@@ -1057,7 +1039,7 @@
     $('[data-voucher-apply]', form).onclick = (event) =>
       action(event.currentTarget, async () => {
         const code = voucherInput.value.trim().toUpperCase();
-        if (!code) throw Error('Nhập mã voucher trước khi áp dụng.');
+        if (!code) throw Error('Mã giảm giá là trường bắt buộc khi áp dụng voucher.');
         const sequence = ++quoteSequence;
         const quote = await api('/api/bills/quote', 'POST', {
           code,
@@ -1073,6 +1055,7 @@
         voucherMessage.setAttribute('role', 'status');
         renderTotals();
       });
+    let checkoutAttempt, createdAddress;
     form.onsubmit = (event) => {
       event.preventDefault();
       if (!form.reportValidity()) return;
@@ -1080,26 +1063,31 @@
       action(button, async () => {
         const enteredCode = voucherInput.value.trim().toUpperCase();
         if (enteredCode && enteredCode !== appliedVoucherCode)
-          throw Error('Hãy áp dụng lại voucher trước khi đặt hàng.');
+          throw Error('Mã giảm giá đã thay đổi. Hãy áp dụng lại trước khi đặt hàng.');
         let addressId = Number(addressSelect.value);
         if (addressSelect.value === 'new') {
           const address = Object.fromEntries(new FormData(form));
-          const created = await api('/api/addresses', 'POST', {
+          const addressRequest = {
             receiverName: address.receiverName,
             receiverPhone: address.receiverPhone,
             province: address.province,
             ward: address.ward,
             detailAddress: address.detailAddress,
             isDefault: addresses.length === 0,
-          });
-          addressId = created.id;
+          };
+          const addressFingerprint = JSON.stringify(addressRequest);
+          if (createdAddress?.fingerprint !== addressFingerprint) {
+            const saved = await api('/api/addresses', 'POST', addressRequest);
+            createdAddress = {fingerprint: addressFingerprint, id: saved.id};
+          }
+          addressId = createdAddress.id;
         }
         if (!Number.isSafeInteger(addressId) || addressId < 1)
           throw Error('Vui lòng chọn hoặc nhập địa chỉ nhận hàng.');
         const paymentMethod = $('input[name="paymentMethod"]:checked', form)?.value;
         if (paymentMethod !== 'COD' && paymentMethod !== 'SEPAY')
           throw Error('Vui lòng chọn phương thức thanh toán.');
-        const order = await api('/api/bills', 'POST', {
+        const orderRequest = {
           addressId,
           paymentMethod,
           note: $('[name="note"]', form).value.trim(),
@@ -1108,16 +1096,31 @@
             productDetailId: item.productDetailId,
             quantity: item.quantity,
           })),
-        });
+        };
+        const requestBody = JSON.stringify(orderRequest);
+        const savedKey = 'clothingShop.checkout.' + customer.customerId;
+        const fingerprint = crypto.subtle
+          ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(requestBody))))
+              .map((byte) => byte.toString(16).padStart(2, '0')).join('')
+          : requestBody;
+        if (!checkoutAttempt && crypto.subtle) {
+          try { checkoutAttempt = JSON.parse(sessionStorage.getItem(savedKey)); } catch {}
+        }
+        if (checkoutAttempt?.fingerprint !== fingerprint) {
+          checkoutAttempt = {fingerprint, key: crypto.randomUUID()};
+          if (crypto.subtle) sessionStorage.setItem(savedKey, JSON.stringify(checkoutAttempt));
+        }
+        const order = await api('/api/bills', 'POST', orderRequest, {'Idempotency-Key': checkoutAttempt.key});
+        sessionStorage.removeItem(savedKey);
         // The order is committed: prevent resubmitting even if a later payment/cart request fails.
         form.onsubmit = (e) => e.preventDefault();
         if (order.paymentMethod !== paymentMethod)
           throw Error(
             `Đơn ${order.billCode} đã được tạo, nhưng backend trả về phương thức ${order.paymentMethod || 'không xác định'} thay vì ${paymentMethod}.`,
           );
-        let paymentWarning = '';
+        let paymentWarning = '', paymentQr;
         if (paymentMethod === 'SEPAY') {
-          try { await api('/api/bills/' + order.id + '/sepay-payment', 'POST'); }
+          try { paymentQr = (await api('/api/bills/' + order.id + '/sepay-payment', 'POST')).qrUrl; }
           catch { paymentWarning = 'Đơn đã được tạo. Hãy mở chi tiết đơn để tiếp tục thanh toán SePay.'; }
         }
         if (!directPurchase) saveCartSelection(new Set());
@@ -1125,7 +1128,7 @@
           directPurchase ? [] : checkoutItems.map((item) => api(cartPath() + '/items/' + item.id, 'DELETE')),
         );
         const failedRemoval = removals.find((result) => result.status === 'rejected');
-        let cartWarning = failedRemoval ? failedRemoval.reason.message : paymentWarning;
+        let cartWarning = failedRemoval ? failedRemoval.reason.message : "";
         if (!cartWarning && !directPurchase) {
           try {
             await refreshCart();
@@ -1134,18 +1137,19 @@
           }
         }
         const result = document.createElement('section');
-        result.className = cartWarning ? 'alert alert-warning' : 'alert alert-success';
+        result.className = cartWarning || paymentWarning ? 'alert alert-warning' : 'alert alert-success';
         result.setAttribute('role', 'status');
         const resultText = document.createElement('p');
         resultText.textContent = cartWarning
           ? `Đơn ${order.billCode} đã được tạo với phương thức ${paymentMethod}, nhưng giỏ hàng chưa cập nhật được: ${cartWarning}`
           : `Đặt hàng thành công với phương thức ${paymentMethod}. Mã đơn: ${order.billCode}.`;
         result.append(resultText);
-        if (paymentMethod === 'SEPAY') {
+        if (paymentWarning) { const warning = document.createElement("p"); warning.textContent = paymentWarning; result.append(warning); }
+        if (paymentMethod === 'SEPAY' && paymentQr) {
           const qr = document.createElement('img');
           qr.className = 'img-fluid d-block mx-auto mb-3';
           qr.style.maxWidth = '320px';
-          qr.src = sePayQrUrl(order.totalAmount, order.billCode);
+          qr.src = paymentQr;
           qr.alt = 'Mã QR thanh toán SePay';
           result.append(qr);
           const instructions = document.createElement('p');
@@ -1189,6 +1193,170 @@
         result.append(ordersLink);
       });
     };
+  }
+
+  function deliveryAddressFields(address = {}) {
+    function picker(name, label) {
+      const id = 'client-delivery-' + ++addressFieldId;
+      return `<div class="client-address-picker mb-3" data-picker="${name}">
+        <label for="${id}">${label}</label>
+        <div class="client-address-input">
+          <input class="form-control" id="${id}" type="search" role="combobox" aria-autocomplete="list"
+            aria-controls="${id}-results" aria-expanded="false" autocomplete="off" required placeholder="Gõ để tìm…">
+          <button type="button" class="btn btn-outline-secondary" aria-label="Mở danh sách ${label}">⌄</button>
+        </div>
+        <input type="hidden" name="${name}" value="${esc(address[name] || '')}">
+        <div id="${id}-results" class="client-address-results" role="listbox" aria-label="${label}" hidden></div>
+      </div>`;
+    }
+    return `<label class="d-block mb-3">Tên người nhận<input class="form-control" name="receiverName" required maxlength="150" autocomplete="shipping name" value="${esc(address.receiverName || '')}"></label>
+      <label class="d-block mb-3">Số điện thoại người nhận<input class="form-control" name="receiverPhone" required type="tel" inputmode="tel" maxlength="25" autocomplete="shipping tel" placeholder="Ví dụ: 0912345678" value="${esc(address.receiverPhone || '')}"></label>
+      ${picker('province', 'Tỉnh/Thành phố')}${picker('ward', 'Phường/Xã')}
+      <p data-address-message role="status" hidden></p>
+      <button type="button" class="btn btn-outline-secondary mb-3" data-address-retry hidden>Tải lại danh sách địa chỉ</button>
+      <label class="d-block mb-3">Địa chỉ chi tiết<input class="form-control" name="detailAddress" required maxlength="300" autocomplete="shipping street-address" placeholder="Số nhà, tên đường hoặc thôn/xóm" value="${esc(address.detailAddress || '')}"></label>`;
+  }
+
+  function bindDeliveryAddress(container) {
+    const normalize = (value) => value.toLowerCase().normalize('NFD')
+      .replace(/\p{M}/gu, '').replace(/đ/g, 'd').trim();
+    const phone = $('[name="receiverPhone"]', container);
+    const validatePhone = () => {
+      const input = phone.value.trim();
+      const number = input.replace(/[(). -]/g, '').replace(/^\+?84/, '0');
+      phone.setCustomValidity(!input || (/^[0-9+(). -]{1,25}$/.test(input)
+        && /^0(?:[35789][0-9]{8}|2[0-9]{9})$/.test(number)) ? ''
+        : 'Số điện thoại người nhận không hợp lệ. Nhập số Việt Nam, ví dụ 0912345678 hoặc +84912345678.');
+    };
+    phone.addEventListener('input', validatePhone);
+    phone.addEventListener('blur', validatePhone);
+    validatePhone();
+
+    const message = $('[data-address-message]', container);
+    const retry = $('[data-address-retry]', container);
+    let sequence = 0;
+    let provinces;
+    let loading;
+
+    function picker(name, changed) {
+      const root = $(`[data-picker="${name}"]`, container);
+      const field = $('input[type=search]', root);
+      const value = $('input[type=hidden]', root);
+      const toggle = $('button', root);
+      const list = $('[role=listbox]', root);
+      let entries = [], matches = [], cursor = -1;
+      field.value = value.value;
+      function close() {
+        list.hidden = true;
+        field.setAttribute('aria-expanded', 'false');
+        field.removeAttribute('aria-activedescendant');
+        cursor = -1;
+      }
+      function open(all = false) {
+        if (!entries.length) return;
+        const tokens = normalize(all || value.value ? '' : field.value).split(/\s+/);
+        matches = entries.filter((item) => tokens.every((token) => normalize(item.name).includes(token)));
+        list.innerHTML = matches.length ? matches.map(({ name: label }, index) =>
+          `<button type="button" role="option" aria-selected="false" id="${field.id}-${index}" data-index="${index}">${esc(label)}</button>`
+        ).join('') : '<p>Không tìm thấy kết quả phù hợp.</p>';
+        list.hidden = false;
+        field.setAttribute('aria-expanded', 'true');
+        field.removeAttribute('aria-activedescendant');
+        cursor = -1;
+      }
+      function choose(index) {
+        const item = matches[index];
+        if (!item) return;
+        const old = value.value;
+        field.value = value.value = item.name;
+        field.setCustomValidity('');
+        close();
+        if (old !== value.value) changed();
+      }
+      field.oninput = () => {
+        const old = value.value;
+        value.value = '';
+        field.setCustomValidity(field.value ? 'Chọn một mục trong danh sách địa chỉ.' : '');
+        if (old) changed();
+        open();
+      };
+      field.onfocus = () => open();
+      field.onblur = close;
+      toggle.onmousedown = list.onmousedown = (event) => event.preventDefault();
+      toggle.onclick = () => {
+        if (!list.hidden) close();
+        else { field.focus(); open(true); }
+      };
+      list.onclick = (event) => {
+        const option = event.target.closest('[data-index]');
+        if (option) choose(Number(option.dataset.index));
+      };
+      field.onkeydown = (event) => {
+        if (event.key === 'Escape') close();
+        if (event.key === 'Enter' && !list.hidden) {
+          event.preventDefault();
+          choose(Math.max(0, cursor));
+        }
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          if (list.hidden) open();
+          if (!matches.length) return;
+          cursor = event.key === 'ArrowDown' ? (cursor + 1) % matches.length
+            : (cursor <= 0 ? matches.length - 1 : cursor - 1);
+          const options = $$('[role=option]', list);
+          options.forEach((button, index) => button.setAttribute('aria-selected', String(index === cursor)));
+          field.setAttribute('aria-activedescendant', options[cursor].id);
+          options[cursor].scrollIntoView?.({block: 'nearest'});
+        }
+      };
+      return {
+        value,
+        reset(items, placeholder, previous = '') {
+          entries = items;
+          field.value = value.value = previous;
+          field.placeholder = placeholder;
+          field.setCustomValidity('');
+          toggle.disabled = !items.length;
+          close();
+        },
+      };
+    }
+
+    const province = picker('province', () => loadWards());
+    const ward = picker('ward', () => {});
+    function setMessage(text, allowRetry = false) {
+      message.textContent = text;
+      message.hidden = !text;
+      retry.hidden = !allowRetry;
+    }
+    async function loadWards(previous = '') {
+      const current = ++sequence;
+      const selected = provinces?.find((item) => item.name === province.value.value);
+      ward.reset([], selected ? 'Đang tải Phường/Xã…' : 'Chọn tỉnh/thành phố trước', previous);
+      setMessage('');
+      if (!selected) return;
+      try {
+        const names = await api('/api/delivery-address/wards?province=' + encodeURIComponent(selected.code));
+        if (current !== sequence) return;
+        ward.reset(names.map((name) => ({name})), 'Gõ tên phường/xã…', previous);
+      } catch (error) {
+        if (current === sequence) setMessage(error.message, true);
+      }
+    }
+
+    function load() {
+      if (loading) return loading;
+      if (provinces) return loadWards(ward.value.value);
+      setMessage('Đang tải danh mục địa chỉ…');
+      loading = api('/api/delivery-address/provinces').then((items) => {
+        provinces = items;
+        province.reset(items, 'Gõ tên tỉnh/thành phố…', province.value.value);
+        return loadWards(ward.value.value);
+      }).catch((error) => setMessage(error.message, true)).finally(() => { loading = null; });
+      return loading;
+    }
+    retry.onclick = load;
+    return {load};
   }
   async function orderConfirmationPage() {
     const host = $('#order-confirmation');
@@ -1234,13 +1402,23 @@
         const qr = document.createElement('img');
         qr.className = 'img-fluid d-block mx-auto mb-3';
         qr.style.maxWidth = '320px';
-        qr.src = sePayQrUrl(current.totalAmount, current.billCode);
+        qr.hidden = true;
         qr.alt = 'Mã QR thanh toán SePay';
         paymentPanel.append(qr);
         const note = document.createElement('p');
         note.textContent =
           `Chuyển ${money(current.totalAmount)} và giữ nguyên nội dung ${current.billCode}.`;
         paymentPanel.append(note);
+        note.hidden = true;
+        api('/api/bills/' + encodeURIComponent(orderId) + '/sepay-payment', 'POST')
+          .then((payment) => {
+            qr.src = payment.qrUrl;
+            qr.hidden = note.hidden = false;
+          })
+          .catch((error) => {
+            note.textContent = error.message;
+            note.hidden = false;
+          });
         const check = document.createElement('button');
         check.className = 'btn btn-outline-primary';
         check.type = 'button';

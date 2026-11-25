@@ -7,11 +7,8 @@ Trang quản trị và luồng mua hàng Oracle đã được bổ sung. Xem [h�
 Java 17 · Spring Boot 3.3 · Maven · Oracle 12c+ (ojdbc11) · `NamedParameterJdbcTemplate` (KHÔNG dùng JPA/Hibernate)
 
 ## Chạy dự án
-1. Tạo user Oracle (ví dụ `CLOTHING_SHOP`), mở SQL Developer chạy lần lượt:
-   - `src/main/resources/db/schema.sql` (bảng, index, trigger)
-   - `src/main/resources/db/sample_data.sql` (dữ liệu mẫu)
-2. Sửa `application.properties`: url / username / password.
-3. `mvn spring-boot:run`
+
+Dùng `.shop.cmd -Mode Build -Service Both` và `.shop.cmd -Mode Run -Service Both` để chạy Client cổng 8081 và Admin cổng 8888. Xem [cấu hình Oracle và thanh toán](LOCAL_RUN.md) và [tích hợp Viettel Post](SHIPPING.md). Với schema đã có dữ liệu, áp dụng migration còn thiếu theo thứ tự, giữ nguyên dữ liệu hiện có.
 
 ## Cấu trúc (mỗi module: controller → service → repository)
 ```

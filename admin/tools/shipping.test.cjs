@@ -1,5 +1,5 @@
 const {readAsset}=require('./helpers/frontend-assets.cjs');
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{JSDOM}=require('../.local/dom-tests/node_modules/jsdom');
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{JSDOM}=require('../../.local/dom-tests/node_modules/jsdom');
 const tick=()=>new Promise(r=>setImmediate(r));async function wait(fn){for(let i=0;i<100;i++){if(fn())return;await tick();}throw Error('Expected checkout state');}
 const response=d=>({ok:true,status:200,json:async()=>d});
 test('Checkout quotes on destination changes, invalidates stale fee and submits server service',async()=>{

@@ -41,7 +41,7 @@ class BillRepositoryTest {
 
     @Test
     void releaseReservationUpdatesQuantityAndReservedOnlyOnce() {
-        sql.updateResults.addAll(List.of(1, 1));
+        sql.updateResults.addAll(List.of(1, 1, 1));
         sql.expectedProducts = 1L;
 
         repository.releaseReservedStockForBill(81);
@@ -49,6 +49,8 @@ class BillRepositoryTest {
         assertTrue(sql.statements.get(0).contains("STOCK_RESERVED = 0"));
         assertTrue(sql.statements.get(1).contains("RESERVED_QUANTITY = RESERVED_QUANTITY -"));
         assertTrue(sql.statements.get(1).contains("QUANTITY = QUANTITY +"));
+        assertTrue(sql.statements.get(2).contains("INSERT INTO INVENTORY_HISTORY"));
+        assertEquals("RELEASE", sql.parameters.get(2).get("type"));
     }
 
     @Test
