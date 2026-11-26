@@ -6,7 +6,7 @@
   const inventoryReport = {
     async render() {
       const d = await api("/api/admin/inventory/summary?" + params({ page }));
-      return `<form id="filter" class="toolbar">${dates()}${input("q", "SKU / tên / mã sản phẩm", filter.q || "", "text", false)}<button>Xem nhập xuất tồn</button>${button("CSV mọi trang", "export-balance", "")}</form><p class="report-note">Sẵn bán = tại kho − giữ. Giữ/giải phóng giữ không đổi tại kho. Xuất giao giảm tại kho và giữ cùng lúc. Số tại kho đầu/cuối trống nếu phạm vi chứa lịch sử cũ chỉ ghi sẵn bán; không diễn giải số cũ thành tồn vật lý đã đối soát.</p>${table(
+      return `<form id="filter" class="toolbar">${dates()}${input("q", "SKU / tên / mã sản phẩm", filter.q || "", "text", false)}<button>Xem nhập xuất tồn</button>${button("Xuất Excel", "export-balance-xlsx", "")}${button("CSV mọi trang", "export-balance", "")}</form><p class="report-note">Sẵn bán = tại kho − giữ. Giữ/giải phóng giữ không đổi tại kho. Xuất giao giảm tại kho và giữ cùng lúc. Số tại kho đầu/cuối trống nếu phạm vi chứa lịch sử cũ chỉ ghi sẵn bán; không diễn giải số cũ thành tồn vật lý đã đối soát.</p>${table(
         d.items,
         [
           ["SKU", "SKU"],
@@ -35,6 +35,22 @@
         filter = { ...filter, variantId: id };
         page = 1;
         await load();
+        return;
+      }
+      if (a === "export-balance-xlsx") {
+        const p = params();
+        p.delete("page");
+        const response = await fetch("/api/admin/inventory/export.xlsx?" + p);
+        if (!response.ok || !response.headers.get("Content-Type")?.includes("spreadsheetml.sheet")) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.message || "Không xuất được báo cáo nhập xuất tồn. Hãy thử lại.");
+        }
+        const url = URL.createObjectURL(await response.blob());
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "bao-cao-nhap-xuat-ton.xlsx";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
         return;
       }
       if (a === "export-balance") {

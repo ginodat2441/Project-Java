@@ -3,9 +3,9 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
-const {JSDOM}=require('../.local/dom-tests/node_modules/jsdom');
+const {JSDOM}=require('../../.local/dom-tests/node_modules/jsdom');
 const root=path.resolve(__dirname,'..');
-const staticRoot=path.join(root,'backend_java/src/main/resources/static');
+const staticRoot=path.join(root,'admin_code/src/main/resources/static');
 const tick=()=>new Promise(r=>setImmediate(r));
 async function waitFor(fn){for(let i=0;i<50;i++){if(fn())return;await tick();}throw Error('DOM did not reach expected state');}
 const response=data=>({ok:true,status:200,json:async()=>data,text:async()=>JSON.stringify(data)});

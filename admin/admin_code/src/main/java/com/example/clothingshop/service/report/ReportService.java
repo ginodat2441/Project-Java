@@ -33,6 +33,13 @@ public class ReportService {
     return repository.topProducts(year, limit, minSold);
   }
 
+  @org.springframework.transaction.annotation.Transactional(readOnly = true, isolation =
+      org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
+  public byte[] salesWorkbook(int year, Integer month, Integer quarter, LocalDate from,
+      LocalDate to, Long productId, String q) throws java.io.IOException {
+    return SalesWorkbook.write(repository.salesWorkbook(year, month, quarter, from, to, productId, q));
+  }
+
   public List<Map<String, Object>> lowStock(int threshold) {
     return repository.lowStock(threshold);
   }

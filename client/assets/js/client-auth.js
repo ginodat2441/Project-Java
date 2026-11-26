@@ -10,7 +10,7 @@
   const userKey = 'clothingShopUser';
   const isLoopbackHost =
     location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-  const useSameOriginApi = !isLoopbackHost || location.port === '3000';
+  const useSameOriginApi = !isLoopbackHost || ['3000', '8081'].includes(location.port);
   const apiBase = (
     window.CLOTHING_SHOP_API_BASE ||
     (useSameOriginApi ? '/api' : 'http://localhost:8080/api')
@@ -31,7 +31,7 @@
         body: JSON.stringify(payload),
       });
     } catch {
-      throw Error('Không kết nối được máy chủ. Hãy chạy backend Java và thử lại.');
+      throw Error('Không kết nối được cửa hàng. Vui lòng thử lại.');
     }
 
     const body = await response.json().catch(() => null);
@@ -61,7 +61,7 @@
         body: new URLSearchParams({ username: payload.email, password: payload.password }),
       });
     } catch {
-      throw Error('Email hoặc mật khẩu không chính xác. Nếu đây là tài khoản quản trị, hãy kiểm tra backend Admin đã chạy chưa.');
+      throw Error('Không kết nối được trang quản trị. Hãy kiểm tra backend Admin đã chạy chưa.');
     }
     const result = await response.json().catch(() => null);
     if (!response.ok || result?.success !== true || result.redirect !== '/admin') {
@@ -127,7 +127,8 @@
     if (!ui.validate(register)) return;
     const password = input('reg-password').value;
     if (password !== input('reg-confirm-password').value) {
-      ui.showErrors(register,{confirmPassword:'Mật khẩu xác nhận không khớp.'});
+      ui.showErrors(register, { confirmPassword: 'Nhập lại mật khẩu phải khớp với ô Mật khẩu.' });
+      input('reg-confirm-password').focus();
       return;
     }
     if (new TextEncoder().encode(password).length > 72) {

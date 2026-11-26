@@ -908,6 +908,9 @@ class InventoryV8AcceptanceTest {
     String fixtureBills =
         "SELECT ID FROM BILL WHERE CUSTOMER_ID IN (SELECT ID FROM CUSTOMER WHERE USER_ID IN (SELECT"
             + " ID FROM USERS WHERE USERNAME=:n))";
+    for (String table : List.of("BILL_VIETTEL_EVENT", "BILL_VIETTEL_TRACKING", "BILL_VIETTEL_DISPATCH")) {
+      db.update("DELETE FROM " + table + " WHERE BILL_ID IN (" + fixtureBills + ")", "n", tag);
+    }
     db.update("DELETE FROM BILL_REFUND WHERE BILL_ID IN (" + fixtureBills + ")", "n", tag);
     db.update(
         "DELETE FROM STOCK_COST_ADJUSTMENT WHERE PRODUCT_DETAIL_ID IN (" + fixtureVariants + ")",

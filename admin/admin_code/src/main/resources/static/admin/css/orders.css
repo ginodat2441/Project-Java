@@ -72,3 +72,8 @@
 .order-customer-requests { margin-bottom:1rem;padding:1rem 1.2rem;border:1px solid #efb4ad;border-radius:10px;background:#fffaf9; }
 .order-customer-requests h3 { margin:.1rem 0 .4rem; }
 @media(max-width:600px) { .order-customer-request-alert,.order-customer-requests { padding:.85rem; } }
+.order-next-step { background:#e9f4f2; border-color:#c6e2dc; }
+.order-next-step h3, .order-next-step p { margin-top:0; }
+details.order-detail-section > summary, .order-detail-section details > summary { cursor:pointer; font-weight:600; }
+details.order-detail-section[open] > summary, .order-detail-section details[open] > summary { margin-bottom:12px; }
+.order-detail-section [data-viettel-feedback]:empty { display:none; }

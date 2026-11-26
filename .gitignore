@@ -1,7 +1,11 @@
+target/
+.idea/
+*.iml
 .vscode/
 .local/
-**/target/
-**/.idea/
-**/node_modules/
-**/__pycache__/
+.local.zip
+.vscode.zip
+uploads/
+node_modules/
+__pycache__/
 *.log

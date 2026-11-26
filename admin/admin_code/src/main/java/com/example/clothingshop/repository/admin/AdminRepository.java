@@ -62,7 +62,7 @@ public class AdminRepository {
               + " ADMIN_AUDIT(MANAGER_ID,ACTION,OBJECT_TYPE,OBJECT_ID,BEFORE_DATA,AFTER_DATA,REASON)"
               + " VALUES(:a,:b,:c,:d,:before,:after,:reason)",
           "a",
-          actor,
+          new org.springframework.jdbc.core.SqlParameterValue(java.sql.Types.NUMERIC, actor),
           "b",
           action,
           "c",

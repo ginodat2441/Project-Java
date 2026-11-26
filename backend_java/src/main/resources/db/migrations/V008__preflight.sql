@@ -1,0 +1,12 @@
+-- Read-only preflight. Run with application writers stopped, before V008 DDL.
+DECLARE invalid NUMBER; BEGIN
+ SELECT COUNT(*) INTO invalid FROM PRODUCT_DETAIL WHERE QUANTITY<0;
+ IF invalid>0 THEN RAISE_APPLICATION_ERROR(-20070,'Negative legacy available stock; reconcile first'); END IF;
+ SELECT COUNT(*) INTO invalid FROM BILL b WHERE b.DELETE_FLAG=0 AND b.STATUS IN (0,1) AND b.STOCK_RESERVED=0 AND EXISTS(SELECT 1 FROM BILL_DETAIL d WHERE d.BILL_ID=b.ID AND d.DELETE_FLAG=0);
+ IF invalid>0 THEN RAISE_APPLICATION_ERROR(-20071,'Open legacy orders lack documented reservations; reconcile them before converting balances'); END IF;
+ SELECT COUNT(*) INTO invalid FROM PRODUCT_DETAIL v WHERE v.QUANTITY+(SELECT NVL(SUM(d.QUANTITY),0) FROM BILL_DETAIL d JOIN BILL b ON b.ID=d.BILL_ID WHERE d.PRODUCT_DETAIL_ID=v.ID AND d.DELETE_FLAG=0 AND b.DELETE_FLAG=0 AND b.STATUS IN (0,1) AND b.STOCK_RESERVED=1)>2147483647;
+ IF invalid>0 THEN RAISE_APPLICATION_ERROR(-20072,'Legacy physical stock would exceed supported quantity; reconcile first'); END IF;
+ SELECT COUNT(*) INTO invalid FROM BILL_DETAIL d JOIN BILL b ON b.ID=d.BILL_ID JOIN PRODUCT_DETAIL v ON v.ID=d.PRODUCT_DETAIL_ID JOIN PRODUCT p ON p.ID=v.PRODUCT_ID WHERE b.DELETE_FLAG=0 AND b.STATUS IN (0,1) AND d.DELETE_FLAG=0 AND (v.DELETE_FLAG=1 OR p.DELETE_FLAG=1);
+ IF invalid>0 THEN RAISE_APPLICATION_ERROR(-20073,'Open orders reference deleted stock; reconcile first'); END IF;
+END;
+/

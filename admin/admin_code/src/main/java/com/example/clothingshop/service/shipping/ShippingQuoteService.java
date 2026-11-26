@@ -5,6 +5,7 @@ import com.example.clothingshop.integration.shipping.ViettelPostClient;
 import com.example.clothingshop.util.shipping.ProvinceCatalog;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.*;
+import java.time.Instant;
 import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 public class ShippingQuoteService {
   private final ViettelPostClient carrier;
   private final int grams, packing, length, width, height;
+  private volatile Instant lastSuccessfulQuote;
 
   public ShippingQuoteService(
       ViettelPostClient c,
@@ -43,6 +45,20 @@ public class ShippingQuoteService {
     return s;
   }
 
+  public Map<String, Object> adminStatus() {
+    var status = status();
+    status.put("lastSuccessfulQuote", lastSuccessfulQuote);
+    return status;
+  }
+
+  public List<String> wards(String province) {
+    return carrier.wards(ProvinceCatalog.resolve(province).code());
+  }
+
+  public List<Offer> testQuote(String province, String ward, String address) {
+    return quote(province, ward, address, "BANK", 1, BigDecimal.valueOf(100000), BigDecimal.ZERO);
+  }
+
   public record Offer(
       String serviceCode, String serviceName, BigDecimal fee, String deliveryTime) {}
 
@@ -54,6 +70,13 @@ public class ShippingQuoteService {
       List<BillRequest.Item> items,
       BigDecimal subtotal,
       BigDecimal discount) {
+    long count = items.stream().mapToLong(BillRequest.Item::quantity).sum();
+    return quote(province, ward, address, payment, count, subtotal, discount);
+  }
+
+  private List<Offer> quote(
+      String province, String ward, String address, String payment, long count,
+      BigDecimal subtotal, BigDecimal discount) {
     if (!ready())
       throw new org.springframework.web.server.ResponseStatusException(
           org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
@@ -61,8 +84,8 @@ public class ShippingQuoteService {
     var p = ProvinceCatalog.resolve(province);
     if (ward == null || ward.isBlank() || address == null || address.isBlank())
       throw new IllegalArgumentException("Nhập đủ phường/xã và số nhà/đường để tính cước");
-    long count = items.stream().mapToLong(BillRequest.Item::quantity).sum(),
-        weight = Math.addExact(Math.multiplyExact(count, grams), packing);
+
+    long weight = Math.addExact(Math.multiplyExact(count, grams), packing);
     if (weight <= 0 || weight > 30000)
       throw new IllegalArgumentException(
           "Kiện vượt cấu hình giao online 30kg; liên hệ shop để chia kiện");
@@ -80,7 +103,38 @@ public class ShippingQuoteService {
     body.put("PRODUCT_WIDTH", width);
     body.put("PRODUCT_HEIGHT", height);
     body.put("TYPE", 1);
-    return parse(carrier.quote(body));
+    var offers = parse(carrier.quote(body));
+    lastSuccessfulQuote = Instant.now();
+    return offers;
+  }
+
+  public List<Offer> quoteOrder(String address, long count, BigDecimal subtotal, BigDecimal cod) {
+    if (address == null || address.isBlank())
+      throw new com.example.clothingshop.common.BusinessException("Địa chỉ giao hàng là trường bắt buộc.");
+    var request = new LinkedHashMap<String, Object>();
+    addParcelDimensions(request, count);
+    request.put("RECEIVER_ADDRESS", address);
+    request.put("PRODUCT_TYPE", "HH");
+    request.put("PRODUCT_PRICE", subtotal.setScale(0, RoundingMode.HALF_UP));
+    request.put("MONEY_COLLECTION", cod.setScale(0, RoundingMode.HALF_UP));
+    request.put("TYPE", 1);
+    var offers = parse(carrier.quote(request));
+    lastSuccessfulQuote = Instant.now();
+    return offers;
+  }
+
+  public int gramsPerItem() { return grams; }
+
+  public void addParcelDimensions(Map<String, Object> request, long itemCount) {
+    if (!ready()) throw new com.example.clothingshop.common.BusinessException(
+        "Cần cấu hình tài khoản Viettel Post, kho gửi và thông số kiện.");
+    long weight = itemCount * grams + packing;
+    if (itemCount < 1 || weight < 1 || weight > 30000)
+      throw new com.example.clothingshop.common.BusinessException("Khối lượng kiện phải từ 1 g đến 30 kg.");
+    request.put("PRODUCT_WEIGHT", weight);
+    request.put("PRODUCT_LENGTH", length);
+    request.put("PRODUCT_WIDTH", width);
+    request.put("PRODUCT_HEIGHT", height);
   }
 
   static List<Offer> parse(JsonNode response) {
