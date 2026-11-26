@@ -44,7 +44,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/me", "/api/addresses/**", "/api/bills/**",
                                   "/api/carts/**", "/api/vouchers", "/api/order-requests/**", "/api/order-requests")
                         .authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/brands/**", "/api/delivery-address/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/brands/**").permitAll()
                         .anyRequest().permitAll())
                 .oauth2ResourceServer(resourceServer -> resourceServer.jwt(jwt -> jwt
                         .jwtAuthenticationConverter(jwtAuthenticationConverter())))
@@ -78,13 +78,10 @@ public class SecurityConfig {
                 .build();
     }
 
-    private final byte[] localSigningKey = new java.security.SecureRandom().generateSeed(32);
-
     private SecretKey jwtKey(String secret) {
-        if (secret.isBlank()) return new SecretKeySpec(localSigningKey, "HmacSHA256");
         byte[] key = secret.getBytes(StandardCharsets.UTF_8);
         if (key.length < 32) {
-            throw new IllegalStateException("JWT_SECRET phải chứa ít nhất 32 byte");
+            throw new IllegalStateException("JWT_SECRET must contain at least 32 characters");
         }
         return new SecretKeySpec(key, "HmacSHA256");
     }

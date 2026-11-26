@@ -1,15 +1,13 @@
 # Clothing Shop – Spring Boot + Oracle + SQL thuần (JDBC)
 
-Xem [ADMIN_README.md](../../ADMIN_README.md) để chạy bản có quản trị, tạo admin và kiểm thử. Với database hiện tại **không chạy lại schema.sql/sample_data.sql**; V001 và V002 đã được áp dụng. Hướng dẫn tạo schema bên dưới chỉ dành cho database trống. API ghi đã yêu cầu đăng nhập/CSRF, API SQL tùy ý luôn bị khóa và cấu hình password phải dùng biến môi trường.
+Xem [V008_HANDOVER.md](../../V008_HANDOVER.md) để biết trạng thái database và hướng dẫn nâng cấp. File chuẩn duy nhất để tạo mới hoặc nâng cấp schema là [`sql/ora_schema.sql`](../../sql/ora_schema.sql); file này giữ dữ liệu hiện có và không nạp dữ liệu mẫu. Với database hiện tại, sao lưu và dừng tiến trình ghi trước khi chạy toàn bộ file bằng SQL Developer (F5) với schema `CLOTHING_SHOP`. API ghi đã yêu cầu đăng nhập/CSRF, API SQL tùy ý luôn bị khóa và cấu hình password phải dùng biến môi trường.
 
-Trước khi dùng voucher theo sản phẩm, chạy migration `src/main/resources/db/migrations/V010__voucher_product_scope.sql` một lần trên database hiện tại. Migration giữ hiệu lực các voucher cũ bằng cách gắn chúng với toàn bộ sản phẩm đang tồn tại. Voucher mới có thể áp dụng cho các sản phẩm được chọn hoặc toàn bộ sản phẩm; mức đơn tối thiểu và tiền giảm chỉ tính trên các sản phẩm đủ điều kiện.
+Schema chuẩn đã bao gồm các cập nhật voucher, Viettel Post, fulfillment và checkout hiện tại. Các file migration theo phiên bản được giữ làm lịch sử/phục vụ kiểm thử; không chạy chúng riêng khi đã dùng `sql/ora_schema.sql`.
 
 Java 17 · Spring Boot 3.3 · Maven · Oracle 12c+ (ojdbc11) · `NamedParameterJdbcTemplate` (KHÔNG dùng JPA/Hibernate)
 
 ## Chạy dự án
-1. Tạo user Oracle (ví dụ `CLOTHING_SHOP`), mở SQL Developer chạy lần lượt:
-   - `src/main/resources/db/schema.sql` (bảng, index, trigger)
-   - `src/main/resources/db/sample_data.sql` (dữ liệu mẫu)
+1. Tạo user Oracle (ví dụ `CLOTHING_SHOP`), kết nối bằng user đó và chạy `sql/ora_schema.sql` một lần bằng SQL Developer (F5). Không chạy các file migration riêng sau đó và không nạp dữ liệu mẫu vào database đang dùng.
 2. Sửa `application.properties`: url / username / password.
 3. Thiết lập `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` và `CLOUDINARY_API_SECRET` trong môi trường chạy backend admin (lấy tại Cloudinary Dashboard → API Keys). Ví dụ PowerShell:
    ```powershell
@@ -65,4 +63,3 @@ PATCH /api/bills/1/status?status=1&managerId=1
 GET   /api/stats/revenue-by-month
 POST  /api/dev/sql  {"sql":"SELECT * FROM BRAND"}
 ```
-Bài tập SQL mẫu: `src/main/resources/sql/practice_queries.sql`

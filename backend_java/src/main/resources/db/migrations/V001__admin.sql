@@ -1,4 +1,4 @@
--- Additive migration. Run with SQL*Plus; never rerun schema.sql on an existing shop.
+-- Historical migration. Use sql/ora_schema.sql for a consolidated upgrade; do not rerun this sequence separately.
 WHENEVER SQLERROR EXIT SQL.SQLCODE ROLLBACK
 CREATE TABLE SHOP_MIGRATION (VERSION VARCHAR2(30) PRIMARY KEY, APPLIED_AT TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL);
 CREATE TABLE CATEGORY (

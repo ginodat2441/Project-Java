@@ -10,21 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SePayServiceTest {
-    @org.junit.jupiter.api.Test
-    void qrUsesConfiguredRecipientAndRejectsMissingConfiguration() {
-        var amount = java.math.BigDecimal.valueOf(125000);
-        org.junit.jupiter.api.Assertions.assertThrows(
-                com.example.clothingshop.common.BusinessException.class,
-                () -> new SePayService("").qrUrl(amount, "HD261113150931123"));
-        var configured = new SePayService("test-only-api-key");
-        org.springframework.test.util.ReflectionTestUtils.setField(configured, "bank", "VCB");
-        org.springframework.test.util.ReflectionTestUtils.setField(configured, "account", "TESTACCOUNT");
-        var uri = java.net.URI.create(configured.qrUrl(amount, "HD261113150931123"));
-        assertEquals("vietqr.app", uri.getHost());
-        org.junit.jupiter.api.Assertions.assertTrue(uri.getQuery().contains("acc=TESTACCOUNT"));
-        org.junit.jupiter.api.Assertions.assertTrue(uri.getQuery().contains("amount=125000"));
-        org.junit.jupiter.api.Assertions.assertFalse(uri.toString().contains("test-only-api-key"));
-    }
 
     private final SePayService service = new SePayService("test-api-key");
 

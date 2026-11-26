@@ -32,12 +32,7 @@ class PurchaseOracleTest {
         var stockBefore=sql.scalar("SELECT RESERVED_QUANTITY FROM PRODUCT_DETAIL WHERE ID=:id",params,Integer.class).orElseThrow();
         var items=List.of(new BillRequest.Item(pd.id(),1));
         var quote=service.quote(items);
-        var request = new BillRequest(address, "COD", "Rollback purchase integration test", items);
-        var key = UUID.randomUUID().toString();
-        var order = service.create(customer, request, key);
-        assertEquals(order.id(), service.create(customer, request, key).id());
-        assertThrows(com.example.clothingshop.common.BusinessException.class,
-                () -> service.updateManagedStatus(order.id(), 1, "Không được bỏ qua phiếu xuất", 1L, true));
+        var order=service.create(customer,new BillRequest(address,"COD","Rollback purchase integration test",items));
         assertEquals(0,quote.get("totalAmount").compareTo(order.totalAmount()));
         assertEquals(0,order.status());assertEquals(0,order.paymentStatus());
         var billParams=Map.<String,Object>of("bid",order.id());
@@ -45,11 +40,5 @@ class PurchaseOracleTest {
         assertEquals(1L,sql.scalar("SELECT COUNT(*) FROM BILL WHERE ID=:bid AND DELETE_FLAG=0 AND PAYMENT_METHOD='COD' AND STATUS=0 AND PAYMENT_STATUS=0",billParams,Long.class).orElseThrow());
         assertEquals(stockBefore+1,sql.scalar("SELECT RESERVED_QUANTITY FROM PRODUCT_DETAIL WHERE ID=:id",params,Integer.class).orElseThrow());
         assertEquals(cartBefore,sql.scalar("SELECT COUNT(*) FROM CART_DETAIL cd JOIN CART c ON c.ID=cd.CART_ID WHERE c.CUSTOMER_ID=:cid",params,Long.class).orElseThrow());
-        assertEquals(4, service.cancel(customer, order.id()).status());
-        assertEquals(stockBefore, sql.scalar("SELECT RESERVED_QUANTITY FROM PRODUCT_DETAIL WHERE ID=:id",
-                params, Integer.class).orElseThrow());
-        assertEquals(1L, sql.scalar(
-                "SELECT COUNT(*) FROM BILL_HISTORY WHERE BILL_ID=:bid AND NEW_STATUS=4 AND MANAGER_ID IS NULL",
-                billParams, Long.class).orElseThrow());
     }
 }

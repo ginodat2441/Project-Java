@@ -27,10 +27,9 @@ public class BillController {
     public BillController(BillService service) { this.service = service; }
 
     @PostMapping
-    public ApiResponse<BillView> create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody BillRequest req,
-                                        @RequestHeader(value = "Idempotency-Key", required = false) String key) {
+    public ApiResponse<BillView> create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody BillRequest req) {
         return ApiResponse.ok("Đặt hàng thành công",
-                service.create(CustomerIdentity.customerId(jwt), req, key));
+                service.create(CustomerIdentity.customerId(jwt), req));
     }
 
     @PostMapping("/quote")
@@ -47,11 +46,12 @@ public class BillController {
     }
 
     @PostMapping("/{id}/sepay-payment")
-    public ApiResponse<Map<String, String>> createSePayPayment(@AuthenticationPrincipal Jwt jwt,
-                                                               @PathVariable long id) {
+    public ApiResponse<BillView> createSePayPayment(@AuthenticationPrincipal Jwt jwt,
+                                                    @PathVariable long id) {
         long customerId = CustomerIdentity.customerId(jwt);
+        service.createSePayPayment(customerId, id);
         return ApiResponse.ok("Đã chuẩn bị thanh toán SePay",
-                Map.of("qrUrl", service.createSePayPayment(customerId, id)));
+                service.get(customerId, id));
     }
 
     @GetMapping

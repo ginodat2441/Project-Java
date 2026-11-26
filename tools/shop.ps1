@@ -31,8 +31,9 @@ if (Test-Path -LiteralPath $localEnv) {
 }
 Import-ShopLocalEnv
 if ($Mode -eq 'Migrate') {
-    Write-Host 'V001 through V008 have already been applied on this machine. Review SHOP_MIGRATION first; do not rerun schema.sql.'
-    Write-Host 'For a different existing database: use SQL*Plus with V001 through V007 in order once, after backup and duplicate preflight.'
+    Write-Host 'Back up the database and stop application writers first.'
+    Write-Host 'Run sql/ora_schema.sql once as CLOTHING_SHOP in SQL Developer using Run Script (F5).'
+    Write-Host 'The consolidated script preserves business data; do not load sample or export data.'
     exit
 }
 if ($Mode -eq 'Build' -or $Mode -eq 'Test') {

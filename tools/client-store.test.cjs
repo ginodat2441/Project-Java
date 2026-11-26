@@ -4,11 +4,11 @@ const { test } = require('node:test'),
   path = require('node:path');
 const { JSDOM } = require('../.local/dom-tests/node_modules/jsdom');
 const root = path.join(__dirname, '..'),
-  script = fs.readFileSync(path.join(root, 'client/assets/js/client-store.js'), 'utf8');
+  script = fs.readFileSync(path.join(root, 'giao dien/assets/js/client-store.js'), 'utf8');
 const tick = () => new Promise((r) => setImmediate(r));
 const cartFixture = () => ({items:[
-  {id:12,productDetailId:12,productId:1,productName:'Áo A',colorName:'Đen',sizeName:'M',unitPrice:100000,quantity:2,stock:10,available:1},
-  {id:13,productDetailId:13,productId:2,productName:'Áo B',colorName:'Trắng',sizeName:'L',unitPrice:150000,quantity:1,stock:10,available:1}
+  {productDetailId:12,productId:1,productName:'Áo A',colorName:'Đen',sizeName:'M',price:100000,quantity:2,stock:10,available:true},
+  {productDetailId:13,productId:2,productName:'Áo B',colorName:'Trắng',sizeName:'L',price:150000,quantity:1,stock:10,available:true}
 ],subtotal:350000,totalQuantity:3,checkoutAllowed:true});
 
 test('checkbox selection recalculates payable subtotal and persists selected IDs only',async()=>{
@@ -25,90 +25,79 @@ test('checkbox selection recalculates payable subtotal and persists selected IDs
 
 test('checkout offers COD and SePay without an editable amount',async()=>{
  const dom=await page('checkout.html',true,false,cartFixture()),d=dom.window.document;
- assert.deepEqual([...d.querySelectorAll('main input[name="paymentMethod"]')].map((n)=>n.value),['COD','SEPAY']);
+ assert.deepEqual([...d.querySelectorAll('main select[name="paymentMethod"] option')].map((n)=>n.value),['COD','SEPAY']);
  assert.equal(d.querySelector('main [name="totalAmount"]'),null);
- dom.window.close();
-});
-test('new address picker loads Viettel Post provinces and wards through the backend',async()=>{
- const dom=await page('checkout.html',true,false,cartFixture()),w=dom.window,d=w.document;
- const address=d.querySelector('main [name="addressId"]');
- address.value='new';address.dispatchEvent(new w.Event('change'));
- for(let i=0;i<20&&!dom.requests.some((r)=>r.url==='/api/delivery-address/provinces');i++)await tick();
- const addressMessage=d.querySelector('[data-address-message]');
- for(let i=0;i<20&&!addressMessage.hidden;i++)await tick();
- const province=d.querySelector('[data-picker="province"] input[type="search"]');
- province.focus();
- province.value='Hà Nội';province.dispatchEvent(new w.Event('input'));
- for(let i=0;i<20&&!d.querySelector('[data-picker="province"] [role="option"]');i++)await tick();
- const option=d.querySelector('[data-picker="province"] [role="option"]');
- assert.ok(option,addressMessage.textContent);
- option.click();
- for(let i=0;i<20&&!dom.requests.some((r)=>r.url==='/api/delivery-address/wards?province=01');i++)await tick();
- assert.ok(dom.requests.some((r)=>r.url==='/api/delivery-address/provinces'));
- assert.ok(dom.requests.some((r)=>r.url==='/api/delivery-address/wards?province=01'));
  dom.window.close();
 });
 test('SePay checkout submits the selected method and displays the returned QR',async()=>{
  const dom=await page('checkout.html',true,false,cartFixture(),{
-   '/api/bills':{id:123,billCode:'BILL123',paymentMethod:'SEPAY',totalAmount:380000},
-   '/api/bills/123/sepay-payment':{qrUrl:'https://example.test/qr?des=BILL123'},
-   '/api/bills/123':{paymentMethod:'SEPAY',paymentStatus:1,status:0}
+   '/api/catalog/quote':{subtotal:350000,discount:0,services:[{serviceCode:'EXPRESS',serviceName:'Giao nhanh',fee:30000}]},
+   '/api/customer/cart/checkout':{id:123,billCode:'BILL123',totalAmount:380000,paymentQrUrl:'https://example.test/qr.png'},
+   '/api/customer/orders/123':{order:{paymentStatus:1}}
  }),w=dom.window,d=w.document;
  const form=d.querySelector('main .checkout-form');
- form.querySelector('[name="paymentMethod"][value="SEPAY"]').checked=true;
+ for(const [name,value] of Object.entries({name:'Khách mới',phone:'0901234567',province:'Hà Nội',ward:'Ba Đình',address:'Số 1'}))
+   form.elements.namedItem(name).value=value;
+ form.elements.namedItem('paymentMethod').value='SEPAY';
+ d.querySelector('[data-quote]').click();
+ await tick();
+ d.querySelector('.client-shipping-options button').click();
  form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  for(let i=0;i<20&&!d.querySelector('main img[alt="Mã QR thanh toán SePay"]');i++) await tick();
- const checkout=dom.requests.find((r)=>r.url==='/api/bills' && r.options.method==='POST');
+ const checkout=dom.requests.find((r)=>r.url==='/api/customer/cart/checkout');
  assert.equal(JSON.parse(checkout.options.body).paymentMethod,'SEPAY');
- assert.equal(d.querySelector('main img[alt="Mã QR thanh toán SePay"]').src,'https://example.test/qr?des=BILL123');
- d.querySelector('main section[role="status"] button').click();
+ assert.equal(d.querySelector('main img[alt="Mã QR thanh toán SePay"]').src,'https://example.test/qr.png');
+ d.querySelector('.client-sepay-payment button').click();
  await tick();
- assert.match(d.querySelector('main section[role="status"] p[role="status"]').textContent,/Đã thanh toán/);
- assert.equal(d.querySelector('main section[role="status"] img[alt="Mã QR thanh toán SePay"]').hidden,true);
+ assert.match(d.querySelector('.client-sepay-payment [role="status"]').textContent,/đã được xác nhận/);
+ assert.equal(d.querySelector('.client-sepay-payment img[alt="Mã QR thanh toán SePay"]').hidden,true);
  dom.window.close();
 });
 async function page(name, authenticated = true, unavailable = false, cartData = null, responses = {}) {
-  const dom = new JSDOM(fs.readFileSync(path.join(root, 'client', name.split('?')[0]), 'utf8'), {
-      url: 'http://localhost:8081/' + name,
+  const dom = new JSDOM(fs.readFileSync(path.join(root, 'giao dien', name), 'utf8'), {
+      url: 'http://localhost/store/' + name,
       runScripts: 'outside-only',
     }),
     w = dom.window;
   dom.requests = [];
   w.localStorage.setItem('clothing-cart', JSON.stringify([{ id: 999, quantity: 3 }]));
-  if (authenticated) w.sessionStorage.setItem('clothingShopToken','test-token');
   w.fetch = async (url, options = {}) => {
-    let data, status = 200;
+    let data,
+      status = 200;
     dom.requests.push({url,options});
-    const route = new URL(url,w.location.href).pathname;
-    if (Object.hasOwn(responses,route)) data = responses[route];
-    else if (route === '/api/auth/me') {
-      if (!authenticated) status = 401;
-      else data = {customerId:1,fullName:'Khách mới',email:'new@example.test',phone:'0901234567'};
-    } else if (route.startsWith('/api/carts/'))
-      data = cartData || {items:[], totalItems:0,totalAmount:0};
-    else if (route === '/api/bills/checkout-quote') data = {subtotal:350000,shippingFee:30000,totalAmount:380000};
-    else if (route === '/api/bills/123/sepay-payment' || route === '/api/bills' || route === '/api/products/categories') data = [];
-    else if (route === '/api/vouchers') data = [];
-    else if (route === '/api/delivery-address/provinces') data = [{code:'01',name:'Hà Nội',id:1}];
-    else if (route === '/api/delivery-address/wards') data = ['Ba Đình'];
-    else if (route === '/api/addresses') data = name === 'checkout.html'
-      ? [{id:1,isDefault:true,receiverName:'Khách mới',receiverPhone:'0901234567',province:'Hà Nội',ward:'Ba Đình',detailAddress:'Số 1'}] : [];
-    else if (route === '/api/products' || route === '/api/brands') data = {items:[],total:0,size:20};
+    if (url === '/api/csrf') data = {token:'test-token',headerName:'X-CSRF-TOKEN'};
+    else if (Object.hasOwn(responses,url)) data=responses[url];
+    else if (url === '/api/catalog/quote') data={subtotal:350000,discount:0,services:[]};
+    else if (url === '/api/customer/me') {
+      if (!authenticated) {
+        data = { message: 'Đăng nhập' };
+        status = 400;
+      } else data = { FULL_NAME: 'Khách mới', EMAIL: 'new@example.test', PHONE: '0901234567' };
+    } else if (url === '/api/customer/cart')
+      data = cartData || { items: [], subtotal: 0, totalQuantity: 0, checkoutAllowed: false };
+    else if (url === '/api/customer/orders' || url === '/api/customer/addresses') data = [];
+    else if (url.startsWith('/api/customer/orders/')) data={order:{paymentStatus:0}};
+    else if (url.startsWith('/api/catalog?')) data = { items: [], total: 0, size: 20 };
+    else if (url === '/api/catalog/categories') data = [];
+    else if (url === '/api/catalog/filters') data = { brands: [], colors: [] };
     else throw Error('Unexpected API ' + url);
-    if (unavailable) status = 500;
-    return {ok:status===200,status,json:async()=>({success:status===200,data})};
+    if (unavailable) {
+      data = {};
+      status = 500;
+    }
+    return { ok: status === 200, status, json: async () => data };
   };
   w.eval(script);
   for (let i = 0; i < 60 && !w.document.body.classList.contains('client-ready'); i++) await tick();
   assert.ok(w.document.body.classList.contains('client-ready'));
   return dom;
 }
-test('signed-in header shows logout, never login/register, and ignores shared browser cart', async () => {
+test('signed-in header shows logout, never login/register, and discards shared browser cart', async () => {
   const dom = await page('index.html'),
     d = dom.window.document;
   assert.ok(d.querySelector('[data-client-logout]'));
   assert.equal(d.querySelector('.account-dropdown a[href="login-register.html"]'), null);
-  assert.doesNotMatch(d.querySelector('main').textContent, /Giỏ hàng của người khác/);
+  assert.equal(dom.window.localStorage.getItem('clothing-cart'), null);
   dom.window.close();
 });
 test('new customer sees own identity with empty orders, addresses and no saved demo profile', async () => {
@@ -130,7 +119,7 @@ test('guest cart never displays sample rows or another browser cart', async () =
   dom.window.close();
 });
 test('database failure clears sample account data and exposes an error', async () => {
-  const dom = await page('account.html', true, true),
+  const dom = await page('account.html', false, true),
     d = dom.window.document;
   assert.doesNotMatch(d.querySelector('#account').textContent, /Sarah|ORD-2024/);
   assert.ok(d.querySelector('[role="alert"]'));
@@ -138,7 +127,7 @@ test('database failure clears sample account data and exposes an error', async (
   dom.window.close();
 });
 test('category has real filter controls and no template merchandise for an empty API result', async () => {
-  const dom = await page('category.html?categoryId=1'),
+  const dom = await page('category.html'),
     d = dom.window.document;
   assert.ok(d.querySelector('.client-filters [name="categoryId"]'));
   assert.equal(d.querySelectorAll('main .product-box:not([hidden])').length, 0);

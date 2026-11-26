@@ -48,59 +48,24 @@ public class BillService {
         this.shippingFee = shippingFee;
     }
 
-    @Transactional
-    public BillView create(long customerId, BillRequest request, String requestKey) {
-        if (requestKey == null) return create(customerId, request);
-        try {
-            if (!java.util.UUID.fromString(requestKey).toString().equals(requestKey))
-                throw new IllegalArgumentException();
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException("Mã gửi yêu cầu đặt hàng không hợp lệ. Vui lòng tải lại trang.");
-        }
-        String digest = checkoutDigest(request);
-        repo.lockCheckoutCustomer(customerId);
-        var previous = repo.findCheckoutRequest(customerId, requestKey);
-        if (previous.isPresent()) {
-            var match = previous.get();
-            if (!match.requestDigest().equals(digest))
-                throw new BusinessException("Nội dung đặt hàng đã thay đổi. Vui lòng gửi yêu cầu mới.");
-            return get(customerId, match.billId());
-        }
-        var bill = create(customerId, request);
-        repo.saveCheckoutRequest(customerId, requestKey, digest, bill.id());
-        return bill;
-    }
-
-    private String checkoutDigest(BillRequest request) {
-        try {
-            byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsBytes(request);
-            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(payload));
-        } catch (com.fasterxml.jackson.core.JsonProcessingException | java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Không thể xác thực nội dung yêu cầu đặt hàng.", e);
-        }
-    }
-
     /**
      * Đặt hàng. @Transactional: có lỗi (hết hàng, sai địa chỉ...) -> ROLLBACK toàn bộ,
      * kể cả các lần trừ tồn kho trước đó.
      */
     @Transactional
     public BillView create(long customerId, BillRequest req) {
-        if ("SEPAY".equals(req.paymentMethod())) sePayService.requireCheckoutConfiguration();
         validateItems(req.items());
         var addr = repo.findAddress(req.addressId(), customerId)
                 .orElseThrow(() -> new BusinessException("Địa chỉ không hợp lệ"));
 
-        String receiverPhone = com.example.clothingshop.common.ReceiverPhone.normalize(addr.receiverPhone());
-
         // 1. Giữ chỗ tồn kho + tính tiền
         BigDecimal subTotal = BigDecimal.ZERO;
         Map<Long, BigDecimal> priceMap = new HashMap<>();
-        for (var item : req.items().stream().sorted(java.util.Comparator.comparing(BillRequest.Item::productDetailId)).toList()) {
+        for (var item : req.items()) {
             BigDecimal price = repo.findPrice(item.productDetailId())
                     .orElseThrow(() -> new BusinessException("Sản phẩm chi tiết không tồn tại: " + item.productDetailId()));
             if (repo.reserveStock(item.productDetailId(), item.quantity()) == 0) {
-                throw new BusinessException("Số lượng vượt quá tồn kho. Vui lòng cập nhật giỏ hàng.");
+                throw new BusinessException("Không đủ hàng cho sản phẩm chi tiết id=" + item.productDetailId());
             }
             priceMap.put(item.productDetailId(), price);
             subTotal = subTotal.add(price.multiply(BigDecimal.valueOf(item.quantity())));
@@ -118,7 +83,7 @@ public class BillService {
         p.put("customerId", customerId);
         p.put("addressId", req.addressId());
         p.put("receiverName", addr.receiverName());
-        p.put("receiverPhone", receiverPhone);
+        p.put("receiverPhone", addr.receiverPhone());
         p.put("shippingAddress", addr.fullAddress());
         p.put("subTotal", subTotal);
         p.put("shippingFee", ship);
@@ -133,10 +98,9 @@ public class BillService {
         }
 
         // 3. Insert BILL_DETAIL + BILL_HISTORY
-        for (var item : req.items().stream().sorted(java.util.Comparator.comparing(BillRequest.Item::productDetailId)).toList()) {
+        for (var item : req.items()) {
             repo.insertBillDetail(billId, item.productDetailId(), item.quantity(), priceMap.get(item.productDetailId()));
         }
-        repo.recordReservation(billId, false);
         repo.insertHistory(billId, null, 0, "Khách đặt hàng", null);
 
         return get(customerId, billId);
@@ -147,15 +111,12 @@ public class BillService {
         if (items == null || items.isEmpty() || items.size() > 100) {
             throw new BusinessException("Chọn từ 1 đến 100 sản phẩm để đặt hàng");
         }
-        for (int index = 0; index < items.size(); index++) {
-            var item = items.get(index);
-            int line = index + 1;
-            if (item == null || item.productDetailId() == null || item.productDetailId() < 1)
-                throw new BusinessException("Sản phẩm ở dòng " + line + " không hợp lệ.");
-            if (item.quantity() == null || item.quantity() < 1 || item.quantity() > 100)
-                throw new BusinessException("Số lượng ở dòng " + line + " phải từ 1 đến 100.");
-            if (!seen.add(item.productDetailId()))
-                throw new BusinessException("Sản phẩm ở dòng " + line + " trùng màu sắc và kích cỡ với dòng trước.");
+        for (var item : items) {
+            if (item == null || item.productDetailId() == null || item.productDetailId() < 1
+                    || item.quantity() == null || item.quantity() < 1 || item.quantity() > 100
+                    || !seen.add(item.productDetailId())) {
+                throw new BusinessException("Sản phẩm hoặc số lượng không hợp lệ, không gửi trùng biến thể");
+            }
         }
     }
 
@@ -167,7 +128,7 @@ public class BillService {
             BigDecimal price = repo.findPrice(item.productDetailId())
                     .orElseThrow(() -> new BusinessException("Sản phẩm không còn được bán"));
             if (repo.availableStock(item.productDetailId()) < item.quantity()) {
-                throw new BusinessException("Số lượng vượt quá tồn kho. Vui lòng chọn lại số lượng.");
+                throw new BusinessException("Sản phẩm không đủ tồn kho. Vui lòng chọn lại số lượng");
             }
             subtotal = subtotal.add(price.multiply(BigDecimal.valueOf(item.quantity())));
         }
@@ -291,7 +252,7 @@ public class BillService {
     }
 
     @Transactional
-    public String createSePayPayment(long customerId, long billId) {
+    public void createSePayPayment(long customerId, long billId) {
         Bill bill = repo.lockByIdAndCustomer(billId, customerId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn id=" + billId));
         if (!"SEPAY".equals(bill.paymentMethod())) {
@@ -304,12 +265,10 @@ public class BillService {
             throw new BusinessException("Đơn hàng không còn ở trạng thái chờ thanh toán");
         }
 
-        String qrUrl = sePayService.qrUrl(bill.totalAmount(), bill.billCode());
         SePayPaymentAttempt attempt = repo.findPendingSePayPayment(billId).orElse(null);
         if (attempt == null) {
             repo.insertSePayPayment(billId, bill.totalAmount(), bill.billCode());
         }
-        return qrUrl;
     }
 
     @Transactional
@@ -365,24 +324,74 @@ public class BillService {
         return true;
     }
 
+    @Transactional
     public BillView updateCashPaymentStatus(long billId, boolean paid, long managerId) {
-        BillView bill = getForStaff(billId);
-        if ("COD".equals(bill.paymentMethod()) && java.util.Objects.equals(bill.paymentStatus(), paid ? 1 : 0)) {
-            return bill;
+        Bill bill = repo.findById(billId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn id=" + billId));
+        if (!"COD".equals(bill.paymentMethod())) {
+            throw new BusinessException("Chỉ hỗ trợ xác nhận thanh toán tiền mặt COD");
         }
-        throw new BusinessException("Cập nhật tiền COD trong trang Quản trị để ghi nhận cùng đơn hàng.");
+        int currentStatus = bill.paymentStatus() == null ? 0 : bill.paymentStatus();
+        int newStatus = paid ? 1 : 0;
+        if (currentStatus == 2) {
+            throw new BusinessException("Không thể thay đổi trạng thái khoản thanh toán đã hoàn tiền");
+        }
+        if (paid && (bill.status() == null || bill.status() != 2 && bill.status() != 3)) {
+            throw new BusinessException("Chỉ xác nhận đã thu tiền khi đơn đang giao hoặc đã hoàn thành");
+        }
+        if (currentStatus != newStatus) {
+            if (repo.updateCashPaymentStatus(billId, currentStatus, newStatus) == 0) {
+                throw new BusinessException("Trạng thái thanh toán đã bị thay đổi, vui lòng tải lại");
+            }
+            String note = paid
+                    ? "Admin #" + managerId + " xác nhận đã thu tiền mặt"
+                    : "Admin #" + managerId + " cập nhật đơn chưa thanh toán";
+            repo.insertCashPaymentHistory(billId, bill.totalAmount(), newStatus, note, paid);
+        }
+        return BillView.from(repo.findById(billId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn id=" + billId)));
     }
 
+    @Transactional
     public BillView updateManagedStatus(long billId, int newStatus, String note,
                                         long managerId, boolean owner) {
         Bill bill = repo.lockById(billId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn id=" + billId));
-        if (repo.hasPendingCustomerRequest(billId))
+        if(repo.hasPendingCustomerRequest(billId))
             throw new BusinessException("Đơn có yêu cầu hủy / trả hàng chờ duyệt. Vui lòng xử lý tại trang quản trị trước.");
         int oldStatus = bill.status() == null ? -1 : bill.status();
-        if (oldStatus == newStatus) return BillView.from(bill);
-        throw new BusinessException("Chuyển trạng thái trong trang Quản trị để đồng bộ đơn, phiếu xuất và tồn kho.");
+        if (oldStatus == newStatus) {
+            return BillView.from(bill);
+        }
+
+        boolean approveOrder = oldStatus == 0 && newStatus == 1;
+        if (!approveOrder && !owner) {
+            throw new BusinessException("Nhân viên chỉ được duyệt đơn đang chờ xác nhận");
+        }
+        boolean validTransition = approveOrder
+                || oldStatus == 1 && newStatus == 2
+                || oldStatus == 2 && newStatus == 3
+                || (oldStatus == 0 || oldStatus == 1) && newStatus == 4
+                || oldStatus == 3 && newStatus == 5;
+        if (!validTransition) {
+            throw new BusinessException("Không thể chuyển trạng thái đơn từ " + oldStatus + " sang " + newStatus);
+        }
+        if (newStatus == 4 && bill.paymentStatus() != null && bill.paymentStatus() == 1) {
+            throw new BusinessException("Đơn hàng đã thanh toán; cần hoàn tiền trước khi hủy đơn");
+        }
+        if (repo.updateStatus(billId, oldStatus, newStatus, managerId) == 0) {
+            throw new BusinessException("Trạng thái đơn đã bị thay đổi, vui lòng tải lại");
+        }
+        if (newStatus == 4) {
+            repo.releaseReservedStockForBill(billId);
+        }
+        String historyNote = note == null || note.isBlank()
+                ? "Nhân viên #" + managerId + " cập nhật trạng thái đơn"
+                : note.trim();
+        repo.insertHistory(billId, oldStatus, newStatus, historyNote, managerId);
+        return getForStaff(billId);
     }
+
     private Bill getEntity(long id, long customerId) {
         return repo.findByIdAndCustomer(id, customerId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn id=" + id));
