@@ -1,6 +1,7 @@
 /* Native eStore integration: keep the team's template and populate it from Java APIs. */
 (() => {
   'use strict';
+  let addressFieldId = 0;
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
   const orderStatuses = [
@@ -12,8 +13,6 @@
     'Trả hàng',
     'Giao thất bại',
   ];
-  const sePayTestNotice =
-    'đây là tính năng môi trường test sepay, không thể dùng tài khoản thật để quét, liên hệ zalo 0948728295';
   const esc = (value) =>
     String(value ?? '').replace(
       /[&<>"']/g,
@@ -36,50 +35,6 @@
       return 'Đơn đã hủy. Nếu bạn đã chuyển khoản trước khi trạng thái thanh toán được cập nhật, vui lòng liên hệ cửa hàng để đối soát.';
     return 'Đơn hàng đã được hủy.';
   }
-  const sePayQrBank = 'Vietcombank';
-  const sePayQrAccount = 'SBSEPAYGL9TEMZRXDAK';
-  function sePayQrUrl(amount, description) {
-    const value = Number(amount);
-    if (!Number.isSafeInteger(value) || value <= 0)
-      throw Error('Số tiền thanh toán SePay không hợp lệ.');
-    const url = new URL('https://vietqr.app/img');
-    url.searchParams.set('bank', sePayQrBank);
-    url.searchParams.set('acc', sePayQrAccount);
-    url.searchParams.set('template', 'compact');
-    url.searchParams.set('amount', String(value));
-    url.searchParams.set('des', String(description));
-    return url.toString();
-  }
-  function createSePayQr(amount, billCode) {
-    const frame = document.createElement('div');
-    frame.className = 'client-sepay-qr';
-    frame.style.position = 'relative';
-    frame.style.width = '320px';
-    frame.style.maxWidth = '100%';
-    frame.style.margin = '0 auto 1rem';
-    const qr = document.createElement('img');
-    qr.className = 'img-fluid d-block mx-auto';
-    qr.src = sePayQrUrl(amount, billCode);
-    qr.alt = 'Mã QR thanh toán SePay';
-    frame.append(qr);
-    const notice = document.createElement('span');
-    notice.textContent = sePayTestNotice;
-    notice.style.position = 'absolute';
-    notice.style.top = '50%';
-    notice.style.left = '50%';
-    notice.style.transform = 'translate(-50%, -50%)';
-    notice.style.width = '90%';
-    notice.style.padding = '0.5rem';
-    notice.style.borderRadius = '0.25rem';
-    notice.style.background = 'rgba(255, 255, 255, 0.94)';
-    notice.style.color = '#842029';
-    notice.style.fontWeight = '700';
-    notice.style.lineHeight = '1.35';
-    notice.style.textAlign = 'center';
-    notice.style.boxShadow = '0 0 0.5rem rgba(0, 0, 0, 0.2)';
-    frame.append(notice);
-    return frame;
-  }
   function createSePayDemoImage() {
     const figure = document.createElement('figure');
     figure.className = 'client-sepay-demo';
@@ -97,7 +52,7 @@
   }
   const isLoopbackHost =
     location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-  const useSameOriginApi = !isLoopbackHost || location.port === '3000';
+  const useSameOriginApi = !isLoopbackHost || ['3000', '8081'].includes(location.port);
   const apiBase = (
     window.CLOTHING_SHOP_API_BASE ||
     (useSameOriginApi ? '/api' : 'http://localhost:8080/api')
@@ -134,8 +89,8 @@
       img.hidden = true;
     };
   }
-  async function api(url, method = 'GET', data, options = {}) {
-    const headers = { Accept: 'application/json' };
+  async function api(url, method = 'GET', data, extraHeaders = {}, options = {}) {
+    const headers = { Accept: 'application/json', ...extraHeaders };
     const token = sessionStorage.getItem(tokenKey);
     if (token) headers.Authorization = 'Bearer ' + token;
     if (data !== undefined) headers['Content-Type'] = 'application/json';
@@ -156,9 +111,9 @@
     const body = await response.json().catch(() => null);
     if (!response.ok) {
       const error = Error(
-        response.status >= 500
+        (body?.success === false && body.message) || (response.status >= 500
           ? 'Máy chủ chưa xử lý được yêu cầu. Vui lòng thử lại sau.'
-          : body?.message || 'Yêu cầu không hợp lệ. Hãy tải lại trang.',
+          : 'Yêu cầu không hợp lệ. Hãy tải lại trang.'),
       );
       error.status = response.status;
       throw error;
@@ -166,156 +121,6 @@
     if (!body || body.success !== true)
       throw Error(body?.message || 'Máy chủ trả về dữ liệu không hợp lệ.');
     return body.data;
-  }
-  const addressCatalogBase = 'https://provinces.open-api.vn/api/v2';
-  let provinceCatalogPromise = null;
-  const wardCatalogPromises = new Map();
-  async function addressCatalogRequest(url, failureMessage) {
-    let response;
-    try {
-      response = await fetch(url, { headers: { Accept: 'application/json' } });
-    } catch {
-      throw Error(failureMessage);
-    }
-    if (!response.ok) throw Error(failureMessage);
-    let data;
-    try {
-      data = await response.json();
-    } catch {
-      throw Error(failureMessage);
-    }
-    return data;
-  }
-  function getAddressProvinces() {
-    if (!provinceCatalogPromise) {
-      provinceCatalogPromise = addressCatalogRequest(
-        addressCatalogBase + '/',
-        'Không tải được danh sách tỉnh/thành phố. Hãy thử lại.',
-      )
-        .then((provinces) => {
-          if (!Array.isArray(provinces) || provinces.some((item) => !item?.name || !item?.code))
-            throw Error('Danh sách tỉnh/thành phố không hợp lệ.');
-          return provinces;
-        })
-        .catch((error) => {
-          provinceCatalogPromise = null;
-          throw error;
-        });
-    }
-    return provinceCatalogPromise;
-  }
-  function getAddressWards(provinceCode) {
-    if (!wardCatalogPromises.has(provinceCode)) {
-      wardCatalogPromises.set(
-        provinceCode,
-        addressCatalogRequest(
-          addressCatalogBase + '/p/' + encodeURIComponent(provinceCode) + '?depth=2',
-          'Không tải được danh sách phường/xã. Hãy chọn lại tỉnh/thành phố.',
-        )
-          .then((province) => {
-            if (!Array.isArray(province?.wards))
-              throw Error('Danh sách phường/xã không hợp lệ.');
-            return province.wards;
-          })
-          .catch((error) => {
-            wardCatalogPromises.delete(provinceCode);
-            throw error;
-          }),
-      );
-    }
-    return wardCatalogPromises.get(provinceCode);
-  }
-  function addressOption(select, label, value, code) {
-    const option = document.createElement('option');
-    option.textContent = label;
-    option.value = value;
-    if (code) option.dataset.code = code;
-    select.append(option);
-    return option;
-  }
-  function normalizeProvinceName(value) {
-    return String(value || '')
-      .trim()
-      .replace(/^(tỉnh|thành phố|tp\.?)\s+/i, '')
-      .toLocaleLowerCase('vi');
-  }
-  async function populateAddressSelects(container, currentProvince = '', currentWard = '') {
-    const provinceSelect = $('[name="province"]', container);
-    const wardSelect = $('[name="ward"]', container);
-    if (!provinceSelect || !wardSelect) throw Error('Không tìm thấy trường chọn địa chỉ.');
-
-    provinceSelect.replaceChildren();
-    addressOption(provinceSelect, 'Đang tải tỉnh/thành phố…', '');
-    wardSelect.replaceChildren();
-    addressOption(wardSelect, 'Chọn tỉnh/thành phố trước', '');
-    provinceSelect.required = wardSelect.required = true;
-    provinceSelect.disabled = wardSelect.disabled = true;
-    const provinces = await getAddressProvinces();
-    provinceSelect.replaceChildren();
-    addressOption(provinceSelect, 'Chọn tỉnh/thành phố', '');
-    provinces.forEach((province) =>
-      addressOption(provinceSelect, province.name, province.name, province.code),
-    );
-    let selectedProvince = provinces.find((province) => province.name === currentProvince);
-    if (!selectedProvince && currentProvince) {
-      selectedProvince = provinces.find(
-        (province) =>
-          normalizeProvinceName(province.name) === normalizeProvinceName(currentProvince),
-      );
-    }
-    if (selectedProvince) {
-      provinceSelect.value = selectedProvince.name;
-    } else if (currentProvince) {
-      addressOption(provinceSelect, currentProvince, currentProvince);
-      provinceSelect.value = currentProvince;
-    }
-    provinceSelect.disabled = false;
-
-    let wardRequest = 0;
-    const loadWards = async (selectedWard = '') => {
-      const request = ++wardRequest;
-      const selectedOption = $('option:checked', provinceSelect);
-      const provinceCode = selectedOption?.dataset.code;
-      wardSelect.replaceChildren();
-      addressOption(
-        wardSelect,
-        provinceCode ? 'Đang tải phường/xã…' : 'Chọn tỉnh/thành phố trước',
-        '',
-      );
-      wardSelect.disabled = true;
-      if (!provinceSelect.value) return;
-      if (!provinceCode) {
-        if (selectedWard) {
-          addressOption(wardSelect, selectedWard, selectedWard);
-          wardSelect.value = selectedWard;
-        }
-        wardSelect.disabled = false;
-        return;
-      }
-      try {
-        const wards = await getAddressWards(provinceCode);
-        if (request !== wardRequest) return;
-        wardSelect.replaceChildren();
-        addressOption(wardSelect, 'Chọn phường/xã', '');
-        wards.forEach((ward) => addressOption(wardSelect, ward.name, ward.name, ward.code));
-        if (selectedWard && !wards.some((ward) => ward.name === selectedWard)) {
-          addressOption(wardSelect, selectedWard, selectedWard);
-        }
-        wardSelect.value = selectedWard || '';
-        wardSelect.disabled = false;
-      } catch (error) {
-        if (request !== wardRequest) return;
-        wardSelect.replaceChildren();
-        addressOption(wardSelect, 'Chọn phường/xã', '');
-        wardSelect.disabled = false;
-        throw error;
-      }
-    };
-    provinceSelect.onchange = () => {
-      loadWards().catch((error) => message(container, error.message, true));
-    };
-    if (provinceSelect.value) await loadWards(currentWard);
-    else wardSelect.disabled = true;
   }
   function message(root, text, error = false) {
     if (!root) return;
@@ -741,9 +546,12 @@
         return;
       }
       const quantity = Number(qty.value);
-      if (!selected || !Number.isInteger(quantity) || quantity < 1 || quantity > selected.quantity)
-        throw Error('Chọn màu, kích cỡ và số lượng còn hàng hợp lệ.');
-      if (quantity > 100) throw Error('Mỗi biến thể được mua tối đa 100 sản phẩm trong một đơn.');
+      if (!selected) throw Error('Màu sắc và Kích cỡ đã chọn không có sẵn.');
+      if (!Number.isInteger(quantity) || quantity < 1)
+        throw Error('Số lượng phải là số nguyên từ 1 trở lên.');
+      if (quantity > 100) throw Error('Số lượng tối đa là 100 sản phẩm cho mỗi biến thể.');
+      if (quantity > selected.quantity)
+        throw Error(`Số lượng vượt quá tồn kho. Hiện còn ${selected.quantity} sản phẩm.`);
       if (go) {
         location.assign(`checkout.html?buyNow=1&productId=${id}&variantId=${selected.id}&quantity=${quantity}`);
         return;
@@ -1002,8 +810,11 @@
       forms.forEach((f) => $$('input,button', f).forEach((n) => (n.disabled = true)));
       return;
     }
-    const profile = $('#firstName').closest('form');
-    profile.reset();
+    const fullName = (customer.FULL_NAME || '').trim().split(/\s+/);
+    $('#firstName', host).value = fullName.pop() || '';
+    $('#lastName', host).value = fullName.join(' ');
+    $('#email', host).value = customer.EMAIL || '';
+    $('#phone', host).value = customer.PHONE || '';
     $$('#settings form', host).forEach((form) =>
       form.querySelectorAll('input,button').forEach((n) => (n.disabled = true)),
     );
@@ -1151,28 +962,12 @@
     const editAddress = async (a) => {
       const form = document.createElement('form');
       form.className = 'client-address-card';
-      const fields = [
-        ['receiverName', 'Người nhận', 'receiverName', 150],
-        ['receiverPhone', 'Điện thoại', 'receiverPhone', 20],
-        ['detailAddress', 'Địa chỉ chi tiết', 'detailAddress', 300],
-      ];
-      form.innerHTML =
-        fields
-          .map(
-            ([name, label, key, max]) =>
-              `<label class="d-block mb-3">${label}<input class="form-control" name="${name}" required maxlength="${max}" value="${esc(a?.[key] || '')}"></label>`,
-          )
-          .join('') +
-        '<label class="d-block mb-3">Tỉnh/thành phố<select class="form-select" name="province" required></select></label><label class="d-block mb-3">Phường/xã<select class="form-select" name="ward" required></select></label>' +
-        '<label><input type="checkbox" name="isDefault"> Đặt làm mặc định</label><p><button class="btn btn-primary" type="submit">Lưu địa chỉ</button> <button class="btn btn-link" type="button">Hủy</button></p>';
+      form.innerHTML = deliveryAddressFields(a || {}) +
+        '<label><input type="checkbox" name="isDefault"> Đặt làm mặc định</label><p><button class="btn btn-primary" type="submit">Lưu địa chỉ</button> <button class="btn btn-link" type="button" data-cancel-address>Hủy</button></p>';
       $('[name="isDefault"]', form).checked = a?.isDefault === true;
-      $('[type="button"]', form).onclick = () => form.remove();
+      $('[data-cancel-address]', form).onclick = () => form.remove();
       addressPanel.append(form);
-      try {
-        await populateAddressSelects(form, a?.province, a?.ward);
-      } catch (error) {
-        message(form, error.message, true);
-      }
+      bindDeliveryAddress(form).load();
       form.onsubmit = (e) => {
         e.preventDefault();
         action($('[type="submit"]', form), async () => {
@@ -1257,13 +1052,13 @@
       .join('');
     form.innerHTML =
       `<label class="d-block mb-3">Địa chỉ nhận hàng<select class="form-select" name="addressId"><option value="">Chọn địa chỉ</option>${addressOptions}<option value="new" ${addresses.length ? '' : 'selected'}>Nhập địa chỉ mới</option></select></label>` +
-      '<div class="client-new-address" hidden><label class="d-block mb-3">Người nhận<input class="form-control" name="receiverName" maxlength="150"></label><label class="d-block mb-3">Điện thoại<input class="form-control" name="receiverPhone" maxlength="20"></label><label class="d-block mb-3">Tỉnh/thành phố<select class="form-select" name="province"></select></label><label class="d-block mb-3">Phường/xã<select class="form-select" name="ward"></select></label><label class="d-block mb-3">Địa chỉ chi tiết<input class="form-control" name="detailAddress" maxlength="300"></label></div>' +
+      `<fieldset class="client-new-address" hidden disabled>${deliveryAddressFields()}</fieldset>` +
       `<fieldset class="mb-3"><legend class="form-label">Phương thức thanh toán</legend><label class="d-block"><input type="radio" name="paymentMethod" value="COD" checked> Thanh toán khi nhận hàng (COD)</label><label class="d-block"><input type="radio" name="paymentMethod" value="SEPAY"> Chuyển khoản qua SePay</label></fieldset><div class="client-voucher mb-3"><label class="d-block">Voucher dành cho tài khoản<select name="voucherCode" class="form-select"><option value="">Không sử dụng voucher</option>${voucherOptions}</select></label>${availableVouchers.length ? '' : '<p>Hiện chưa có voucher phù hợp với tài khoản của bạn.</p>'}<button type="button" class="btn btn-outline-primary mt-2" data-voucher-apply ${availableVouchers.length ? '' : 'disabled'}>Áp dụng voucher</button><p class="client-voucher-message" role="status"></p></div><label class="d-block mb-3">Ghi chú<textarea name="note" class="form-control" maxlength="500"></textarea></label><p class="client-checkout-total"></p><button type="submit" class="btn btn-primary">Đặt hàng</button>`;
     const sepayInfo = document.createElement('p');
     sepayInfo.className = 'client-sepay-info';
     sepayInfo.textContent = 'Mã QR và ảnh mô phỏng sẽ hiển thị sau khi bạn bấm Đặt hàng.';
     sepayInfo.hidden = true;
-    $('fieldset', form).after(sepayInfo);
+    $('fieldset:not(.client-new-address)', form).after(sepayInfo);
     const sepayDemoImage = createSePayDemoImage();
     sepayDemoImage.hidden = true;
     $$('input[name="paymentMethod"]', form).forEach((input) => {
@@ -1274,17 +1069,10 @@
     });
     const addressSelect = $('[name="addressId"]', form);
     const newAddress = $('.client-new-address', form);
-    let addressSelectsLoaded = false;
+    const deliveryAddress = bindDeliveryAddress(newAddress);
     addressSelect.onchange = () => {
-      newAddress.hidden = addressSelect.value !== 'new';
-      $$('input,select', newAddress).forEach((input) => (input.required = !newAddress.hidden));
-      if (!newAddress.hidden && !addressSelectsLoaded) {
-        addressSelectsLoaded = true;
-        populateAddressSelects(newAddress).catch((error) => {
-          addressSelectsLoaded = false;
-          message(form, error.message, true);
-        });
-      }
+      newAddress.disabled = newAddress.hidden = addressSelect.value !== 'new';
+      if (!newAddress.hidden) deliveryAddress.load();
     };
     addressSelect.dispatchEvent(new Event('change'));
     if (summary) {
@@ -1325,7 +1113,7 @@
     $('[data-voucher-apply]', form).onclick = (event) =>
       action(event.currentTarget, async () => {
         const code = voucherInput.value.trim().toUpperCase();
-        if (!code) throw Error('Nhập mã voucher trước khi áp dụng.');
+        if (!code) throw Error('Mã giảm giá là trường bắt buộc khi áp dụng voucher.');
         const sequence = ++quoteSequence;
         const quote = await api('/api/bills/quote', 'POST', {
           code,
@@ -1341,6 +1129,7 @@
         voucherMessage.setAttribute('role', 'status');
         renderTotals();
       });
+    let checkoutAttempt, createdAddress;
     form.onsubmit = (event) => {
       event.preventDefault();
       if (!form.reportValidity()) return;
@@ -1348,28 +1137,33 @@
       action(button, async () => {
         const enteredCode = voucherInput.value.trim().toUpperCase();
         if (enteredCode && enteredCode !== appliedVoucherCode)
-          throw Error('Hãy áp dụng lại voucher trước khi đặt hàng.');
+          throw Error('Mã giảm giá đã thay đổi. Hãy áp dụng lại trước khi đặt hàng.');
         let addressId = Number(addressSelect.value);
         if (addressSelect.value === 'new') {
           if (!addressSelectsLoaded || !$('[name="province"]', newAddress).value || !$('[name="ward"]', newAddress).value)
             throw Error('Vui lòng chọn tỉnh/thành phố và phường/xã.');
           const address = Object.fromEntries(new FormData(form));
-          const created = await api('/api/addresses', 'POST', {
+          const addressRequest = {
             receiverName: address.receiverName,
             receiverPhone: address.receiverPhone,
             province: address.province,
             ward: address.ward,
             detailAddress: address.detailAddress,
             isDefault: addresses.length === 0,
-          });
-          addressId = created.id;
+          };
+          const addressFingerprint = JSON.stringify(addressRequest);
+          if (createdAddress?.fingerprint !== addressFingerprint) {
+            const saved = await api('/api/addresses', 'POST', addressRequest);
+            createdAddress = {fingerprint: addressFingerprint, id: saved.id};
+          }
+          addressId = createdAddress.id;
         }
         if (!Number.isSafeInteger(addressId) || addressId < 1)
           throw Error('Vui lòng chọn hoặc nhập địa chỉ nhận hàng.');
         const paymentMethod = $('input[name="paymentMethod"]:checked', form)?.value;
         if (paymentMethod !== 'COD' && paymentMethod !== 'SEPAY')
           throw Error('Vui lòng chọn phương thức thanh toán.');
-        const order = await api('/api/bills', 'POST', {
+        const orderRequest = {
           addressId,
           paymentMethod,
           note: $('[name="note"]', form).value.trim(),
@@ -1378,16 +1172,31 @@
             productDetailId: item.productDetailId,
             quantity: item.quantity,
           })),
-        });
+        };
+        const requestBody = JSON.stringify(orderRequest);
+        const savedKey = 'clothingShop.checkout.' + customer.customerId;
+        const fingerprint = crypto.subtle
+          ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(requestBody))))
+              .map((byte) => byte.toString(16).padStart(2, '0')).join('')
+          : requestBody;
+        if (!checkoutAttempt && crypto.subtle) {
+          try { checkoutAttempt = JSON.parse(sessionStorage.getItem(savedKey)); } catch {}
+        }
+        if (checkoutAttempt?.fingerprint !== fingerprint) {
+          checkoutAttempt = {fingerprint, key: crypto.randomUUID()};
+          if (crypto.subtle) sessionStorage.setItem(savedKey, JSON.stringify(checkoutAttempt));
+        }
+        const order = await api('/api/bills', 'POST', orderRequest, {'Idempotency-Key': checkoutAttempt.key});
+        sessionStorage.removeItem(savedKey);
         // The order is committed: prevent resubmitting even if a later payment/cart request fails.
         form.onsubmit = (e) => e.preventDefault();
         if (order.paymentMethod !== paymentMethod)
           throw Error(
             `Đơn ${order.billCode} đã được tạo, nhưng backend trả về phương thức ${order.paymentMethod || 'không xác định'} thay vì ${paymentMethod}.`,
           );
-        let paymentWarning = '';
+        let paymentWarning = '', paymentQr;
         if (paymentMethod === 'SEPAY') {
-          try { await api('/api/bills/' + order.id + '/sepay-payment', 'POST'); }
+          try { paymentQr = (await api('/api/bills/' + order.id + '/sepay-payment', 'POST')).qrUrl; }
           catch { paymentWarning = 'Đơn đã được tạo. Hãy mở chi tiết đơn để tiếp tục thanh toán SePay.'; }
         }
         if (!directPurchase) saveCartSelection(new Set());
@@ -1395,7 +1204,7 @@
           directPurchase ? [] : checkoutItems.map((item) => api(cartPath() + '/items/' + item.id, 'DELETE')),
         );
         const failedRemoval = removals.find((result) => result.status === 'rejected');
-        let cartWarning = failedRemoval ? failedRemoval.reason.message : paymentWarning;
+        let cartWarning = failedRemoval ? failedRemoval.reason.message : "";
         if (!cartWarning && !directPurchase) {
           try {
             await refreshCart();
@@ -1404,16 +1213,24 @@
           }
         }
         const result = document.createElement('section');
-        result.className = cartWarning ? 'alert alert-warning' : 'alert alert-success';
+        result.className = cartWarning || paymentWarning ? 'alert alert-warning' : 'alert alert-success';
         result.setAttribute('role', 'status');
         const resultText = document.createElement('p');
         resultText.textContent = cartWarning
           ? `Đơn ${order.billCode} đã được tạo với phương thức ${paymentMethod}, nhưng giỏ hàng chưa cập nhật được: ${cartWarning}`
           : `Đặt hàng thành công với phương thức ${paymentMethod}. Mã đơn: ${order.billCode}.`;
         result.append(resultText);
+        if (paymentWarning) { const warning = document.createElement("p"); warning.textContent = paymentWarning; result.append(warning); }
         if (paymentMethod === 'SEPAY') {
-          const qrFrame = createSePayQr(order.totalAmount, order.billCode);
-          result.append(qrFrame);
+          let qr;
+          if (paymentQr) {
+            qr = document.createElement('img');
+            qr.className = 'img-fluid d-block mx-auto mb-3';
+            qr.style.maxWidth = '320px';
+            qr.src = paymentQr;
+            qr.alt = 'Mã QR thanh toán SePay';
+            result.append(qr);
+          }
           const instructions = document.createElement('p');
           instructions.textContent =
             `Chuyển ${money(order.totalAmount)} đến tài khoản SePay và giữ nguyên nội dung ${order.billCode}.`;
@@ -1429,6 +1246,7 @@
             if (!Number.isInteger(latest.paymentStatus))
               throw Error('Máy chủ chưa trả trạng thái thanh toán hợp lệ.');
             if (latest.paymentStatus === 1) {
+              if (qr) qr.hidden = true;
               paymentStatus.className = 'alert alert-success';
               paymentStatus.textContent =
                 latest.status === 0
@@ -1478,6 +1296,170 @@
       });
     };
   }
+
+  function deliveryAddressFields(address = {}) {
+    function picker(name, label) {
+      const id = 'client-delivery-' + ++addressFieldId;
+      return `<div class="client-address-picker mb-3" data-picker="${name}">
+        <label for="${id}">${label}</label>
+        <div class="client-address-input">
+          <input class="form-control" id="${id}" type="search" role="combobox" aria-autocomplete="list"
+            aria-controls="${id}-results" aria-expanded="false" autocomplete="off" required placeholder="Gõ để tìm…">
+          <button type="button" class="btn btn-outline-secondary" aria-label="Mở danh sách ${label}">⌄</button>
+        </div>
+        <input type="hidden" name="${name}" value="${esc(address[name] || '')}">
+        <div id="${id}-results" class="client-address-results" role="listbox" aria-label="${label}" hidden></div>
+      </div>`;
+    }
+    return `<label class="d-block mb-3">Tên người nhận<input class="form-control" name="receiverName" required maxlength="150" autocomplete="shipping name" value="${esc(address.receiverName || '')}"></label>
+      <label class="d-block mb-3">Số điện thoại người nhận<input class="form-control" name="receiverPhone" required type="tel" inputmode="tel" maxlength="25" autocomplete="shipping tel" placeholder="Ví dụ: 0912345678" value="${esc(address.receiverPhone || '')}"></label>
+      ${picker('province', 'Tỉnh/Thành phố')}${picker('ward', 'Phường/Xã')}
+      <p data-address-message role="status" hidden></p>
+      <button type="button" class="btn btn-outline-secondary mb-3" data-address-retry hidden>Tải lại danh sách địa chỉ</button>
+      <label class="d-block mb-3">Địa chỉ chi tiết<input class="form-control" name="detailAddress" required maxlength="300" autocomplete="shipping street-address" placeholder="Số nhà, tên đường hoặc thôn/xóm" value="${esc(address.detailAddress || '')}"></label>`;
+  }
+
+  function bindDeliveryAddress(container) {
+    const normalize = (value) => value.toLowerCase().normalize('NFD')
+      .replace(/\p{M}/gu, '').replace(/đ/g, 'd').trim();
+    const phone = $('[name="receiverPhone"]', container);
+    const validatePhone = () => {
+      const input = phone.value.trim();
+      const number = input.replace(/[(). -]/g, '').replace(/^\+?84/, '0');
+      phone.setCustomValidity(!input || (/^[0-9+(). -]{1,25}$/.test(input)
+        && /^0(?:[35789][0-9]{8}|2[0-9]{9})$/.test(number)) ? ''
+        : 'Số điện thoại người nhận không hợp lệ. Nhập số Việt Nam, ví dụ 0912345678 hoặc +84912345678.');
+    };
+    phone.addEventListener('input', validatePhone);
+    phone.addEventListener('blur', validatePhone);
+    validatePhone();
+
+    const message = $('[data-address-message]', container);
+    const retry = $('[data-address-retry]', container);
+    let sequence = 0;
+    let provinces;
+    let loading;
+
+    function picker(name, changed) {
+      const root = $(`[data-picker="${name}"]`, container);
+      const field = $('input[type=search]', root);
+      const value = $('input[type=hidden]', root);
+      const toggle = $('button', root);
+      const list = $('[role=listbox]', root);
+      let entries = [], matches = [], cursor = -1;
+      field.value = value.value;
+      function close() {
+        list.hidden = true;
+        field.setAttribute('aria-expanded', 'false');
+        field.removeAttribute('aria-activedescendant');
+        cursor = -1;
+      }
+      function open(all = false) {
+        if (!entries.length) return;
+        const tokens = normalize(all || value.value ? '' : field.value).split(/\s+/);
+        matches = entries.filter((item) => tokens.every((token) => normalize(item.name).includes(token)));
+        list.innerHTML = matches.length ? matches.map(({ name: label }, index) =>
+          `<button type="button" role="option" aria-selected="false" id="${field.id}-${index}" data-index="${index}">${esc(label)}</button>`
+        ).join('') : '<p>Không tìm thấy kết quả phù hợp.</p>';
+        list.hidden = false;
+        field.setAttribute('aria-expanded', 'true');
+        field.removeAttribute('aria-activedescendant');
+        cursor = -1;
+      }
+      function choose(index) {
+        const item = matches[index];
+        if (!item) return;
+        const old = value.value;
+        field.value = value.value = item.name;
+        field.setCustomValidity('');
+        close();
+        if (old !== value.value) changed();
+      }
+      field.oninput = () => {
+        const old = value.value;
+        value.value = '';
+        field.setCustomValidity(field.value ? 'Chọn một mục trong danh sách địa chỉ.' : '');
+        if (old) changed();
+        open();
+      };
+      field.onfocus = () => open();
+      field.onblur = close;
+      toggle.onmousedown = list.onmousedown = (event) => event.preventDefault();
+      toggle.onclick = () => {
+        if (!list.hidden) close();
+        else { field.focus(); open(true); }
+      };
+      list.onclick = (event) => {
+        const option = event.target.closest('[data-index]');
+        if (option) choose(Number(option.dataset.index));
+      };
+      field.onkeydown = (event) => {
+        if (event.key === 'Escape') close();
+        if (event.key === 'Enter' && !list.hidden) {
+          event.preventDefault();
+          choose(Math.max(0, cursor));
+        }
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          if (list.hidden) open();
+          if (!matches.length) return;
+          cursor = event.key === 'ArrowDown' ? (cursor + 1) % matches.length
+            : (cursor <= 0 ? matches.length - 1 : cursor - 1);
+          const options = $$('[role=option]', list);
+          options.forEach((button, index) => button.setAttribute('aria-selected', String(index === cursor)));
+          field.setAttribute('aria-activedescendant', options[cursor].id);
+          options[cursor].scrollIntoView?.({block: 'nearest'});
+        }
+      };
+      return {
+        value,
+        reset(items, placeholder, previous = '') {
+          entries = items;
+          field.value = value.value = previous;
+          field.placeholder = placeholder;
+          field.setCustomValidity('');
+          toggle.disabled = !items.length;
+          close();
+        },
+      };
+    }
+
+    const province = picker('province', () => loadWards());
+    const ward = picker('ward', () => {});
+    function setMessage(text, allowRetry = false) {
+      message.textContent = text;
+      message.hidden = !text;
+      retry.hidden = !allowRetry;
+    }
+    async function loadWards(previous = '') {
+      const current = ++sequence;
+      const selected = provinces?.find((item) => item.name === province.value.value);
+      ward.reset([], selected ? 'Đang tải Phường/Xã…' : 'Chọn tỉnh/thành phố trước', previous);
+      setMessage('');
+      if (!selected) return;
+      try {
+        const names = await api('/api/delivery-address/wards?province=' + encodeURIComponent(selected.code));
+        if (current !== sequence) return;
+        ward.reset(names.map((name) => ({name})), 'Gõ tên phường/xã…', previous);
+      } catch (error) {
+        if (current === sequence) setMessage(error.message, true);
+      }
+    }
+
+    function load() {
+      if (loading) return loading;
+      if (provinces) return loadWards(ward.value.value);
+      setMessage('Đang tải danh mục địa chỉ…');
+      loading = api('/api/delivery-address/provinces').then((items) => {
+        provinces = items;
+        province.reset(items, 'Gõ tên tỉnh/thành phố…', province.value.value);
+        return loadWards(ward.value.value);
+      }).catch((error) => setMessage(error.message, true)).finally(() => { loading = null; });
+      return loading;
+    }
+    retry.onclick = load;
+    return {load};
+  }
   async function orderConfirmationPage() {
     const host = $('#order-confirmation');
     const orderId = query.get('orderId');
@@ -1521,71 +1503,73 @@
         `${esc(current.receiverName)} · ${esc(current.receiverPhone)}<br>${esc(current.shippingAddress)}</p>` +
         `<p>Tổng thanh toán: <strong>${money(current.totalAmount)}</strong></p></div></div></div><a class="btn btn-outline-primary mt-4" href="account.html#orders">Về đơn hàng của tôi</a></div>`;
       const paymentPanel = host.querySelector('.col-lg-5 > div');
-      if (
-        current.paymentMethod === 'SEPAY' &&
-        current.status !== 4 &&
-        (current.paymentStatus === 0 || current.paymentStatus === 1)
-      ) {
-        const qrFrame = createSePayQr(current.totalAmount, current.billCode);
-        paymentPanel.append(qrFrame);
+      if (current.paymentMethod === 'SEPAY' && current.paymentStatus === 0 && current.status !== 4) {
+        const qr = document.createElement('img');
+        qr.className = 'img-fluid d-block mx-auto mb-3';
+        qr.style.maxWidth = '320px';
+        qr.hidden = true;
+        qr.alt = 'Mã QR thanh toán SePay';
+        paymentPanel.append(qr);
         const note = document.createElement('p');
         note.textContent =
           `Chuyển ${money(current.totalAmount)} và giữ nguyên nội dung ${current.billCode}.`;
+        note.hidden = true;
         paymentPanel.append(note);
+        api('/api/bills/' + encodeURIComponent(orderId) + '/sepay-payment', 'POST')
+          .then((payment) => {
+            if (!payment.qrUrl) throw Error('Máy chủ chưa trả mã QR thanh toán.');
+            qr.src = payment.qrUrl;
+            qr.hidden = false;
+            note.hidden = false;
+          })
+          .catch((error) => {
+            note.textContent = error.message;
+            note.hidden = false;
+          });
         const paymentStatus = document.createElement('p');
         paymentStatus.setAttribute('role', 'status');
+        paymentStatus.hidden = true;
         paymentPanel.append(paymentStatus);
-        if (current.paymentStatus === 1) {
-          paymentStatus.className = 'alert alert-success';
-          paymentStatus.textContent =
-            current.status === 0
-              ? 'Đã thanh toán - Chờ xác nhận.'
-              : 'Đã thanh toán. Trạng thái đơn: ' +
-                (orderStatuses[current.status] || 'Đang cập nhật') +
-                '.';
-        } else {
-          paymentStatus.hidden = true;
-          const check = document.createElement('button');
-          check.className = 'btn btn-outline-primary';
-          check.type = 'button';
-          check.textContent = 'Kiểm tra trạng thái thanh toán';
-          check.onclick = (event) =>
-            action(event.currentTarget, async () => {
-              const latest = await api('/api/bills/' + encodeURIComponent(orderId));
-              if (latest.paymentMethod !== 'SEPAY')
-                throw Error('Đơn hàng này không được ghi nhận bằng SePay.');
-              if (!Number.isInteger(latest.paymentStatus))
-                throw Error('Máy chủ chưa trả trạng thái thanh toán hợp lệ.');
-              if (latest.paymentStatus !== 0) {
-                bill = latest;
-                render(latest);
-              } else {
-                paymentStatus.className = 'alert alert-warning';
-                paymentStatus.textContent =
-                  'Chưa ghi nhận thanh toán. Hãy hoàn tất chuyển khoản rồi kiểm tra lại.';
-                paymentStatus.hidden = false;
-              }
-            });
-          paymentPanel.append(check);
-          const pollPaymentStatus = async () => {
-            try {
-              const latest = await api('/api/bills/' + encodeURIComponent(orderId));
-              if (latest.paymentMethod !== 'SEPAY')
-                throw Error('Đơn hàng này không được ghi nhận bằng SePay.');
-              if (!Number.isInteger(latest.paymentStatus))
-                throw Error('Máy chủ chưa trả trạng thái thanh toán hợp lệ.');
-              if (latest.paymentStatus !== 0 || latest.status === 4) {
-                bill = latest;
-                render(latest);
-                return;
-              }
-            } catch (error) {
-              message($('main'), error.message, true);
+        const check = document.createElement('button');
+        check.className = 'btn btn-outline-primary';
+        check.type = 'button';
+        check.textContent = 'Kiểm tra trạng thái thanh toán';
+        check.onclick = (event) =>
+          action(event.currentTarget, async () => {
+            const latest = await api('/api/bills/' + encodeURIComponent(orderId));
+            if (latest.paymentMethod !== 'SEPAY')
+              throw Error('Đơn hàng này không được ghi nhận bằng SePay.');
+            if (!Number.isInteger(latest.paymentStatus))
+              throw Error('Máy chủ chưa trả trạng thái thanh toán hợp lệ.');
+            if (latest.paymentStatus !== 0 || latest.status === 4) {
+              bill = latest;
+              render(latest);
+            } else {
+              paymentStatus.className = 'alert alert-warning';
+              paymentStatus.textContent =
+                'Chưa ghi nhận thanh toán. Hãy hoàn tất chuyển khoản rồi kiểm tra lại.';
+              paymentStatus.hidden = false;
             }
-            paymentCheckTimer = window.setTimeout(pollPaymentStatus, 3000);
-          };
+          });
+        paymentPanel.append(check);
+        const pollPaymentStatus = async () => {
+          try {
+            const latest = await api('/api/bills/' + encodeURIComponent(orderId));
+            if (latest.paymentMethod !== 'SEPAY')
+              throw Error('Đơn hàng này không được ghi nhận bằng SePay.');
+            if (!Number.isInteger(latest.paymentStatus))
+              throw Error('Máy chủ chưa trả trạng thái thanh toán hợp lệ.');
+            if (latest.paymentStatus !== 0 || latest.status === 4) {
+              bill = latest;
+              render(latest);
+              return;
+            }
+          } catch (error) {
+            message($('main'), error.message, true);
+          }
           paymentCheckTimer = window.setTimeout(pollPaymentStatus, 3000);
-        }
+        };
+        paymentCheckTimer = window.setTimeout(pollPaymentStatus, 3000);
       } else if (current.paymentMethod === 'SEPAY' && current.paymentStatus === 1) {
         const paid = document.createElement('p');
         paid.className = 'alert alert-success';

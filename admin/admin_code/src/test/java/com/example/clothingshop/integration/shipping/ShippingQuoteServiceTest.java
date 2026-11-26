@@ -19,6 +19,8 @@ class ShippingQuoteServiceTest {
   JsonNode payload;
   String token;
   int status = 200;
+  int failuresBeforeQuote;
+  int quoteRequests;
   String body =
       "{\"status\":200,\"error\":false,\"data\":{\"RESULT\":[{\"MA_DV_CHINH\":\"VCN\",\"TEN_DICHVU\":\"Chuyển"
           + " phát nhanh\",\"GIA_CUOC\":36000,\"THOI_GIAN\":\"2 ngày\"}]}}";
@@ -34,7 +36,8 @@ class ShippingQuoteServiceTest {
             token = exchange.getRequestHeaders().getFirst("Token");
             payload = json.readTree(exchange.getRequestBody());
             byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(status, bytes.length);
+            quoteRequests++;
+            exchange.sendResponseHeaders(quoteRequests <= failuresBeforeQuote ? 502 : status, bytes.length);
             exchange.getResponseBody().write(bytes);
           } finally {
             exchange.close();
@@ -78,6 +81,36 @@ class ShippingQuoteServiceTest {
     assertTrue(payload.get("RECEIVER_ADDRESS").asText().contains("Hà Nội"));
     assertFalse(payload.has("RECEIVER_PHONE"));
     assertFalse(service.status().toString().contains("test-token"));
+  }
+
+  @Test
+  void createOrderSendsStableReferenceAndReadsCarrierTrackingCode() throws Exception {
+    server.createContext("/v2/order/createOrderNlp", exchange -> {
+      try {
+        token = exchange.getRequestHeaders().getFirst("Token");
+        payload = json.readTree(exchange.getRequestBody());
+        byte[] reply = "{\"status\":200,\"error\":false,\"data\":{\"ORDER_NUMBER\":\"VTP-123\"}}"
+            .getBytes(StandardCharsets.UTF_8);
+        exchange.sendResponseHeaders(200, reply.length);
+        exchange.getResponseBody().write(reply);
+      } finally {
+        exchange.close();
+      }
+    });
+    var client = new ViettelPostClient(json, "http://127.0.0.1:" + server.getAddress().getPort());
+    String tracking = client.createOrder(Map.of("ORDER_NUMBER", "SHOP-123", "CHECK_UNIQUE", true));
+    assertEquals("VTP-123", tracking);
+    assertEquals("SHOP-123", payload.path("ORDER_NUMBER").asText());
+    assertTrue(payload.path("CHECK_UNIQUE").asBoolean());
+    assertFalse(payload.path("SENDER_ADDRESS").asText().isBlank());
+    assertEquals("test-token", token);
+  }
+
+  @Test
+  void retriesOneFailedQuoteBeforeDisplayingServices() {
+    failuresBeforeQuote = 1;
+    assertEquals("VCN", quote("COD").get(0).serviceCode());
+    assertEquals(2, quoteRequests);
   }
 
   @Test

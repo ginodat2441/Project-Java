@@ -266,8 +266,16 @@ public class InventoryService {
     queries.updateInventoryDocument2("a", actor, "b", bill);
   }
 
+  @org.springframework.beans.factory.annotation.Value("${shop.inventory.warehouse-name:Kho chính}")
+  private String warehouseName = "Kho chính";
+
+  @org.springframework.beans.factory.annotation.Value("${shop.shipping.grams-per-item:0}")
+  private int gramsPerItem;
+  @org.springframework.beans.factory.annotation.Value("${shop.shipping.packing-grams:0}")
+  private int packingGrams;
+
   @Transactional
-  public long prepareDispatch(long bill, long actor) {
+  public long prepareDispatch(long bill, Long actor) {
     lockBill(bill);
     ensureNoPendingCancellation(bill);
     var b = queries.findBill3("b", bill);
@@ -276,10 +284,18 @@ public class InventoryService {
     if (number(b, "STATUS") != 1 || number(b, "STOCK_RESERVED") != 1)
       throw new BusinessException(
           "Đơn phải được xác nhận và giữ đủ hàng trước khi lập phiếu xuất giao");
+    var lines = billLines(bill);
+    long count = lines.stream().mapToLong(row -> number(row, "QTY")).sum();
+    Long weight = gramsPerItem > 0 ? count * gramsPerItem + packingGrams : null;
     var existing = queries.listInventoryDocument("b", bill);
-    if (!existing.isEmpty()) return number(existing.get(0), "ID");
+    if (!existing.isEmpty()) {
+      long doc = number(existing.get(0), "ID");
+      queries.prepareDelivery(bill, doc, warehouseName, weight);
+      return doc;
+    }
     long doc = header("DISPATCH", "Xuất giao theo đơn", bill, null, actor, "DRAFT");
-    for (var l : billLines(bill)) line(doc, number(l, "PRODUCT_DETAIL_ID"), number(l, "QTY"));
+    for (var l : lines) line(doc, number(l, "PRODUCT_DETAIL_ID"), number(l, "QTY"));
+    queries.prepareDelivery(bill, doc, warehouseName, weight);
     db.audit(actor, "PREPARE_DISPATCH", "BILL", bill);
     return doc;
   }

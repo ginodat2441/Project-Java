@@ -1,9 +1,0 @@
-com\example\clothingshop\service\inventory\StockCostServiceTest.class
-com\example\clothingshop\DemoDataSeedTest.class
-com\example\clothingshop\integration\shipping\ShippingQuoteServiceTest.class
-com\example\clothingshop\bootstrap\admin\SmtpCheckRunnerTest.class
-com\example\clothingshop\bootstrap\admin\FirstAdminTest$Terminal.class
-com\example\clothingshop\controller\store\ShippingCheckoutTest.class
-com\example\clothingshop\bootstrap\admin\FirstAdminTest.class
-com\example\clothingshop\OracleAcceptanceTest$Browser.class
-com\example\clothingshop\OracleAcceptanceTest.class

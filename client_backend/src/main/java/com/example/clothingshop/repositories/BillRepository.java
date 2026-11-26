@@ -26,6 +26,28 @@ public class BillRepository {
     public BillRepository(SqlHelper sql) { this.sql = sql; }
 
     /** Snapshot địa chỉ giao hàng (gộp thành 1 chuỗi bằng toán tử || của Oracle) */
+    public record CheckoutRequest(long billId, String requestDigest) {}
+
+    public void lockCheckoutCustomer(long customerId) {
+        if (sql.scalar("SELECT ID FROM CUSTOMER WHERE ID=:id AND DELETE_FLAG=0 FOR UPDATE",
+                Map.of("id", customerId), Long.class).isEmpty())
+            throw new com.example.clothingshop.common.BusinessException("Không tìm thấy khách hàng.");
+    }
+
+    public Optional<CheckoutRequest> findCheckoutRequest(long customerId, String key) {
+        return sql.one("""
+                SELECT BILL_ID, REQUEST_DIGEST FROM BILL_CHECKOUT_REQUEST
+                WHERE CUSTOMER_ID=:id AND REQUEST_KEY=:key
+                """, Map.of("id", customerId, "key", key), CheckoutRequest.class);
+    }
+
+    public void saveCheckoutRequest(long customerId, String key, String digest, long billId) {
+        sql.update("""
+                INSERT INTO BILL_CHECKOUT_REQUEST(CUSTOMER_ID,REQUEST_KEY,REQUEST_DIGEST,BILL_ID)
+                VALUES (:id,:key,:digest,:bill)
+                """, Map.of("id", customerId, "key", key, "digest", digest, "bill", billId));
+    }
+
     public record AddressSnapshot(String receiverName, String receiverPhone, String fullAddress) {}
 
     public Optional<AddressSnapshot> findAddress(long addressId, long customerId) {
@@ -201,11 +223,29 @@ public class BillRepository {
                 """;
         Map<String, Object> p = new HashMap<>();
         p.put("billId", billId);
-        p.put("oldStatus", oldStatus);
+        p.put("oldStatus", new org.springframework.jdbc.core.SqlParameterValue(java.sql.Types.NUMERIC, oldStatus));
         p.put("newStatus", newStatus);
         p.put("note", note);
-        p.put("managerId", managerId);
+        p.put("managerId", new org.springframework.jdbc.core.SqlParameterValue(java.sql.Types.NUMERIC, managerId));
         sql.update(q, p);
+    }
+
+    public void recordReservation(long billId, boolean released) {
+        sql.update("""
+                INSERT INTO INVENTORY_HISTORY (
+                    PRODUCT_DETAIL_ID, QUANTITY_CHANGE, REASON, BILL_ID, MOVEMENT_TYPE,
+                    BEFORE_QUANTITY, AFTER_QUANTITY, PHYSICAL_CHANGE, RESERVED_CHANGE,
+                    PHYSICAL_BEFORE, PHYSICAL_AFTER, RESERVED_BEFORE, RESERVED_AFTER, HISTORY_SCOPE)
+                SELECT v.ID, d.QTY*:sign, :reason, :id, :type, v.QUANTITY-d.QTY*:sign, v.QUANTITY,
+                       0, -d.QTY*:sign, v.PHYSICAL_QUANTITY, v.PHYSICAL_QUANTITY,
+                       v.RESERVED_QUANTITY+d.QTY*:sign, v.RESERVED_QUANTITY, 'PHYSICAL_V8'
+                FROM PRODUCT_DETAIL v
+                JOIN (SELECT PRODUCT_DETAIL_ID, SUM(QUANTITY) QTY FROM BILL_DETAIL
+                      WHERE BILL_ID=:id AND DELETE_FLAG=0 GROUP BY PRODUCT_DETAIL_ID) d
+                  ON d.PRODUCT_DETAIL_ID=v.ID
+                """, Map.of("id", billId, "sign", released ? 1 : -1,
+                "reason", released ? "Khách hủy đơn, giải phóng hàng giữ" : "Giữ hàng khi khách đặt đơn",
+                "type", released ? "RELEASE" : "RESERVE"));
     }
 
     public void releaseReservedStockForBill(long billId) {
@@ -256,6 +296,7 @@ public class BillRepository {
         if (releasedProducts != expectedProducts) {
             throw new IllegalStateException("Không thể giải phóng đủ tồn kho giữ chỗ cho đơn hàng id=" + billId);
         }
+        recordReservation(billId, true);
     }
 
     public int updateCashPaymentStatus(long billId, int oldPaymentStatus, int newPaymentStatus) {
@@ -420,9 +461,9 @@ public class BillRepository {
                 """;
         Map<String, Object> p = new HashMap<>();
         p.put("id", billId);
-        p.put("oldStatus", oldStatus);
+        p.put("oldStatus", new org.springframework.jdbc.core.SqlParameterValue(java.sql.Types.NUMERIC, oldStatus));
         p.put("newStatus", newStatus);
-        p.put("managerId", managerId);
+        p.put("managerId", new org.springframework.jdbc.core.SqlParameterValue(java.sql.Types.NUMERIC, managerId));
         return sql.update(q, p);
     }
 }

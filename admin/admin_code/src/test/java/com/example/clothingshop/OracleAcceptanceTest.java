@@ -468,51 +468,58 @@ class OracleAcceptanceTest {
         "png",
         png);
     var uploaded = admin.upload(product, png.toByteArray());
-    assertEquals(200, uploaded.statusCode(), uploaded.body());
-    long image = Long.parseLong(uploaded.body());
-    admin.save(
-        "/api/admin/products/"
-            + product
-            + "/images/"
-            + image
-            + "?colorId="
-            + black
-            + "&order=2&cover=true",
-        "PUT",
-        null);
-    var imageRow = db.one("SELECT IMAGE_URL FROM PRODUCT_IMAGE WHERE ID=:i", "i", image);
-    String imageUrl = imageRow.get("IMAGE_URL").toString();
-    assertTrue(imageUrl.matches("https://res\\.cloudinary\\.com/[^/]+/image/upload/.+"));
-    assertEquals(
-        200,
-        HttpClient.newHttpClient()
-            .send(
-                HttpRequest.newBuilder(URI.create(imageUrl)).GET().build(),
-                HttpResponse.BodyHandlers.discarding())
-            .statusCode());
-    assertEquals(
-        400,
-        admin
-            .request("/api/admin/products/" + product + "/images/" + image, "DELETE", null)
-            .statusCode());
-    assertEquals(
-        black,
-        anonymous.get("/api/catalog/" + product).get("images").get(0).get("COLOR_ID").asLong());
+    boolean cloudinaryConfigured = List.of("CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET")
+        .stream().allMatch(key -> System.getenv(key) != null && !System.getenv(key).isBlank());
+    if (cloudinaryConfigured) {
+      assertEquals(200, uploaded.statusCode(), uploaded.body());
+      long image = Long.parseLong(uploaded.body());
+      admin.save(
+          "/api/admin/products/"
+              + product
+              + "/images/"
+              + image
+              + "?colorId="
+              + black
+              + "&order=2&cover=true",
+          "PUT",
+          null);
+      var imageRow = db.one("SELECT IMAGE_URL FROM PRODUCT_IMAGE WHERE ID=:i", "i", image);
+      String imageUrl = imageRow.get("IMAGE_URL").toString();
+      assertTrue(imageUrl.matches("https://res\\.cloudinary\\.com/[^/]+/image/upload/.+"));
+      assertEquals(
+          200,
+          HttpClient.newHttpClient()
+              .send(
+                  HttpRequest.newBuilder(URI.create(imageUrl)).GET().build(),
+                  HttpResponse.BodyHandlers.discarding())
+              .statusCode());
+      assertEquals(
+          400,
+          admin
+              .request("/api/admin/products/" + product + "/images/" + image, "DELETE", null)
+              .statusCode());
+      assertEquals(
+          black,
+          anonymous.get("/api/catalog/" + product).get("images").get(0).get("COLOR_ID").asLong());
+
+      var jpeg = new java.io.ByteArrayOutputStream();
+      javax.imageio.ImageIO.write(
+          new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB),
+          "jpg",
+          jpeg);
+      assertEquals(200, admin.upload(product, jpeg.toByteArray()).statusCode());
+      assertEquals(
+          200,
+          admin
+              .upload(
+                  product,
+                  java.nio.file.Files.readAllBytes(
+                      java.nio.file.Path.of("../../client/assets/img/product/product-1.webp")))
+              .statusCode());
+    } else {
+      assertEquals(503, uploaded.statusCode(), uploaded.body());
+    }
     assertEquals(413, admin.upload(product, new byte[5 * 1024 * 1024 + 1]).statusCode());
-    var jpeg = new java.io.ByteArrayOutputStream();
-    javax.imageio.ImageIO.write(
-        new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB),
-        "jpg",
-        jpeg);
-    assertEquals(200, admin.upload(product, jpeg.toByteArray()).statusCode());
-    assertEquals(
-        200,
-        admin
-            .upload(
-                product,
-                java.nio.file.Files.readAllBytes(
-                    java.nio.file.Path.of("../giao dien/assets/img/product/product-1.webp")))
-            .statusCode());
     var duplicate =
         productBody(
             List.of(variant(null, black, "M", "-DUP1", 0), variant(null, black, "M", "-DUP2", 0)));
@@ -713,37 +720,16 @@ class OracleAcceptanceTest {
         num(
             db.one("SELECT USED_COUNT FROM VOUCHER WHERE ID=:i", "i", singleVoucher),
             "USED_COUNT"));
-    // Public checkout requires the customer session, and derives customer identity server-side.
-    var checkout =
-        Map.of(
-            "name",
-            prefix,
-            "phone",
-            "0900000000",
-            "province",
-            "HCM",
-            "ward",
-            "Ward",
-            "address",
-            "Test",
-            "paymentMethod",
-            "COD",
-            "items",
-            List.of(Map.of("productDetailId", other, "quantity", 1)));
+    // The staging suite exercises customer identity and refuses checkout without a carrier quote.
+    var checkout = Map.of("name", prefix, "phone", "0900000000", "province", "HCM",
+        "ward", "Ward", "address", "Test", "paymentMethod", "COD",
+        "shippingService", "VCN", "expectedShippingFee", 30000,
+        "items", List.of(Map.of("productDetailId", other, "quantity", 1)));
     anonymous.csrf();
     assertEquals(400, anonymous.request("/api/checkout", "POST", checkout).statusCode());
-    var publicOrder = client.save("/api/checkout", "POST", checkout);
-    assertEquals(customer, publicOrder.get("customerId").asLong());
-    admin.save(
-        "/api/admin/orders/" + publicOrder.get("id").asLong() + "/payment-failed", "POST", null);
-    assertEquals(
-        400,
-        admin
-            .request(
-                "/api/admin/orders/" + publicOrder.get("id").asLong() + "/payment-failed",
-                "POST",
-                null)
-            .statusCode());
+    if (!"true".equalsIgnoreCase(System.getenv("SHOP_SHIPPING_ENABLED"))) {
+      assertEquals(503, client.request("/api/checkout", "POST", checkout).statusCode());
+    }
     var formProduct = productBody(List.of(variant(null, black, "S", "-FORM-S", 0)));
     formProduct.put("code", prefix + "FORM");
     formProduct.remove("brandId");
@@ -756,20 +742,24 @@ class OracleAcceptanceTest {
             formProduct,
             List.of(png.toByteArray()),
             List.of(Map.of("colorId", black, "order", 0, "cover", true)));
-    assertEquals(200, formResult.statusCode(), formResult.body());
-    long formId = Long.parseLong(formResult.body());
-    products.add(formId);
-    var formSaved =
-        db.one(
-            "SELECT p.STATUS,p.THUMBNAIL_URL,b.BRAND_NAME,m.MATERIAL_NAME FROM PRODUCT p JOIN BRAND"
-                + " b ON b.ID=p.BRAND_ID JOIN MATERIAL m ON m.ID=p.MATERIAL_ID WHERE p.ID=:i",
-            "i",
-            formId);
-    assertEquals(1, num(formSaved, "STATUS"));
-    assertTrue(
-        formSaved.get("THUMBNAIL_URL").toString().startsWith("https://res.cloudinary.com/"));
-    assertEquals(prefix + " Brand", formSaved.get("BRAND_NAME"));
-    assertEquals(prefix + " Linen", formSaved.get("MATERIAL_NAME"));
+    if (cloudinaryConfigured) {
+      assertEquals(200, formResult.statusCode(), formResult.body());
+      long formId = Long.parseLong(formResult.body());
+      products.add(formId);
+      var formSaved =
+          db.one(
+              "SELECT p.STATUS,p.THUMBNAIL_URL,b.BRAND_NAME,m.MATERIAL_NAME FROM PRODUCT p JOIN BRAND"
+                  + " b ON b.ID=p.BRAND_ID JOIN MATERIAL m ON m.ID=p.MATERIAL_ID WHERE p.ID=:i",
+              "i",
+              formId);
+      assertEquals(1, num(formSaved, "STATUS"));
+      assertTrue(
+          formSaved.get("THUMBNAIL_URL").toString().startsWith("https://res.cloudinary.com/"));
+      assertEquals(prefix + " Brand", formSaved.get("BRAND_NAME"));
+      assertEquals(prefix + " Linen", formSaved.get("MATERIAL_NAME"));
+    } else {
+      assertEquals(503, formResult.statusCode(), formResult.body());
+    }
     var invalidForm = new HashMap<String, Object>(formProduct);
     invalidForm.put("name", prefix + "BADFORM");
     invalidForm.put("code", prefix + "BADFORM");
@@ -781,7 +771,7 @@ class OracleAcceptanceTest {
         admin
             .productWithImages(
                 invalidForm,
-                List.of(png.toByteArray(), "invalid image".getBytes()),
+                List.of("invalid image".getBytes(), png.toByteArray()),
                 List.of(Map.of("order", 0, "cover", true), Map.of("order", 1, "cover", false)))
             .statusCode());
     assertEquals(
@@ -1017,13 +1007,10 @@ class OracleAcceptanceTest {
                         other)
                     .get("COST_UNIT"))
             .doubleValue();
-    long pooledQty =
-        num(
-            db.one(
-                "SELECT SUM(QUANTITY) Q FROM PRODUCT_DETAIL WHERE PRODUCT_ID=:p AND DELETE_FLAG=0",
-                "p",
-                product),
-            "Q");
+    var skuBeforeReceipt = db.one(
+        "SELECT PHYSICAL_QUANTITY,AVERAGE_COST FROM PRODUCT_DETAIL WHERE ID=:i", "i", other);
+    long pooledQty = num(skuBeforeReceipt, "PHYSICAL_QUANTITY");
+    double pooledCost = ((Number) skuBeforeReceipt.get("AVERAGE_COST")).doubleValue();
     long variedReceipt =
         admin
             .save(
@@ -1049,10 +1036,10 @@ class OracleAcceptanceTest {
     admin.save("/api/admin/inventory/documents/" + variedReceipt + "/approve", "POST", null);
     double averageAfter =
         ((Number)
-                db.one("SELECT AVERAGE_COST FROM PRODUCT WHERE ID=:p", "p", product)
+                db.one("SELECT AVERAGE_COST FROM PRODUCT_DETAIL WHERE ID=:i", "i", other)
                     .get("AVERAGE_COST"))
             .doubleValue();
-    assertEquals((pooledQty * originalCost + 600000) / (pooledQty + 2), averageAfter, 0.000001);
+    assertEquals((pooledQty * pooledCost + 600000) / (pooledQty + 2), averageAfter, 0.000001);
     assertEquals(
         originalCost,
         ((Number)
@@ -1084,6 +1071,31 @@ class OracleAcceptanceTest {
       assertFalse(report.get("series").isEmpty());
       assertFalse(report.get("variants").isEmpty());
     }
+    var export = admin.client.send(
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port
+            + "/api/admin/reports/export.xlsx?productId=" + product)).GET().build(),
+        HttpResponse.BodyHandlers.ofByteArray());
+    assertEquals(200, export.statusCode());
+    assertTrue(export.headers().firstValue("Content-Disposition").orElseThrow()
+        .contains("bao-cao-ban-hang.xlsx"));
+    try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
+        new java.io.ByteArrayInputStream(export.body()))) {
+      assertEquals(3, workbook.getNumberOfSheets());
+      var summary = workbook.getSheetAt(0);
+      assertEquals(199000d, summary.getRow(2).getCell(2).getNumericCellValue());
+      assertEquals(2, summary.getDrawingPatriarch().getCharts().size());
+      assertTrue(org.apache.poi.ss.usermodel.DateUtil.isCellDateFormatted(
+          summary.getRow(5).getCell(1)));
+      assertTrue(workbook.getSheetAt(1).getLastRowNum() > 0);
+      assertEquals(199000d, workbook.getSheetAt(2).getRow(1).getCell(7).getNumericCellValue());
+      double employeeTotal = 0;
+      for (var row : summary) {
+        var amount = row.getCell(10);
+        if (amount != null && amount.getCellType() == org.apache.poi.ss.usermodel.CellType.NUMERIC)
+          employeeTotal += amount.getNumericCellValue();
+      }
+      assertEquals(199000d, employeeTotal);
+    }
     var productRows = admin.get("/api/admin/products?q=" + generatedCode);
     var productRow = productRows.get("items").get(0);
     assertEquals(product, productRow.get("ID").asLong());
@@ -1091,9 +1103,7 @@ class OracleAcceptanceTest {
     double expectedValue =
         ((Number)
                 db.one(
-                        "SELECT ROUND(SUM(d.QUANTITY)*p.AVERAGE_COST,2) V FROM PRODUCT p JOIN"
-                            + " PRODUCT_DETAIL d ON d.PRODUCT_ID=p.ID WHERE p.ID=:p AND"
-                            + " d.DELETE_FLAG=0 GROUP BY p.AVERAGE_COST",
+                        "SELECT SUM(ROUND(KNOWN_VALUE,0)) V FROM PRODUCT_DETAIL WHERE PRODUCT_ID=:p AND DELETE_FLAG=0",
                         "p",
                         product)
                     .get("V"))
@@ -1253,93 +1263,7 @@ class OracleAcceptanceTest {
     assertEquals(
         stockValue.get("globalTotals"),
         admin.get("/api/admin/stock?q=NO_MATCH_VALUE_TEST").get("globalTotals"));
-    long legacyColor =
-        num(db.one("SELECT COLOR_ID FROM PRODUCT_DETAIL WHERE ID=:i", "i", chosen), "COLOR_ID");
-    long legacyProduct =
-        admin
-            .save(
-                "/api/admin/products",
-                "POST",
-                productBody(List.of(variant(null, legacyColor, "M", "OLD-COST", 0))))
-            .asLong();
-    long legacyVariant =
-        admin.get("/api/admin/products/" + legacyProduct).get("variants").get(0).get("ID").asLong();
-    db.update("UPDATE PRODUCT_DETAIL SET QUANTITY=90 WHERE ID=:i", "i", legacyVariant);
-    long legacyReceipt = 0;
-    for (var entry : Map.of(10, 1222, 100, 100000).entrySet()) {
-      long doc =
-          admin
-              .save(
-                  "/api/admin/inventory/documents",
-                  "POST",
-                  Map.of(
-                      "type",
-                      "RECEIPT",
-                      "reason",
-                      prefix + " historic receipt",
-                      "lines",
-                      List.of(
-                          Map.of(
-                              "variantId",
-                              legacyVariant,
-                              "quantity",
-                              entry.getKey(),
-                              "unitCost",
-                              entry.getValue(),
-                              "restock",
-                              true))))
-              .asLong();
-      admin.save("/api/admin/inventory/documents/" + doc + "/approve", "POST", null);
-      if (entry.getKey() == 10) legacyReceipt = doc;
-    }
-    long oldLine =
-        num(
-            db.one(
-                "SELECT ID FROM INVENTORY_DOCUMENT_LINE WHERE DOCUMENT_ID=:d", "d", legacyReceipt),
-            "ID");
-    db.update(
-        "UPDATE INVENTORY_DOCUMENT_LINE SET UNIT_COST=NULL,COST_UNIT=NULL WHERE ID=:i",
-        "i",
-        oldLine);
-    var opening = admin.get("/api/admin/opening-cost/" + legacyProduct);
-    assertEquals(90, opening.get("openingQuantity").asInt());
-    assertEquals(200, opening.get("quantity").asInt());
-    var initialize =
-        Map.of(
-            "openingUnitCost",
-            50000,
-            "reason",
-            prefix + " documented opening cost",
-            "receipts",
-            List.of(Map.of("lineId", oldLine, "unitCost", 1222)));
-    assertEquals(
-        403,
-        staff.request("/api/admin/opening-cost/" + legacyProduct, "POST", initialize).statusCode());
-    assertEquals(
-        400,
-        admin
-            .request(
-                "/api/admin/opening-cost/" + legacyProduct,
-                "POST",
-                Map.of("reason", prefix, "receipts", List.of()))
-            .statusCode());
-    admin.save("/api/admin/opening-cost/" + legacyProduct, "POST", initialize);
-    assertEquals(
-        200,
-        num(
-            db.one("SELECT QUANTITY FROM PRODUCT_DETAIL WHERE ID=:i", "i", legacyVariant),
-            "QUANTITY"));
-    var legacyCode = admin.get("/api/admin/products/" + legacyProduct).get("PRODUCT_CODE").asText();
-    assertEquals(
-        14512220,
-        admin
-            .get("/api/admin/products?q=" + legacyCode)
-            .get("totals")
-            .get("INVENTORY_VALUE")
-            .asLong());
-    assertEquals(
-        400,
-        admin.request("/api/admin/opening-cost/" + legacyProduct, "POST", initialize).statusCode());
+    assertEquals(410, admin.request("/api/admin/opening-cost/" + product, "GET", null).statusCode());
     var balance =
         admin
             .get(
@@ -1353,9 +1277,26 @@ class OracleAcceptanceTest {
             - balance.get("ISSUE").asLong()
             - balance.get("SALE").asLong()
             + balance.get("CANCELLED").asLong()
+            - balance.get("RESERVED").asLong()
+            + balance.get("RELEASED").asLong()
             + balance.get("RETURNED").asLong()
             + balance.get("ADJUSTMENT").asLong();
     assertEquals(expectedClosing, balance.get("CLOSING").asLong());
+    var inventoryExport = admin.client.send(
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port
+            + "/api/admin/inventory/export.xlsx?q="
+            + URLEncoder.encode(originalSku, java.nio.charset.StandardCharsets.UTF_8))).GET().build(),
+        HttpResponse.BodyHandlers.ofByteArray());
+    assertEquals(200, inventoryExport.statusCode());
+    try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
+        new java.io.ByteArrayInputStream(inventoryExport.body()))) {
+      assertEquals(2, workbook.getNumberOfSheets());
+      var detail = workbook.getSheetAt(1);
+      assertTrue(detail.getPaneInformation().isFreezePane());
+      assertEquals(originalSku, detail.getRow(4).getCell(0).getStringCellValue());
+      assertEquals(expectedClosing, detail.getRow(4).getCell(16).getNumericCellValue());
+      assertEquals(expectedClosing, workbook.getSheetAt(0).getRow(6).getCell(1).getNumericCellValue());
+    }
     for (var s : admin.get("/api/admin/stock").get("items"))
       assertEquals(
           s.get("QUANTITY").asLong() + s.get("RESERVED").asLong(), s.get("PHYSICAL").asLong());
@@ -1469,6 +1410,13 @@ class OracleAcceptanceTest {
             + " USERS WHERE USERNAME=:p))) OR MANAGER_ID IN (SELECT ID FROM MANAGER WHERE USERNAME"
             + " LIKE :pfx)",
         "p", prefix, "pfx", prefix + "%");
+    String fixtureBills =
+        "SELECT ID FROM BILL WHERE CUSTOMER_ID IN (SELECT ID FROM CUSTOMER WHERE USER_ID IN"
+            + " (SELECT ID FROM USERS WHERE USERNAME=:p))";
+    for (String table : List.of("BILL_VIETTEL_EVENT", "BILL_VIETTEL_TRACKING",
+        "BILL_VIETTEL_DISPATCH", "BILL_CHECKOUT_REQUEST")) {
+      db.update("DELETE FROM " + table + " WHERE BILL_ID IN (" + fixtureBills + ")", "p", prefix);
+    }
     String docs =
         "SELECT ID FROM INVENTORY_DOCUMENT WHERE CREATED_BY IN (SELECT ID FROM MANAGER WHERE"
             + " USERNAME LIKE :pfx) OR BILL_ID IN (SELECT ID FROM BILL WHERE CUSTOMER_ID IN (SELECT"
