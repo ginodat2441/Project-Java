@@ -17,4 +17,10 @@ public class InventoryReportService {
   public Map<String, Object> report(LocalDate from, LocalDate to, String q, int page) {
     return repository.report(from, to, q, page);
   }
+
+  @org.springframework.transaction.annotation.Transactional(readOnly = true, isolation =
+      org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
+  public byte[] workbook(LocalDate from, LocalDate to, String q) throws java.io.IOException {
+    return InventoryWorkbook.write(repository.workbook(from, to, q), q);
+  }
 }

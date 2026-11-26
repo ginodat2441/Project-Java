@@ -1,7 +1,7 @@
 const {readAsset}=require('./helpers/frontend-assets.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),path=require('path');
-const {JSDOM}=require('../.local/dom-tests/node_modules/jsdom');
-const root=path.resolve(__dirname,'../backend_java/src/main/resources/static');
+const {JSDOM}=require('../../.local/dom-tests/node_modules/jsdom');
+const root=path.resolve(__dirname,'../admin_code/src/main/resources/static');
 const response=data=>({ok:true,status:200,json:async()=>data,text:async()=>JSON.stringify(data)});
 const tick=()=>new Promise(r=>setImmediate(r));async function wait(fn){for(let i=0;i<100;i++){if(fn())return;await tick();}throw Error('Expected UI state not reached');}
 const sku={ID:108,PRODUCT_ID:1,PRODUCT_CODE:'SP108',PRODUCT_NAME:'Áo demo',SKU:'SP108-XANH-REU-XL',COLOR_NAME:'Xanh rêu',SIZE_NAME:'XL',PHYSICAL:90,RESERVED:5,QUANTITY:85,AVERAGE_COST:107000,KNOWN_VALUE:9630000,INVENTORY_VALUE:9630000,AVAILABLE_VALUE:9095000,PRODUCT_INVENTORY_VALUE:9630000};
@@ -48,7 +48,7 @@ test('All operational screens render V8 filters and explain legacy physical-hist
  await h.section('audit','[name=action]');assert.match(h.d.querySelector('#content').textContent,/Hoàn tất đơn/);assert.match(h.d.querySelector('#content').textContent,/"status":3/);
  await h.section('categories','[data-action=create]');assert.match(h.d.querySelector('#content').textContent,/Ẩn cha/);assert.match(h.d.querySelector('#content').textContent,/Áo thun/);
  await h.section('vouchers','[name=effective]');assert.match(h.d.querySelector('#content').textContent,/Đang áp dụng/);assert.match(h.d.querySelector('#content').textContent,/không trả lại/);
- await h.section('orders','[name=paymentMethod]');assert.ok(h.d.querySelector('[name=returnStatus]'));assert.match(h.d.querySelector('#content').textContent,/Tổng tiền đơn/);
+ await h.section('orders','[name=paymentMethod]');assert.ok(h.d.querySelector('[name=returnStatus]'));assert.match(h.d.querySelector('#content').textContent,/Tổng tiền/);
  await h.section('reports','[data-action=export-skus]');assert.match(h.d.querySelector('#content').textContent,/Giá vốn hàng bán/);assert.match(h.d.querySelector('#content').textContent,/Lãi gộp/);h.dom.window.close();
 });
 test('STAFF sees stock history but no cost correction or audit controls',async()=>{
@@ -58,7 +58,7 @@ test('Viettel status renders correct Vietnamese and a usable Windows configurati
  const h=await setup();await h.section('shipping','pre');
  assert.equal(h.d.querySelector('#title').textContent,'Vận chuyển Viettel Post');
  const text=h.d.querySelector('#content').textContent;assert.match(text,/Trạng thái: Chưa hoàn tất cấu hình/);assert.match(text,/Địa chỉ kho gửi/);assert.match(text,/Khối lượng và kích thước kiện/);assert.match(text,/Chính thức/);assert.doesNotMatch(text,/[?\uFFFD]/);
- assert.equal(h.d.querySelector('pre').textContent,'powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\configure-viettel.ps1');h.dom.window.close();
+ assert.equal(h.d.querySelector('pre').textContent,'powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\configure-viettel.ps1 -WebsiteToken');h.dom.window.close();
 });
 test('Product revenue opens read-only SKU report while Edit opens the product form',async()=>{
  const h=await setup();await h.section('products','[data-action=product-revenue]');

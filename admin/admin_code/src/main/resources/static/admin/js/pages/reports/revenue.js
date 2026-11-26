@@ -80,10 +80,27 @@
       "Quý (tùy chọn)",
       [1, 2, 3, 4].map((ID) => ({ ID, NAME: "Quý " + ID })),
       filter.quarter,
-    )}${input("from", "Hoặc từ ngày", filter.from || "", "date", false)}${input("to", "Đến ngày", filter.to || "", "date", false)}${input("q", "Tên / mã sản phẩm / SKU", filter.q || "", "text", false)}<button>Xem thống kê</button></form><div class="report-note">Từ <b>${esc(d.from)}</b> đến <b>${esc(d.to)}</b>. Doanh thu tính tại ngày hoàn thành đơn; hàng hoàn tính tại ngày phiếu nhận hoàn được xác nhận. Doanh thu ròng = tiền hàng − giảm giá − giá trị hàng hoàn; phí giao hiển thị riêng. Khoảng ngày được ưu tiên hơn bộ lọc năm/tháng/quý.</div>${metrics(d.totals)}<section class="card"><h2>Doanh thu ròng theo kỳ</h2>${chart.map((r) => `<div class="chart-row"><span>${esc(r.PERIOD)}</span><div class="chart-bar ${Number(r.NET_AFTER_RETURN) < 0 ? "negative" : ""}" style="width:${Math.max(0, (Math.abs(Number(r.NET_AFTER_RETURN)) / max) * 100)}%"></div><span>${money(r.NET_AFTER_RETURN)}</span></div>`).join("")}<p class="muted">Biểu đồ tối đa 32 kỳ cuối. Bảng bên dưới gồm đầy đủ các kỳ, kể cả kỳ không có doanh thu.</p></section><section class="card"><h2>Chi tiết ngày / tháng / quý / năm</h2><div class="report-series">${table(d.series, reportColumns)}</div><div class="toolbar">${button("Tải CSV theo kỳ", "export-report", "")}</div></section><section class="card"><h2>Doanh thu từng sản phẩm</h2><div class="toolbar">${button("CSV sản phẩm mọi trang", "export-products", "")}${button("CSV chi tiết SKU", "export-skus", "")}</div>${table(d.products.items, productColumns, (r) => button("Màu / size", "product-report", r.ID))}${pager(d.products)}</section>`;
+    )}${input("from", "Hoặc từ ngày", filter.from || "", "date", false)}${input("to", "Đến ngày", filter.to || "", "date", false)}${input("q", "Tên / mã sản phẩm / SKU", filter.q || "", "text", false)}<button>Xem thống kê</button>${button("Xuất báo cáo Excel", "export-xlsx", "")}</form><div class="report-note">Từ <b>${esc(d.from)}</b> đến <b>${esc(d.to)}</b>. Doanh thu tính tại ngày hoàn thành đơn; hàng hoàn tính tại ngày phiếu nhận hoàn được xác nhận. Doanh thu ròng = tiền hàng − giảm giá − giá trị hàng hoàn; phí giao hiển thị riêng. Khoảng ngày được ưu tiên hơn bộ lọc năm/tháng/quý.</div>${metrics(d.totals)}<section class="card"><h2>Doanh thu ròng theo kỳ</h2>${chart.map((r) => `<div class="chart-row"><span>${esc(r.PERIOD)}</span><div class="chart-bar ${Number(r.NET_AFTER_RETURN) < 0 ? "negative" : ""}" style="width:${Math.max(0, (Math.abs(Number(r.NET_AFTER_RETURN)) / max) * 100)}%"></div><span>${money(r.NET_AFTER_RETURN)}</span></div>`).join("")}<p class="muted">Biểu đồ tối đa 32 kỳ cuối. Bảng bên dưới gồm đầy đủ các kỳ, kể cả kỳ không có doanh thu.</p></section><section class="card"><h2>Chi tiết ngày / tháng / quý / năm</h2><div class="report-series">${table(d.series, reportColumns)}</div><div class="toolbar">${button("Tải CSV theo kỳ", "export-report", "")}</div></section><section class="card"><h2>Doanh thu từng sản phẩm</h2><div class="toolbar">${button("CSV sản phẩm mọi trang", "export-products", "")}${button("CSV chi tiết SKU", "export-skus", "")}</div>${table(d.products.items, productColumns, (r) => button("Màu / size", "product-report", r.ID))}${pager(d.products)}</section>`;
   }
 
   async function reportAction(action, id) {
+    if (action === "export-xlsx") {
+      const p = query({ year: filter.year || year() });
+      p.delete("page");
+      const response = await fetch("/api/admin/reports/export.xlsx?" + p);
+      const contentType = response.headers.get("Content-Type") || "";
+      if (!response.ok || !contentType.includes("spreadsheetml.sheet")) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || "Không xuất được báo cáo Excel. Hãy thử lại.");
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "bao-cao-ban-hang.xlsx";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return;
+    }
     if (action === "export-products" || action === "export-skus") {
       const p = query({
         year: filter.year || year(),

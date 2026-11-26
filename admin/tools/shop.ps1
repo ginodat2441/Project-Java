@@ -16,11 +16,12 @@ if (-not $env:JAVA_HOME) {
 $javaCmd = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin/java.exe' } else { 'java' }
 $mavenCmd = if (Get-Command mvn -ErrorAction SilentlyContinue) { 'mvn' } else { Join-Path $projectRoot '.local/apache-maven-3.9.9/bin/mvn.cmd' }
 $localEnv = Join-Path $projectRoot '.vscode/oracle-local.env'
+$localFiles = @($localEnv, (Join-Path $projectRoot '.vscode/viettel-local.env'))
 function Import-ShopLocalEnv {
-foreach($localEnv in @((Join-Path $projectRoot '.vscode/oracle-local.env'),(Join-Path $projectRoot '.vscode/viettel-local.env'))){
+foreach($localEnv in $localFiles){
 if (Test-Path -LiteralPath $localEnv) {
-    foreach ($line in Get-Content -LiteralPath $localEnv) {
-        if ($line -match '^\s*(SPRING_DATASOURCE_PASSWORD|SPRING_DATASOURCE_URL|SPRING_DATASOURCE_USERNAME|SHOP_UPLOAD_DIR|SHOP_PRIVATE_DIR|SHOP_RESET_DELIVERY|SHOP_RESET_BASE_URL|SHOP_RESET_FROM|SHOP_SMTP_AUTH|SHOP_SMTP_STARTTLS|SHOP_SMTP_SSL|SPRING_MAIL_HOST|SPRING_MAIL_PORT|SPRING_MAIL_USERNAME|SPRING_MAIL_PASSWORD|SHOP_SHIPPING_[A-Z_]+|SHOP_VIETTEL_[A-Z_]+)=(.*)$') {
+    foreach ($line in Get-Content -LiteralPath $localEnv -Encoding UTF8) {
+        if ($line -match '^\s*([A-Z][A-Z0-9_]*)\s*=(.*)$') {
             [Environment]::SetEnvironmentVariable($Matches[1],$Matches[2].Trim().Trim('"').Trim("'"),'Process')
         }
     }
@@ -29,8 +30,9 @@ if (Test-Path -LiteralPath $localEnv) {
 }
 Import-ShopLocalEnv
 if ($Mode -eq 'Migrate') {
-    Write-Host 'V001 through V008 have already been applied on this machine. Review SHOP_MIGRATION first; do not rerun schema.sql.'
-    Write-Host 'For a different existing database: use SQL*Plus with V001 through V007 in order once, after backup and duplicate preflight.'
+    Write-Host 'Back up the database and stop application writers first.'
+    Write-Host 'Run ..\sql\ora_schema.sql once as CLOTHING_SHOP in SQL Developer using Run Script (F5).'
+    Write-Host 'The consolidated script preserves business data; do not load sample or export data.'
     exit
 }
 if ($Mode -eq 'Build' -or $Mode -eq 'Test') {

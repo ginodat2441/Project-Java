@@ -48,7 +48,7 @@ public class VoucherService {
       throw new BusinessException("Điều kiện nhóm khách hàng không hợp lệ");
     if (id != null) {
       if (number(old, "USED_COUNT") > r.usageLimit())
-        throw new BusinessException("Giới hạn thấp hơn lượt đã dùng");
+        throw new BusinessException("Giới hạn lượt không được thấp hơn số lượt đã dùng.");
     }
     List<Long> productIds;
     if (r.productIds() == null && id != null) {
@@ -62,7 +62,7 @@ public class VoucherService {
     }
     for (Long productId : productIds) {
       if (queries.findVoucherProduct("i", productId).isEmpty())
-        throw new BusinessException("Có sản phẩm không tồn tại hoặc đã bị xóa");
+        throw new BusinessException("Sản phẩm được áp dụng có mục đã bị xóa hoặc không còn tồn tại.");
     }
     Object[] p = {
       "c",
@@ -92,8 +92,12 @@ public class VoucherService {
       "i",
       id
     };
-    if (id == null) id = queries.insertVoucher(p);
-    else queries.updateVoucher(p);
+    try {
+      if (id == null) id = queries.insertVoucher(p);
+      else queries.updateVoucher(p);
+    } catch (org.springframework.dao.DuplicateKeyException e) {
+      throw new BusinessException("Mã voucher đã được sử dụng.");
+    }
     queries.deleteVoucherProducts("i", id);
     for (Long productId : productIds) {
       queries.insertVoucherProduct("v", id, "p", productId);

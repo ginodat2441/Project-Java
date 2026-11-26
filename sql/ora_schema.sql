@@ -1,7 +1,8 @@
 SET DEFINE OFF;
 WHENEVER SQLERROR EXIT SQL.SQLCODE ROLLBACK;
+-- Canonical CLOTHING_SHOP schema and in-place upgrade through the current V014 state.
 -- Connect as CLOTHING_SHOP, stop application writers, and take a backup before running.
--- This file creates a fresh schema or upgrades an older schema in place; Oracle DDL commits.
+-- Preserves business rows; does not import data dumps or demo/sample data. Oracle DDL commits.
 -- Legacy stock conversion stops when open orders make reservation totals ambiguous.
 
 BEGIN
@@ -6641,6 +6642,426 @@ BEGIN
 END;
 /
 
+-- Viettel Post tracking, dispatch, order fulfillment, and checkout idempotency (V011-V014).
+DECLARE
+  n NUMBER;
+  duplicate_dispatches NUMBER;
+
+  PROCEDURE add_column(t VARCHAR2, c VARCHAR2, definition VARCHAR2) IS
+    column_count NUMBER;
+  BEGIN
+    SELECT COUNT(*) INTO column_count
+      FROM USER_TAB_COLUMNS
+     WHERE TABLE_NAME = t AND COLUMN_NAME = c;
+    IF column_count = 0 THEN
+      EXECUTE IMMEDIATE 'ALTER TABLE "' || t || '" ADD ("' || c || '" ' || definition || ')';
+    END IF;
+  END;
+BEGIN
+  SELECT COUNT(*) INTO n FROM USER_TABLES WHERE TABLE_NAME = 'BILL_VIETTEL_TRACKING';
+  IF n = 0 THEN
+    EXECUTE IMMEDIATE q'~CREATE TABLE "CLOTHING_SHOP"."BILL_VIETTEL_TRACKING" (
+      "BILL_ID" NUMBER NOT NULL,
+      "TRACKING_CODE" VARCHAR2(50) NOT NULL,
+      "STATUS_CODE" NUMBER,
+      "STATUS_NAME" VARCHAR2(300 CHAR),
+      "EVENT_AT" TIMESTAMP,
+      "RECEIVED_AT" TIMESTAMP,
+      CONSTRAINT "PK_BILL_VIETTEL_TRACKING" PRIMARY KEY ("BILL_ID"),
+      CONSTRAINT "UQ_BILL_VIETTEL_TRACKING_CODE" UNIQUE ("TRACKING_CODE"),
+      CONSTRAINT "FK_BILL_VIETTEL_TRACKING_BILL" FOREIGN KEY ("BILL_ID")
+        REFERENCES "CLOTHING_SHOP"."BILL" ("ID")
+    )~';
+  END IF;
+
+  SELECT COUNT(*) INTO n FROM USER_TABLES WHERE TABLE_NAME = 'BILL_VIETTEL_DISPATCH';
+  IF n = 0 THEN
+    EXECUTE IMMEDIATE q'~CREATE TABLE "CLOTHING_SHOP"."BILL_VIETTEL_DISPATCH" (
+      "BILL_ID" NUMBER NOT NULL,
+      "REQUESTED_AT" TIMESTAMP DEFAULT LOCALTIMESTAMP NOT NULL,
+      CONSTRAINT "PK_BILL_VIETTEL_DISPATCH" PRIMARY KEY ("BILL_ID"),
+      CONSTRAINT "FK_BILL_VIETTEL_DISPATCH_BILL" FOREIGN KEY ("BILL_ID")
+        REFERENCES "CLOTHING_SHOP"."BILL" ("ID")
+    )~';
+  END IF;
+
+  add_column('INVENTORY_DOCUMENT', 'WAREHOUSE_NAME', 'VARCHAR2(150 CHAR)');
+  add_column('BILL_VIETTEL_DISPATCH', 'DOCUMENT_ID',
+             'NUMBER REFERENCES "CLOTHING_SHOP"."INVENTORY_DOCUMENT" ("ID")');
+  add_column('BILL_VIETTEL_DISPATCH', 'SEND_STATE', 'VARCHAR2(16) DEFAULT ''RETRY'' NOT NULL');
+  add_column('BILL_VIETTEL_DISPATCH', 'ATTEMPTS', 'NUMBER DEFAULT 0 NOT NULL');
+  add_column('BILL_VIETTEL_DISPATCH', 'SERVICE_CODE', 'VARCHAR2(20)');
+  add_column('BILL_VIETTEL_DISPATCH', 'WEIGHT_GRAMS', 'NUMBER');
+  add_column('BILL_VIETTEL_DISPATCH', 'LAST_ERROR', 'VARCHAR2(300 CHAR)');
+
+  SELECT COUNT(*) INTO n FROM USER_TABLES WHERE TABLE_NAME = 'BILL_VIETTEL_EVENT';
+  IF n = 0 THEN
+    EXECUTE IMMEDIATE q'~CREATE TABLE "CLOTHING_SHOP"."BILL_VIETTEL_EVENT" (
+      "BILL_ID" NUMBER NOT NULL,
+      "STATUS_CODE" NUMBER NOT NULL,
+      "EVENT_AT" TIMESTAMP NOT NULL,
+      "STATUS_NAME" VARCHAR2(300 CHAR),
+      CONSTRAINT "PK_BILL_VIETTEL_EVENT" PRIMARY KEY ("BILL_ID", "EVENT_AT", "STATUS_CODE"),
+      CONSTRAINT "FK_BILL_VIETTEL_EVENT_BILL" FOREIGN KEY ("BILL_ID")
+        REFERENCES "CLOTHING_SHOP"."BILL" ("ID")
+    )~';
+  END IF;
+
+  SELECT COUNT(*) INTO n FROM USER_TABLES WHERE TABLE_NAME = 'BILL_CHECKOUT_REQUEST';
+  IF n = 0 THEN
+    EXECUTE IMMEDIATE q'~CREATE TABLE "CLOTHING_SHOP"."BILL_CHECKOUT_REQUEST" (
+      "CUSTOMER_ID" NUMBER NOT NULL,
+      "REQUEST_KEY" VARCHAR2(36) NOT NULL,
+      "REQUEST_DIGEST" VARCHAR2(64) NOT NULL,
+      "BILL_ID" NUMBER NOT NULL,
+      CONSTRAINT "PK_BILL_CHECKOUT_REQUEST" PRIMARY KEY ("CUSTOMER_ID", "REQUEST_KEY"),
+      CONSTRAINT "UQ_BILL_CHECKOUT_REQUEST_BILL" UNIQUE ("BILL_ID"),
+      CONSTRAINT "FK_BCR_CUST" FOREIGN KEY ("CUSTOMER_ID")
+        REFERENCES "CLOTHING_SHOP"."CUSTOMER" ("ID"),
+      CONSTRAINT "FK_BCR_BILL" FOREIGN KEY ("BILL_ID")
+        REFERENCES "CLOTHING_SHOP"."BILL" ("ID")
+    )~';
+  END IF;
+
+  SELECT COUNT(*) INTO duplicate_dispatches
+    FROM (
+      SELECT BILL_ID
+        FROM INVENTORY_DOCUMENT
+       WHERE BILL_ID IS NOT NULL
+         AND DOC_TYPE = 'DISPATCH'
+         AND STATUS IN ('DRAFT', 'POSTED')
+       GROUP BY BILL_ID
+      HAVING COUNT(*) > 1
+    );
+  IF duplicate_dispatches > 0 THEN
+    RAISE_APPLICATION_ERROR(-20095,
+      'Multiple active DISPATCH documents exist for an order; reconcile them before upgrading.');
+  END IF;
+
+  SELECT COUNT(*) INTO n FROM USER_INDEXES WHERE INDEX_NAME = 'UQ_INV_ACTIVE_DISPATCH';
+  IF n = 0 THEN
+    EXECUTE IMMEDIATE q'~CREATE UNIQUE INDEX "CLOTHING_SHOP"."UQ_INV_ACTIVE_DISPATCH"
+      ON "CLOTHING_SHOP"."INVENTORY_DOCUMENT" (
+        CASE WHEN "DOC_TYPE" = 'DISPATCH' AND "STATUS" IN ('DRAFT', 'POSTED')
+             THEN "BILL_ID" END
+      )~';
+  END IF;
+END;
+/
+
+UPDATE BILL_VIETTEL_DISPATCH d
+   SET SEND_STATE = 'LINKED'
+ WHERE SEND_STATE = 'RETRY'
+   AND EXISTS (SELECT 1 FROM BILL_VIETTEL_TRACKING t WHERE t.BILL_ID = d.BILL_ID);
+
+MERGE INTO BILL_VIETTEL_DISPATCH target
+USING (
+  SELECT d.BILL_ID, d.ID AS DOCUMENT_ID,
+         CASE WHEN t.BILL_ID IS NULL THEN 'DRAFT' ELSE 'LINKED' END AS SEND_STATE
+    FROM INVENTORY_DOCUMENT d
+    LEFT JOIN BILL_VIETTEL_TRACKING t ON t.BILL_ID = d.BILL_ID
+   WHERE d.BILL_ID IS NOT NULL
+     AND d.DOC_TYPE = 'DISPATCH'
+     AND d.STATUS IN ('DRAFT', 'POSTED')
+) source
+ON (target.BILL_ID = source.BILL_ID)
+WHEN MATCHED THEN
+  UPDATE SET target.DOCUMENT_ID = source.DOCUMENT_ID
+   WHERE target.DOCUMENT_ID IS NULL
+WHEN NOT MATCHED THEN
+  INSERT (BILL_ID, DOCUMENT_ID, SEND_STATE)
+  VALUES (source.BILL_ID, source.DOCUMENT_ID, source.SEND_STATE);
+COMMIT;
+
+-- Rebuild per-SKU documented costs once. Unknown legacy cost remains unknown.
+DECLARE
+  n NUMBER;
+  current_quantity NUMBER;
+  quantity_before NUMBER;
+  quantity_delta NUMBER;
+  total_delta NUMBER;
+  next_quantity NUMBER;
+  unit_cost NUMBER;
+  average_cost NUMBER;
+  known_value NUMBER;
+  unknown_quantity NUMBER;
+  ratio NUMBER;
+  sale_key VARCHAR2(100);
+  document_key VARCHAR2(100);
+  source_key VARCHAR2(100);
+  TYPE cost_by_key IS TABLE OF NUMBER INDEX BY VARCHAR2(100);
+  sale_costs cost_by_key;
+  document_costs cost_by_key;
+BEGIN
+  SELECT COUNT(*) INTO n FROM SHOP_MIGRATION WHERE VERSION = 'V008_COST';
+  IF n = 0 THEN
+    FOR variant IN (SELECT ID FROM PRODUCT_DETAIL ORDER BY ID) LOOP
+      SELECT PHYSICAL_QUANTITY INTO current_quantity
+        FROM PRODUCT_DETAIL
+       WHERE ID = variant.ID
+       FOR UPDATE;
+
+      SELECT NVL(SUM(
+               CASE
+                 WHEN h.DOC_TYPE = 'RECEIPT' THEN l.QUANTITY
+                 WHEN h.DOC_TYPE = 'SALE' AND b.DISPATCHED = 1 THEN -l.QUANTITY
+                 WHEN h.DOC_TYPE = 'RETURN' THEN CASE WHEN l.RESTOCK = 1 THEN l.QUANTITY ELSE 0 END
+                 WHEN h.DOC_TYPE IN ('ISSUE', 'COUNT', 'REVERSAL') THEN NVL(l.STOCK_DELTA, 0)
+                 ELSE 0
+               END
+             ), 0)
+        INTO total_delta
+        FROM INVENTORY_DOCUMENT_LINE l
+        JOIN INVENTORY_DOCUMENT h ON h.ID = l.DOCUMENT_ID
+        LEFT JOIN BILL b ON b.ID = h.BILL_ID
+       WHERE l.PRODUCT_DETAIL_ID = variant.ID
+         AND h.STATUS = 'POSTED';
+
+      quantity_before := current_quantity - total_delta;
+      IF quantity_before < 0 THEN
+        RAISE_APPLICATION_ERROR(-20096,
+          'Cannot reconstruct nonnegative opening stock for SKU ID ' || variant.ID || '.');
+      END IF;
+      known_value := 0;
+      unknown_quantity := quantity_before;
+      IF quantity_before = 0 THEN
+        average_cost := 0;
+      ELSE
+        average_cost := NULL;
+      END IF;
+      sale_costs.DELETE;
+      document_costs.DELETE;
+
+      FOR e IN (
+        SELECT l.ID AS LINE_ID,
+               l.DOCUMENT_ID,
+               NVL(h.BILL_ID, 0) AS BILL_ID,
+               h.DOC_TYPE,
+               CASE
+                 WHEN h.DOC_TYPE = 'RECEIPT' THEN l.QUANTITY
+                 WHEN h.DOC_TYPE = 'SALE' AND b.DISPATCHED = 1 THEN -l.QUANTITY
+                 WHEN h.DOC_TYPE = 'RETURN' THEN CASE WHEN l.RESTOCK = 1 THEN l.QUANTITY ELSE 0 END
+                 WHEN h.DOC_TYPE IN ('ISSUE', 'COUNT', 'REVERSAL') THEN NVL(l.STOCK_DELTA, 0)
+                 ELSE 0
+               END AS QUANTITY_DELTA,
+               l.UNIT_COST,
+               h.SOURCE_ID,
+               CASE WHEN h.DOC_TYPE = 'SALE' THEN
+                 COALESCE(
+                   (SELECT MIN(bh.CREATED_AT)
+                      FROM BILL_HISTORY bh
+                     WHERE bh.BILL_ID = h.BILL_ID
+                       AND bh.NEW_STATUS = 2),
+                   h.POSTED_AT
+                 )
+               ELSE h.POSTED_AT END AS EVENT_AT
+          FROM INVENTORY_DOCUMENT_LINE l
+          JOIN INVENTORY_DOCUMENT h ON h.ID = l.DOCUMENT_ID
+          LEFT JOIN BILL b ON b.ID = h.BILL_ID
+         WHERE l.PRODUCT_DETAIL_ID = variant.ID
+           AND h.STATUS = 'POSTED'
+         ORDER BY EVENT_AT, h.ID
+      ) LOOP
+        quantity_delta := e.QUANTITY_DELTA;
+        IF quantity_delta <> 0 THEN
+          unit_cost := average_cost;
+          IF e.DOC_TYPE = 'RECEIPT' THEN
+            unit_cost := e.UNIT_COST;
+          ELSIF e.DOC_TYPE = 'RETURN' THEN
+            sale_key := TO_CHAR(e.BILL_ID, 'FM9999999999999999999999999990');
+            IF sale_costs.EXISTS(sale_key) THEN
+              unit_cost := sale_costs(sale_key);
+            ELSE
+              unit_cost := NULL;
+            END IF;
+          ELSIF e.DOC_TYPE = 'REVERSAL' THEN
+            IF e.SOURCE_ID IS NOT NULL THEN
+              source_key := TO_CHAR(e.SOURCE_ID, 'FM9999999999999999999999999990');
+              IF document_costs.EXISTS(source_key) THEN
+                unit_cost := document_costs(source_key);
+              ELSE
+                unit_cost := NULL;
+              END IF;
+            ELSE
+              unit_cost := NULL;
+            END IF;
+          ELSIF e.DOC_TYPE = 'COUNT' AND quantity_delta > 0 THEN
+            unit_cost := e.UNIT_COST;
+          END IF;
+
+          next_quantity := quantity_before + quantity_delta;
+          IF next_quantity < 0 THEN
+            RAISE_APPLICATION_ERROR(-20097,
+              'Historical physical stock becomes negative for SKU ID ' || variant.ID ||
+              ', document ID ' || e.DOCUMENT_ID || '.');
+          END IF;
+
+          IF e.DOC_TYPE = 'SALE' THEN
+            sale_key := TO_CHAR(e.BILL_ID, 'FM9999999999999999999999999990');
+            sale_costs(sale_key) := unit_cost;
+            UPDATE BILL_DETAIL
+               SET COST_UNIT = unit_cost
+             WHERE BILL_ID = e.BILL_ID
+               AND PRODUCT_DETAIL_ID = variant.ID;
+          END IF;
+          document_key := TO_CHAR(e.DOCUMENT_ID, 'FM9999999999999999999999999990');
+          document_costs(document_key) := unit_cost;
+
+          IF quantity_delta > 0 THEN
+            IF unit_cost IS NULL THEN
+              unknown_quantity := unknown_quantity + quantity_delta;
+            ELSE
+              known_value := known_value + unit_cost * quantity_delta;
+            END IF;
+          ELSIF next_quantity = 0 THEN
+            unknown_quantity := 0;
+            known_value := 0;
+          ELSIF unknown_quantity > 0 THEN
+            ratio := ROUND(next_quantity / quantity_before, 16);
+            unknown_quantity := ROUND(unknown_quantity * ratio, 8);
+            known_value := ROUND(known_value * ratio, 8);
+          ELSE
+            IF unit_cost IS NULL THEN
+              RAISE_APPLICATION_ERROR(-20098,
+                'Missing historical unit cost for known stock on SKU ID ' || variant.ID ||
+                ', document ID ' || e.DOCUMENT_ID || '.');
+            END IF;
+            known_value := known_value + unit_cost * quantity_delta;
+          END IF;
+
+          quantity_before := next_quantity;
+          IF quantity_before = 0 THEN
+            average_cost := 0;
+          ELSIF unknown_quantity > 0 THEN
+            average_cost := NULL;
+          ELSE
+            average_cost := ROUND(known_value / quantity_before, 8);
+          END IF;
+
+          UPDATE INVENTORY_DOCUMENT_LINE
+             SET COST_UNIT = unit_cost
+           WHERE ID = e.LINE_ID;
+        END IF;
+      END LOOP;
+
+      IF quantity_before <> current_quantity THEN
+        RAISE_APPLICATION_ERROR(-20099,
+          'Reconstructed stock does not match current stock for SKU ID ' || variant.ID || '.');
+      END IF;
+      UPDATE PRODUCT_DETAIL
+         SET AVERAGE_COST = average_cost,
+             KNOWN_VALUE = known_value,
+             UNKNOWN_QUANTITY = unknown_quantity,
+             COST_RECONCILED_AT = CASE WHEN unknown_quantity = 0 THEN LOCALTIMESTAMP END
+       WHERE ID = variant.ID;
+    END LOOP;
+
+    INSERT INTO SHOP_MIGRATION (VERSION)
+    SELECT 'V008_COST' FROM DUAL
+     WHERE NOT EXISTS (SELECT 1 FROM SHOP_MIGRATION WHERE VERSION = 'V008_COST');
+    COMMIT;
+  END IF;
+END;
+/
+
+DECLARE
+  n NUMBER;
+  cumulative_quantity NUMBER;
+  sold_quantity NUMBER;
+  sold_cost NUMBER;
+  target_cost NUMBER;
+  previous_cost NUMBER;
+  return_cost NUMBER;
+  cost_key VARCHAR2(120);
+  TYPE amount_by_key IS TABLE OF NUMBER INDEX BY VARCHAR2(120);
+  cumulative_by_key amount_by_key;
+  returned_cost_by_key amount_by_key;
+BEGIN
+  SELECT COUNT(*) INTO n FROM SHOP_MIGRATION WHERE VERSION = 'V008_COST_ROUND';
+  IF n = 0 THEN
+    UPDATE BILL_DETAIL
+       SET COST_TOTAL = ROUND(QUANTITY * COST_UNIT, 0)
+     WHERE COST_UNIT IS NOT NULL
+       AND COST_TOTAL IS NULL;
+
+    UPDATE INVENTORY_DOCUMENT_LINE l
+       SET COST_UNIT = (
+         SELECT CASE
+                  WHEN COUNT(*) = COUNT(d.COST_UNIT)
+                  THEN SUM(d.QUANTITY * d.COST_UNIT) / SUM(d.QUANTITY)
+                END
+           FROM BILL_DETAIL d
+           JOIN INVENTORY_DOCUMENT h ON h.BILL_ID = d.BILL_ID
+          WHERE h.ID = l.DOCUMENT_ID
+            AND d.PRODUCT_DETAIL_ID = l.PRODUCT_DETAIL_ID
+            AND d.DELETE_FLAG = 0
+       )
+     WHERE l.DOCUMENT_ID IN (
+       SELECT ID FROM INVENTORY_DOCUMENT
+        WHERE DOC_TYPE = 'RETURN' AND STATUS = 'POSTED'
+     );
+
+    FOR r IN (
+      SELECT l.ID AS LINE_ID, h.BILL_ID, l.PRODUCT_DETAIL_ID, l.QUANTITY, l.COST_UNIT
+        FROM INVENTORY_DOCUMENT_LINE l
+        JOIN INVENTORY_DOCUMENT h ON h.ID = l.DOCUMENT_ID
+       WHERE h.DOC_TYPE = 'RETURN'
+         AND h.STATUS = 'POSTED'
+       ORDER BY h.POSTED_AT, h.ID, l.ID
+    ) LOOP
+      cost_key := TO_CHAR(r.BILL_ID, 'FM9999999999999999999999999990') || ':' ||
+                  TO_CHAR(r.PRODUCT_DETAIL_ID, 'FM9999999999999999999999999990');
+      IF cumulative_by_key.EXISTS(cost_key) THEN
+        cumulative_quantity := cumulative_by_key(cost_key) + r.QUANTITY;
+      ELSE
+        cumulative_quantity := r.QUANTITY;
+      END IF;
+      cumulative_by_key(cost_key) := cumulative_quantity;
+      return_cost := NULL;
+
+      IF r.COST_UNIT IS NOT NULL THEN
+        SELECT SUM(QUANTITY), SUM(COST_TOTAL)
+          INTO sold_quantity, sold_cost
+          FROM BILL_DETAIL
+         WHERE BILL_ID = r.BILL_ID
+           AND PRODUCT_DETAIL_ID = r.PRODUCT_DETAIL_ID
+           AND DELETE_FLAG = 0;
+        IF sold_quantity IS NULL OR sold_quantity = 0 OR sold_cost IS NULL THEN
+          RAISE_APPLICATION_ERROR(-20100,
+            'Cannot allocate returned cost for order ' || r.BILL_ID ||
+            ', SKU ID ' || r.PRODUCT_DETAIL_ID || '.');
+        END IF;
+        IF cumulative_quantity > sold_quantity THEN
+          RAISE_APPLICATION_ERROR(-20101,
+            'Returned quantity exceeds sold quantity for order ' || r.BILL_ID ||
+            ', SKU ID ' || r.PRODUCT_DETAIL_ID || '.');
+        END IF;
+
+        target_cost := ROUND(sold_cost * cumulative_quantity / sold_quantity, 0);
+        previous_cost := 0;
+        IF returned_cost_by_key.EXISTS(cost_key) THEN
+          previous_cost := returned_cost_by_key(cost_key);
+        END IF;
+        return_cost := target_cost - previous_cost;
+        returned_cost_by_key(cost_key) := target_cost;
+      END IF;
+
+      UPDATE INVENTORY_DOCUMENT_LINE
+         SET COGS_VALUE = return_cost
+       WHERE ID = r.LINE_ID
+         AND COGS_VALUE IS NULL;
+    END LOOP;
+
+    INSERT INTO SHOP_MIGRATION (VERSION)
+    SELECT 'V008_COST_ROUND' FROM DUAL
+     WHERE NOT EXISTS (SELECT 1 FROM SHOP_MIGRATION WHERE VERSION = 'V008_COST_ROUND');
+    COMMIT;
+  END IF;
+END;
+/
+
+-- These rows record the converged schema state, not the exact migration path.
+-- Voucher V011 was merged from a legacy line; current Viettel V011 is also applied above.
 MERGE INTO SHOP_MIGRATION target
 USING (
   SELECT 'V001' VERSION FROM DUAL UNION ALL
@@ -6654,7 +7075,9 @@ USING (
   SELECT 'V009' FROM DUAL UNION ALL
   SELECT 'V010' FROM DUAL UNION ALL
   SELECT 'V011' FROM DUAL UNION ALL
-  SELECT 'V012' FROM DUAL
+  SELECT 'V012' FROM DUAL UNION ALL
+  SELECT 'V013' FROM DUAL UNION ALL
+  SELECT 'V014' FROM DUAL
 ) source
 ON (target.VERSION = source.VERSION)
 WHEN NOT MATCHED THEN

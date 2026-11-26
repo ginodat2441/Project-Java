@@ -14,6 +14,14 @@ public class InventoryReportRepository {
   }
 
   public Map<String, Object> report(LocalDate from, LocalDate to, String q, int page) {
+    return report(from, to, q, page, false);
+  }
+
+  public Map<String, Object> workbook(LocalDate from, LocalDate to, String q) {
+    return report(from, to, q, 1, true);
+  }
+
+  private Map<String, Object> report(LocalDate from, LocalDate to, String q, int page, boolean export) {
     LocalDate start = from == null ? LocalDate.now().withDayOfMonth(1) : from,
         end = to == null ? LocalDate.now() : to;
     if (end.isBefore(start)) throw new IllegalArgumentException("Ngày kết thúc trước ngày bắt đầu");
@@ -59,8 +67,15 @@ WHERE v.DELETE_FLAG=0 AND p.DELETE_FLAG=0 AND (LOWER(v.SKU) LIKE :q OR LOWER(p.P
       "q",
       "%" + q.toLowerCase(Locale.ROOT) + "%"
     };
-    var result =
-        new LinkedHashMap<String, Object>(db.page(sql + " ORDER BY ID DESC", page, 30, args));
+    String ordered = sql + " ORDER BY ID DESC";
+    var result = new LinkedHashMap<String, Object>();
+    if (export) {
+      result.put("items", db.rows(ordered, args));
+      result.put("from", start);
+      result.put("to", end);
+    } else {
+      result.putAll(db.page(ordered, page, 30, args));
+    }
     result.put(
         "totals",
         db.one(
